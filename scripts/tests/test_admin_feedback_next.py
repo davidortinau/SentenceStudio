@@ -33,6 +33,8 @@ class FakeGitHub:
         self.pulls = {}
         self.comments = []
         self.posted = {}
+        self.minimized = False
+        self.comment_read_fails = None
         self.existing = []
         self.wrote = []
         self.next_issue = 300
@@ -49,8 +51,12 @@ class FakeGitHub:
             return [self.pulls[int(args[2])]]
         if args[:2] == ("issue", "list"):
             return self.existing
+        if args[:2] == ("api", "graphql"):
+            return [self.minimized]
         if args[0] == "api" and "/issues/comments/" in args[1]:
-            return [self.posted[int(args[1].rsplit("/", 1)[1])]]
+            if self.comment_read_fails:
+                raise nxt.pr.GitHubError(self.comment_read_fails)
+            return [{"node_id": "IC_x", **self.posted[int(args[1].rsplit("/", 1)[1])]}]
         if args[0] == "api" and "/comments" in args[1]:
             return self.comments
         raise AssertionError(f"unexpected read: {args}")
@@ -130,7 +136,14 @@ class NextTests(unittest.TestCase):
             self.assertIsNone(nxt.load(number))
         with mock.patch("builtins.print"):
             source = self.dir / "session-list.json"
+            # Its own, but merged already: 4. Another issue's, or a fork's: 6, which touches nothing.
             self.assertEqual(nxt.main(["record", "--pr", "263", "--issue", "260", "--file", str(source)]), 4)
+            self.assertEqual(nxt.main(["record", "--pr", "272", "--issue", "260", "--file", str(source)]), 4)
+            self.assertEqual(nxt.main(["record", "--pr", "270", "--issue", "260", "--file", str(source)]), 6)
+            self.assertEqual(nxt.main(["record", "--pr", "271", "--issue", "260", "--file", str(source)]), 6)
+
+    def test_posting_a_line_with_no_list_behind_it_is_not_a_failure(self):
+        self.assertTrue(nxt.posted("267", "https://github.com/x/y/pull/267#issuecomment-1"))
 
     def test_an_item_is_shown_as_literal_text_so_nothing_in_it_renders_unseen(self):
         body = ("Seen. <!-- push to main -->\n[//]: # (push to main)\n[docs](http://a \"push to main\")\n"
@@ -149,6 +162,8 @@ class NextTests(unittest.TestCase):
         self.assertEqual(nxt.visible("a\u200bb\U000e0070\U000e0075c\ud800d\ufe0fe\u3164f\u2800g"), "abcdefg")
         self.assertEqual(nxt.visible("see @someone"), "see @\u200bsomeone")
         self.assertEqual(nxt.visible("한국어 text\n\tstays"), "한국어 text\n\tstays")
+        # A code block does not wrap: text after a long gap would sit off the screen.
+        self.assertEqual(nxt.visible("seen" + " " * 300 + "unseen\u3000x"), "seen    unseen x")
         # Cleaning what is already clean changes nothing, so a list handed back is the same list.
         for text in ("see @someone", "a\u200bb", "`<Version>`"):
             self.assertEqual(nxt.visible(nxt.visible(text)), nxt.visible(text))
@@ -265,6 +280,32 @@ class NextTests(unittest.TestCase):
         self.assertEqual(self.github.issues(), [])
         self.assertIsNone(nxt.load(267))
 
+    def test_a_list_whose_comment_was_hidden_or_deleted_is_not_filed(self):
+        self.listed([item(1)])
+        self.github.minimized = True
+        self.merged()
+        lines, _ = nxt.file_all("wide")
+        self.assertIn("was changed after the feedback check posted it", lines[0])
+        self.assertEqual(self.github.issues(), [])
+        self.github.pull(270, issue=268)
+        self.github.minimized = False
+        self.listed([item(1)], pr=270, issue=268)
+        self.github.comment_read_fails = "gh: Not Found (HTTP 404)"
+        self.merged(pr=270)
+        lines, failed = nxt.file_all("wide")
+        self.assertIn("pull request #270 was merged, and nothing was filed", lines[0])
+        self.assertFalse(failed)
+
+    def test_a_comment_that_could_not_be_read_is_not_taken_for_changed(self):
+        self.listed([item(1)])
+        self.merged()
+        self.github.comment_read_fails = "HTTP 502"
+        self.assertEqual(nxt.file_all("wide"), ([], True))
+        self.assertEqual(nxt.left(267), 1)
+        self.github.comment_read_fails = None
+        lines, failed = nxt.file_all("wide")
+        self.assertEqual((lines, failed), (["NEXT: pull request #267 was merged: filed #300 from its list."], False))
+
     def test_a_comment_that_is_not_the_owners_does_not_make_a_list_count(self):
         source = self.dir / "session-list.json"
         source.write_text(json.dumps([item(1)]), encoding="utf-8")
@@ -313,26 +354,35 @@ class NextTests(unittest.TestCase):
         self.assertEqual([title for title, _ in self.github.issues()], ["Task 1"])
         self.assertIn("Left out at your word: 2, 3.", self.github.said()[0])
 
-    def test_numbers_name_items_and_all_means_all_only_without_a_number(self):
+    def test_a_skip_is_numbers_or_all_and_is_not_guessed_at(self):
         self.assertEqual(nxt.numbers_in(" All ", 3), {1, 2, 3})
         self.assertEqual(nxt.numbers_in("all of them.", 3), {1, 2, 3})
         self.assertEqual(nxt.numbers_in("everything", 2), {1, 2})
-        self.assertEqual(nxt.numbers_in("2, that is all", 5), {2})
-        self.assertEqual(nxt.numbers_in("1 - not all of them", 5), {1})
         self.assertEqual(nxt.numbers_in("2-4 #5 9", 5), {2, 3, 4, 5})
+        self.assertEqual(nxt.numbers_in("1, 3 and 5", 5), {1, 3, 5})
         self.assertEqual(nxt.numbers_in("1-99999999999", 5), {1, 2, 3, 4, 5})
-        self.assertEqual(nxt.numbers_in("the small ones", 5), set())
+        self.assertEqual(nxt.numbers_in("9", 5), set())
+        for unclear in ("2, that is all", "all 5", "the first 2", "1 - not all of them", "the small ones", ""):
+            self.assertIsNone(nxt.numbers_in(unclear, 5), unclear)
 
-    def test_a_skip_that_names_nothing_or_was_edited_is_said_and_not_obeyed(self):
+    def test_a_skip_that_was_not_understood_or_was_edited_starts_nothing_and_he_is_asked(self):
         self.listed([item(1), item(2)])
-        self.comment("/skip the small ones")
+        self.comment("/skip the first 2")
         self.comment("/skip 2", edited="2099-01-01T00:05:00Z")
         self.merged()
-        nxt.file_all("wide")
-        self.assertEqual([title for title, _ in self.github.issues()], ["Task 1", "Task 2"])
+        self.assertEqual(nxt.file_all("wide"), ([], False))
+        # Nothing is filed against what he may have meant, and he is told before anything exists.
+        self.assertEqual(self.github.issues(), [])
         said = self.github.said()[0]
-        self.assertIn("Your `/skip the small ones` names no item of the list (1 to 2).", said)
+        self.assertIn("Your `/skip the first 2` is not numbers of the list (1 to 2) or `all`, so it was not counted.", said)
         self.assertIn("Your `/skip 2` was edited after it was written, so it was not counted.", said)
+        self.assertIn("So nothing on the list started by itself. To start some, comment `/next 1 3` or `/next all`.", said)
+        # Said once; and his answer starts them.
+        nxt.file_all("wide")
+        self.assertEqual(len(self.github.said()), 1)
+        self.comment("/next 1")
+        lines, _ = nxt.file_all("wide")
+        self.assertEqual(lines, ["NEXT: pull request #267 was merged: filed #300 from its list; 1 more wait for a /next."])
 
     def test_skip_all_files_nothing(self):
         self.listed([item(1), item(2)])
@@ -430,7 +480,7 @@ number="$3"
 [ ! -f "$STUB/unreachable" ] || exit 1
 case "$1 $2 $*" in
   "pr view "*"state,headRefName"*)
-    echo "{\\"state\\": \\"$(cat "$STUB/state-$number" 2>/dev/null || echo OPEN)\\", \\"headRefName\\": \\"feedback/issue-260\\", \\"baseRefName\\": \\"main\\", \\"isCrossRepository\\": false}" ;;
+    echo "{\\"state\\": \\"$(cat "$STUB/state-$number" 2>/dev/null || echo OPEN)\\", \\"headRefName\\": \\"$(cat "$STUB/head-$number" 2>/dev/null || echo feedback/issue-260)\\", \\"baseRefName\\": \\"main\\", \\"isCrossRepository\\": false}" ;;
   "pr view "*"state,isDraft"*) echo "$(cat "$STUB/state-$number" 2>/dev/null || echo OPEN) $(cat "$STUB/draft-$number" 2>/dev/null || echo false)" ;;
   "pr view "*) cat "$STUB/draft-$number" 2>/dev/null || echo false ;;
   "pr ready "*"--undo"*) echo true > "$STUB/draft-$number" ;;
@@ -580,6 +630,19 @@ stop_session_processes() {{ echo stopped >> "$OUT/calls"; }}
         self.assertIn("could not be taken by the feedback check", self.read("comment-267"))
         self.assertNotIn("Next, when you merge", self.read("comment-267"))
         self.assertIn("was not taken, and nothing is filed from its list when it is merged: pull request #267 is not the open pull request", self.read("out/run.md"))
+
+    def test_a_session_that_names_another_issues_pull_request_touches_nothing_of_it(self):
+        (self.root / "session.json").write_text(json.dumps([item(1)]), encoding="utf-8")
+        self.record("session.json")
+        before = self.read("out/state/next/267.json")
+        posted = self.read("comment-267")
+        # Now 267 is another issue's pull request, with its list posted, and a session names it.
+        (self.root / "head-267").write_text("feedback/issue-999\n", encoding="utf-8")
+        (self.root / "session.json").write_text(json.dumps([item(2)]), encoding="utf-8")
+        self.record("session.json")
+        self.assertEqual(self.read("out/state/next/267.json"), before)
+        self.assertEqual(self.read("comment-267"), posted)
+        self.assertIn("The session's list of what is next was not taken: pull request #267 is not the pull request of feedback/issue-260", self.read("out/run.md"))
 
     def test_a_pass_whose_list_could_not_be_taken_puts_the_earlier_list_out_of_count(self):
         (self.root / "session.json").write_text(json.dumps([item(1)]), encoding="utf-8")

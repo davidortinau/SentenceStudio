@@ -311,12 +311,14 @@ next_on_merge() {
 # The file is the session's: whatever that user left running is ended first, and then only a
 # plain file is read, with a time limit, so that nothing put in its place can hold the pass.
 record_next() {
-  local copy="$OUT/state/next-$STAMP.json" said="$OUT/state/next-$STAMP.md" why="$OUT/state/next-$STAMP.err" at
+  local copy="$OUT/state/next-$STAMP.json" said="$OUT/state/next-$STAMP.md" why="$OUT/state/next-$STAMP.err" at code
   stop_session_processes
   as_session /usr/bin/perl -e 'alarm 20; exec @ARGV or exit 127' /bin/sh -c \
     '[ -f "$1" ] && [ ! -L "$1" ] && head -c 200000 "$1"' sh "$3" > "$copy" 2>/dev/null || rm -f "$copy"
-  if python3 -I "$ROOT/scripts/admin-feedback-next.py" record --pr "$1" --issue "$2" --file "$copy" \
-       --appetite "$APPETITE" > "$said" 2> "$why"; then
+  python3 -I "$ROOT/scripts/admin-feedback-next.py" record --pr "$1" --issue "$2" --file "$copy" \
+    --appetite "$APPETITE" > "$said" 2> "$why"
+  code=$?
+  if [ "$code" = 0 ]; then
     if [ -s "$said" ]; then
       # The comment's address is what `posted` reads its time and its text back from.
       if ! at="$(gh pr comment "$1" --repo "$REPO" --body-file "$said" 2>/dev/null | tail -1)" \
@@ -324,6 +326,9 @@ record_next() {
         { echo "The list of what pull request #$1 leaves for later could not be posted on it (or read back), so nothing is filed from it when it is merged; the next pass on it posts it."; echo; } >> "$RUN"
       fi
     fi
+  elif [ "$code" = 6 ]; then
+    # The session named a pull request that is not its issue's: nothing of that one is touched.
+    { echo "The session's list of what is next was not taken: $(head -c 400 "$why" 2>/dev/null | tr '\n' ' ')"; echo; } >> "$RUN"
   else
     # The list an earlier pass posted may name work this pass did: it no longer counts.
     python3 -I "$ROOT/scripts/admin-feedback-next.py" stale --pr "$1" >/dev/null 2>&1

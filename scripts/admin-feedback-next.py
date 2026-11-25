@@ -13,8 +13,9 @@ the check works them in turn, one pull request each.
       it in state/next/<pr>.json, and prints what the runner is to post on the pull request:
       the list in full when it is new or changed (or was never posted), a line when it is now
       empty, nothing when it stands as posted. A missing or unreadable FILE leaves the list an
-      earlier pass recorded as it was. Exit 4, with why on stderr, when N is not the open pull
-      request of issue M's own branch.
+      earlier pass recorded as it was. With why on stderr: exit 6 when N is not issue M's own
+      pull request at all (nothing of N's is touched), exit 4 when it is but is no longer open,
+      or GitHub could not be read.
   admin-feedback-next.py posted --pr N --url ADDRESS
       The runner posted what record printed, as the comment at ADDRESS: the list counts from
       the time GitHub gives that comment, and the comment is remembered as it then was.
@@ -55,9 +56,10 @@ How much starts by itself is the appetite (FEEDBACK_APPETITE in admin-feedback-c
   narrow  nothing is filed unless he asks with `/next 1 3` or `/next all` on the pull request,
           before or after merging it; what he has not asked for within KEEP_DAYS is dropped.
 A `/skip` or `/next` counts when the owner wrote it after the list was posted: the numbers are
-those of the runner's newest list. It names items by number (`2`, `#2`, `2-4`); with no number
-in it, `all` or `everything` means every item. One that names nothing is said on the pull
-request when it is merged.
+those of the runner's newest list. It is numbers (`2`, `#2`, `2-4`, `1, 3 and 5`) or `all`
+(`everything`, `all of them`) and nothing else. One that is anything else, or was edited, is
+not guessed at: nothing on the list starts by itself, and the runner says so on the pull
+request and asks for a `/next`.
 """
 
 import calendar
@@ -96,11 +98,15 @@ ORDER = re.compile(r"^\s*/(skip|next)\b([^\n]*)")
 FILED_AS = ("\n\n---\nFollow-up {n} of {total} from pull request #{pr} (issue #{issue}). A fix session listed it "
             "there, and the feedback check filed it when the Captain merged that pull request.")
 # Characters that draw nothing or a blank, beyond the categories visible() takes out.
-BLANK = re.compile("[\u115f\u1160\u2800\u3164\uffa0\ufe00-\ufe0f\U000e0100-\U000e01ef]")
+BLANK = re.compile("[\u034f\u115f\u1160\u17b4\u17b5\u180b-\u180d\u2800\u3164\uffa0\ufe00-\ufe0f\U000e0100-\U000e01ef]")
 
 
 class Refused(Exception):
     """The list is not one the runner may take."""
+
+
+class NotOurs(Refused):
+    """The pull request the session named is not its issue's own."""
 
 
 def folder():
@@ -147,7 +153,11 @@ def visible(text):
     them, from the Captain and not from the session that reads the issue. A name after @
     notifies nobody: the issue is filed under his login."""
     text = "".join(c for c in text if c in "\n\t" or unicodedata.category(c) not in ("Cf", "Co", "Cs", "Cn", "Cc"))
-    return re.sub(r"@(?=\w)", "@\u200b", BLANK.sub("", text))
+    # Every kind of space is a plain one, and a long run of them is short: a code block does
+    # not wrap, so text after a long gap would sit off the screen.
+    text = "".join(" " if unicodedata.category(c) == "Zs" else c for c in BLANK.sub("", text))
+    text = re.sub(r"[ \t]{40,}", "    ", text)
+    return re.sub(r"@(?=\w)", "@\u200b", text)
 
 
 def cleaned(listed):
@@ -185,11 +195,13 @@ def own_open(number, issue):
     comes from the session's reply, and a session must not hang a list on a pull request that
     is merged already or is someone else's."""
     found = looked_at(number, "state,headRefName,baseRefName,isCrossRepository")
-    if (found.get("state") != "OPEN" or found.get("headRefName") != f"feedback/issue-{int(issue)}"
-            or found.get("baseRefName") != "main" or found.get("isCrossRepository")):
+    where = f"({found.get('state')}, {found.get('headRefName')} into {found.get('baseRefName')})"
+    if found.get("headRefName") != f"feedback/issue-{int(issue)}" or found.get("isCrossRepository"):
+        raise NotOurs(f"pull request #{number} is not the pull request of feedback/issue-{int(issue)} {where}, "
+                      "so no list was taken for it and nothing of its own was touched")
+    if found.get("state") != "OPEN" or found.get("baseRefName") != "main":
         raise Refused(f"pull request #{number} is not the open pull request of feedback/issue-{int(issue)} into main "
-                      f"({found.get('state')}, {found.get('headRefName')} into {found.get('baseRefName')}), "
-                      "so no list was taken for it")
+                      f"{where}, so no list was taken for it")
 
 
 def record(number, issue, source, appetite):
@@ -222,7 +234,7 @@ def record(number, issue, source, appetite):
 def comment_of(comment_id):
     """A comment as GitHub has it now: when it was made, by whom, and what it says."""
     found = pr.gh_lines("api", f"repos/{pr.REPO}/issues/comments/{int(comment_id)}", "--jq",
-                        "{created_at, body, user: .user.login}")[0]
+                        "{created_at, body, node_id, user: .user.login}")[0]
     return found, hashlib.sha256((found.get("body") or "").replace("\r\n", "\n").strip().encode()).hexdigest()
 
 
@@ -231,9 +243,12 @@ def posted(number, address):
     remembered as it is now: whatever the session left running has been ended and its login is
     gone, so nobody else has touched it yet."""
     kept = load(number)
+    if not kept:
+        # What was posted was a line with no list behind it (withdrawn, or unreadable).
+        return True
     found = re.search(r"#issuecomment-(\d+)\s*$", address or "")
-    if not kept or kept.get("posted_at") or not found:
-        return bool(kept and kept.get("posted_at"))
+    if kept.get("posted_at") or not found:
+        return bool(kept.get("posted_at"))
     comment, digest = comment_of(found.group(1))
     if comment.get("user") != OWNER or not comment.get("created_at"):
         return False
@@ -243,12 +258,22 @@ def posted(number, address):
 
 
 def as_posted(kept):
-    """Whether the list's comment still says what the runner posted."""
+    """Whether the list's comment is still there, says what the runner posted, and has not been
+    hidden (GitHub folds a hidden comment away). A comment that could not be read is not one
+    that changed: that raises, and the next pass looks again."""
     try:
         comment, digest = comment_of(kept["comment_id"])
-    except (pr.GitHubError, KeyError, TypeError, ValueError, IndexError):
+    except (KeyError, TypeError, ValueError):
         return False
-    return comment.get("user") == OWNER and digest == kept.get("comment_sha")
+    except pr.GitHubError as error:
+        if "404" in str(error) or "Not Found" in str(error):
+            return False
+        raise
+    if comment.get("user") != OWNER or digest != kept.get("comment_sha"):
+        return False
+    hidden = pr.gh_lines("api", "graphql", "-f", "query=query($id: ID!) { node(id: $id) { ... on IssueComment { isMinimized } } }",
+                         "-f", f"id={comment.get('node_id')}", "--jq", ".data.node.isMinimized")
+    return hidden == [False]
 
 
 def stale(number):
@@ -287,15 +312,19 @@ def markdown(kept, appetite, dropped=0):
 
 
 def numbers_in(rest, count):
-    """The items a /skip or /next names. Numbers and ranges, when it has any ("2, that is all"
-    is item 2); with none, every item when it says all or everything ("all of them."); else
-    nothing."""
-    named = set()
-    for low, high in re.findall(r"#?(\d+)(?:\s*-\s*#?(\d+))?", rest):
-        named.update(range(max(1, int(low)), min(count, int(high or low)) + 1))
-    if not re.search(r"\d", rest) and re.search(r"\b(all|everything)\b", rest, re.I):
+    """The items a /skip or /next names, or None when it is not plainly numbers or plainly all.
+    It is not guessed at: "all 5", "the first 2" and "2, that is all" could each mean two
+    things, and filing against his word is worse than asking."""
+    words = [word for word in re.split(r"[\s,;]+", rest.strip().strip(".!").lower()) if word not in ("", "and", "&")]
+    if words and all(re.fullmatch(r"#?\d+(-#?\d+)?", word) for word in words):
+        named = set()
+        for word in words:
+            low, _, high = word.replace("#", "").partition("-")
+            named.update(range(max(1, int(low)), min(count, int(high or low)) + 1))
+        return named
+    if words and words[0] in ("all", "everything") and set(words[1:]) <= {"of", "them", "the", "items", "tasks"}:
         return set(range(1, count + 1))
-    return named
+    return None
 
 
 def orders(number, kept):
@@ -308,10 +337,11 @@ def orders(number, kept):
         if not found or not pr.owner_wrote(comment) or (comment.get("created_at") or "") < kept["posted_at"]:
             continue
         named = numbers_in(found.group(2), len(kept["items"]))
+        wrote = f"`/{found.group(1)}{found.group(2).rstrip()[:60]}`".replace("@", "@\u200b")
         if comment.get("updated_at") not in (None, comment.get("created_at")):
-            unclear.append(f"`/{found.group(1)}{found.group(2).rstrip()[:60]}` was edited after it was written, so it was not counted")
+            unclear.append(f"{wrote} was edited after it was written, so it was not counted")
         elif not named:
-            unclear.append(f"`/{found.group(1)}{found.group(2).rstrip()[:60]}` names no item of the list (1 to {len(kept['items'])})")
+            unclear.append(f"{wrote} is not numbers of the list (1 to {len(kept['items'])}) or `all`, so it was not counted")
         else:
             (skip if found.group(1) == "skip" else start).update(named)
     return skip, start, unclear
@@ -402,8 +432,10 @@ def file_one(kept, appetite):
         return f"NEXT: pull request #{number} was merged, and nothing was filed from its list: {why}.", None
     # Merged before the list was shown to him: his merge did not accept it, so he is asked.
     late = (state.get("mergedAt") or "") < kept["posted_at"]
-    asked = appetite == "narrow" or late
     skip, start, unclear = orders(number, kept)
+    # So is he when something he wrote about the list was not understood: he meant to steer
+    # it, and filing first and saying so after would go against his word.
+    asked = appetite == "narrow" or late or bool(unclear)
     filed, left_out, problem = [], [], None
     try:
         known = None
@@ -432,10 +464,12 @@ def file_one(kept, appetite):
     if left_out:
         lines += ["", f"Left out at your word: {', '.join(str(n) for n in left_out)}."]
     told = kept.setdefault("told", [])
-    for note in unclear:
-        if note not in told:
-            lines += ["", f"Your {note}."]
-            told.append(note)
+    fresh = [note for note in unclear if note not in told]
+    for note in fresh:
+        lines += ["", f"Your {note}."]
+        told.append(note)
+    if fresh and still and not problem:
+        lines += ["", "So nothing on the list started by itself. To start some, comment `/next 1 3` or `/next all`."]
     if late and still and not problem and "late" not in told:
         lines += ["", "This pull request was merged before its list of what is next was posted here, so nothing "
                       "on it started by itself. To start some, comment `/next 1 3` or `/next all`."]
@@ -493,6 +527,9 @@ def main(args):
                 return 2
             try:
                 print(record(number, issue, source, appetite), end="")
+            except NotOurs as error:
+                print(f"{error}.", file=sys.stderr)
+                return 6
             except (Refused, pr.GitHubError, LookupError) as error:
                 print(f"{error}.", file=sys.stderr)
                 return 4
