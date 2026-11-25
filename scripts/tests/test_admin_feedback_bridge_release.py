@@ -15,31 +15,43 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parents[1] / "admin-feedback-bridge-release.sh"
 PROJECT = "src/Microsoft.SwiftUI/Microsoft.SwiftUI.csproj"
 
+# Two packs of one commit are never the same bytes; neither are this stand-in's.
 BUILDER = """#!/bin/bash
 echo "$1 $(git -C "$SESSION_BRIDGE" rev-parse HEAD) $(git -C "$SESSION_BRIDGE" status --porcelain | wc -l | tr -d ' ')" >> "$STUB/builder.log"
 version="$(sed -n 's#.*<Version>\\(.*\\)</Version>.*#\\1#p' "$SESSION_BRIDGE/src/Microsoft.SwiftUI/Microsoft.SwiftUI.csproj")"
 case "$1" in
   test)
+    cp "$FEEDBACK_CHECK_DIR/state/bridge-release-note" "$STUB/note-during-the-build"
     [ ! -f "$STUB/fail-test" ] || { echo "STOP: the bridge's tests did not all pass. The whole output is nowhere." >&2; exit 1; }
     echo "Managed tests: 81/81 passed" ;;
   package)
     [ ! -f "$STUB/fail-package" ] || { echo "STOP: the bridge's pack and verify failed." >&2; exit 1; }
+    [ ! -f "$STUB/tag-during-the-build" ] || git -C "$FEEDBACK_BRIDGE_URL" tag "v$version" "$(cat "$STUB/tag-during-the-build")"
     mkdir -p "$SESSION_BRIDGE/artifacts"
-    printf 'package %s' "$version" > "$SESSION_BRIDGE/artifacts/Microsoft.SwiftUI.$version.nupkg"
+    printf 'package %s %s %s' "$version" "$RANDOM$RANDOM" "$(date +%s)" > "$SESSION_BRIDGE/artifacts/Microsoft.SwiftUI.$version.nupkg"
     echo "VERSION=$version"
     echo "PACKAGE=$SESSION_BRIDGE/artifacts/Microsoft.SwiftUI.$version.nupkg" ;;
 esac
 """
 
+# gh: the rules of main, a ruleset's bypass list (as the script's --jq would give them), and a
+# release, which makes the tag as GitHub does: at --target, unless the tag is there already.
 GH = """#!/bin/bash
 printf '%s\\n' "$*" >> "$STUB/gh.log"
-case "$1" in
-  api)
+case "$1 $2 $3" in
+  api\\ --paginate\\ repos/someone/bridge/rules/branches/main)
     [ ! -f "$STUB/unreadable-rules" ] || exit 1
-    if [ -f "$STUB/open-main" ]; then printf 'deletion\\nnon_fast_forward\\n'; else printf 'deletion\\nnon_fast_forward\\nupdate\\n'; fi ;;
-  release)
+    [ -f "$STUB/open-main" ] || echo 7 ;;
+  api\\ repos/someone/bridge/rulesets/7\\ *)
+    if [ -f "$STUB/app-may-bypass" ]; then echo 1; else echo 0; fi ;;
+  release\\ create\\ *)
     [ ! -f "$STUB/fail-release" ] || { echo "HTTP 502" >&2; exit 1; }
-    echo "https://github.com/someone/bridge/releases/tag/$3" ;;
+    while [ $# -gt 0 ]; do [ "$1" != --target ] || target="$2"; shift; done
+    tag="$(sed -n 's/^release create \\(v[^ ]*\\) .*/\\1/p' "$STUB/gh.log" | tail -1)"
+    [ ! -f "$STUB/tag-made-first" ] || target="$(cat "$STUB/tag-made-first")"
+    git -C "$FEEDBACK_BRIDGE_URL" rev-parse -q --verify "refs/tags/$tag" >/dev/null || git -C "$FEEDBACK_BRIDGE_URL" tag "$tag" "$target"
+    echo "https://github.com/someone/bridge/releases/tag/$tag" ;;
+  *) echo "the stand-in for gh does not know: $*" >&2; exit 1 ;;
 esac
 """
 
@@ -61,14 +73,16 @@ class BridgeReleaseTests(unittest.TestCase):
             path.write_text(text, encoding="utf-8")
             path.chmod(path.stat().st_mode | stat.S_IXUSR)
         self.git("init", "-q", "-b", "main")
-        self.commit("0.1.0-preview.7", "feat: the first (0.1.0-preview.7)")
+        self.first = self.commit("0.1.0-preview.7", "feat: the first (0.1.0-preview.7)")
         self.git("tag", "v0.1.0-preview.7")
+        self.package("0.1.0-preview.7").write_text("given out before", encoding="utf-8")
 
     def git(self, *args):
+        # Not this machine's git configuration: no hooks, templates or signing of the developer's.
         done = subprocess.run(
-            ["git", "-C", str(self.bridge), "-c", "user.name=test", "-c", "user.email=test@localhost",
-             "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", *args],
-            capture_output=True, text=True, check=True)
+            ["git", "-C", str(self.bridge), "-c", "user.name=test", "-c", "user.email=test@localhost", *args],
+            capture_output=True, text=True, check=True,
+            env={"PATH": "/usr/bin:/bin", "HOME": str(self.dir), "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"})
         return done.stdout.strip()
 
     def commit(self, version, subject, code=None):
@@ -109,6 +123,12 @@ class BridgeReleaseTests(unittest.TestCase):
     def package(self, version):
         return self.feed / f"Microsoft.SwiftUI.{version}.nupkg"
 
+    def built(self):
+        return [line.split()[0] for line in self.log("builder.log")]
+
+    def releases(self):
+        return [line for line in self.log("gh.log") if line.startswith("release create")]
+
     def test_a_version_that_has_its_tag_on_main_is_not_packed(self):
         head = self.git("rev-parse", "HEAD")
         due = self.run_script("due")
@@ -132,16 +152,18 @@ class BridgeReleaseTests(unittest.TestCase):
         head = self.commit("0.1.0-preview.8", "fix: a row keeps its widths (0.1.0-preview.8)", code="class View {}\n")
         due = self.run_script("due")
         self.assertEqual(due.stdout.strip(), f"0.1.0-preview.8 {head[:7]}")
-        self.assertTrue(self.read("bridge-release-note").startswith("packing\nPacking version 0.1.0-preview.8"))
         self.assertFalse(self.package("0.1.0-preview.8").exists())
 
         released = self.run_script("release")
         self.assertEqual(released.returncode, 0, released.stderr)
         self.assertTrue(released.stdout.startswith(f"BRIDGE: packed 0.1.0-preview.8 from the bridge's main ({head[:7]})"))
-        self.assertEqual(self.package("0.1.0-preview.8").read_text(encoding="utf-8"), "package 0.1.0-preview.8")
+        self.assertTrue(self.package("0.1.0-preview.8").read_text(encoding="utf-8").startswith("package 0.1.0-preview.8 "))
+        # While it built, the status had it as packing.
+        self.assertTrue((self.stub / "note-during-the-build").read_text(encoding="utf-8").startswith("packing\nPacking version 0.1.0-preview.8"))
+        self.assertEqual(self.git("rev-parse", "v0.1.0-preview.8"), head)
         # Tested and packed from main's commit, in a copy with nothing uncommitted.
         self.assertEqual(self.log("builder.log"), [f"test {head} 0", f"package {head} 0"])
-        create = [line for line in self.log("gh.log") if line.startswith("release create")]
+        create = self.releases()
         self.assertEqual(len(create), 1)
         self.assertIn(f"release create v0.1.0-preview.8 {self.package('0.1.0-preview.8')} --repo someone/bridge --target {head}", create[0])
         # The notes are several lines of that call; the commits since the last tag are in them.
@@ -158,7 +180,7 @@ class BridgeReleaseTests(unittest.TestCase):
         self.assertFalse((self.out / "bridge-release" / "build").exists())
         self.assertEqual(self.run_script("due").stdout, "")
         self.assertEqual(self.run_script("release").stdout, "")
-        self.assertEqual(len([line for line in self.log("gh.log") if line.startswith("release create")]), 1)
+        self.assertEqual(len(self.releases()), 1)
 
     def test_main_that_anyone_can_update_is_not_packed(self):
         self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
@@ -167,6 +189,43 @@ class BridgeReleaseTests(unittest.TestCase):
         self.assertIn("was not packed: no ruleset restricts updates of the bridge's main", released.stdout)
         self.assertEqual(self.log("builder.log"), [])
         self.assertFalse(self.package("0.1.0-preview.8").exists())
+        self.assertEqual(self.read("bridge-release-seen").split()[3], "failed")
+
+    def test_main_that_someone_besides_the_admins_may_bypass_is_not_packed(self):
+        self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
+        (self.stub / "app-may-bypass").touch()
+        released = self.run_script("release")
+        self.assertIn("no ruleset restricts updates of the bridge's main to the repository's admins", released.stdout)
+        self.assertEqual(self.log("builder.log"), [])
+        self.assertEqual(self.releases(), [])
+
+    def test_a_branch_whose_name_ends_like_main_is_not_taken_for_main(self):
+        head = self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
+        self.git("switch", "-q", "-c", "decoy/refs/heads/main")
+        self.commit("0.1.0-preview.9", "feat: not merged (0.1.0-preview.9)")
+        self.git("switch", "-q", "main")
+        self.assertEqual(self.run_script("due").stdout.strip(), f"0.1.0-preview.8 {head[:7]}")
+
+    def test_a_tag_on_main_without_a_package_in_the_feed_is_said(self):
+        self.package("0.1.0-preview.7").unlink()
+        due = self.run_script("due")
+        self.assertEqual(due.stdout, "")
+        self.assertIn("has its tag, but your feed", self.read("bridge-release-note"))
+        self.assertEqual(self.log("builder.log"), [])
+
+    def test_a_tag_of_the_version_made_elsewhere_during_the_build_gets_no_release(self):
+        self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
+        (self.stub / "tag-during-the-build").write_text(self.first, encoding="utf-8")
+        released = self.run_script("release")
+        self.assertIn(f"a tag v0.1.0-preview.8 has appeared on someone/bridge at {self.first[:7]}", released.stdout)
+        self.assertEqual(self.releases(), [])
+        self.assertEqual(self.read("bridge-release-seen").split()[3], "failed")
+
+    def test_a_release_whose_tag_is_not_at_mains_commit_is_not_called_released(self):
+        self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
+        (self.stub / "tag-made-first").write_text(self.first, encoding="utf-8")
+        released = self.run_script("release")
+        self.assertIn(f"but its tag is at {self.first}, not at main's", released.stdout)
         self.assertEqual(self.read("bridge-release-seen").split()[3], "failed")
 
     def test_rules_that_cannot_be_read_are_not_taken_for_closed(self):
@@ -183,7 +242,7 @@ class BridgeReleaseTests(unittest.TestCase):
         self.assertIn("the bridge's tests did not pass (the bridge's tests did not all pass). It is tried again", released.stdout)
         self.assertIn("try 1 of 3", released.stdout)
         self.assertFalse(self.package("0.1.0-preview.8").exists())
-        self.assertEqual([line for line in self.log("gh.log") if line.startswith("release")], [])
+        self.assertEqual(self.releases(), [])
         self.assertTrue(self.read("bridge-release-note").startswith("failed\nVersion 0.1.0-preview.8 on the bridge's main"))
         # The copy it failed in is kept to look at.
         self.assertTrue((self.out / "bridge-release" / "build").exists())
@@ -210,17 +269,24 @@ class BridgeReleaseTests(unittest.TestCase):
         first = self.run_script("release").stdout
         self.assertIn("the package is in your feed, but the release v0.1.0-preview.8 could not be made", first)
         self.assertTrue(self.package("0.1.0-preview.8").exists())
+        kept = self.package("0.1.0-preview.8").read_text(encoding="utf-8")
         (self.stub / "fail-release").unlink()
         second = self.run_script("release", FEEDBACK_BRIDGE_RETRY_AFTER="0").stdout
         self.assertTrue(second.startswith("BRIDGE: packed 0.1.0-preview.8"), second)
+        # The package the first try put in the feed is the one released: built once, never replaced.
+        self.assertEqual(self.built(), ["test", "package"])
+        self.assertEqual(self.package("0.1.0-preview.8").read_text(encoding="utf-8"), kept)
+        self.assertIn("Managed tests: 81/81 passed", self.read("bridge-release-note"))
 
     def test_another_build_of_the_version_in_the_feed_is_never_replaced(self):
         self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
         self.package("0.1.0-preview.8").write_text("the Captain's own build", encoding="utf-8")
         released = self.run_script("release")
-        self.assertIn("your feed already holds another build of 0.1.0-preview.8", released.stdout)
+        self.assertIn("your feed already holds a build of 0.1.0-preview.8 that this check did not put there", released.stdout)
         self.assertEqual(self.package("0.1.0-preview.8").read_text(encoding="utf-8"), "the Captain's own build")
-        self.assertEqual([line for line in self.log("gh.log") if line.startswith("release")], [])
+        self.assertEqual(self.releases(), [])
+        # Known before anything is built.
+        self.assertEqual(self.built(), [])
 
     def test_another_build_in_the_package_folder_is_named(self):
         self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
@@ -306,7 +372,7 @@ echo "released=$BRIDGE_RELEASED notify=$NOTIFY"
             'if [ "$1" = due ]; then echo "0.1.0-preview.8 abc1234"; else echo "BRIDGE: packed 0.1.0-preview.8"; fi\n')
         self.assertEqual(said, "released=yes notify=yes")
         self.assertEqual(summary, "BRIDGE: packed 0.1.0-preview.8\n\n")
-        self.assertEqual(calls, ["status", "keep_status"])
+        self.assertEqual(calls, ["keep_status"])
         self.assertIsNone(err)
 
     def test_a_bridge_that_could_not_be_looked_at_leaves_why_and_does_not_fail_the_pass(self):

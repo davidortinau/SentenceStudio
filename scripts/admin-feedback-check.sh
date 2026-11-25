@@ -111,6 +111,9 @@ FIX_LIMIT=1800
 CHECKS_WAIT=3000
 # The longest one run of a session's proof may take; the runner makes two (see verify_pr).
 PROOF_LIMIT=900
+# The longest a release of the SwiftUI bridge may take at the start of a pass (the limits of
+# its steps in scripts/admin-feedback-bridge-release.sh and scripts/session-bridge.sh).
+BRIDGE_LIMIT=3600
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 MODE="${1:-both}"
@@ -150,7 +153,7 @@ finish() {
   printf '%s  %s\n' "$STAMP" "$(grep -E '^(BRIDGE|RESULT|FIX RESULT|PROOF|DIFF|CHECKS|MAIN CI):' "$RUN" | tr '\n' ' ' | cut -c1-600)" >> "$OUT/history.log"
   # A run that fails before status is defined (a missing script) cannot write the status issue.
   declare -F status >/dev/null && { stop_keeping_status; status; }
-  [ "$NOTIFY" = yes ] && notify "$(grep -E '^(BRIDGE|RESULT|FIX RESULT):|^MAIN CI: red|^CHECKS: .* [1-9][0-9]* failed' "$RUN" | tr '\n' ' ' | cut -c1-220)"
+  [ "$NOTIFY" = yes ] && notify "$(grep -E '^(BRIDGE|RESULT|FIX RESULT):|^MAIN CI: red|^CHECKS: .* [1-9][0-9]* failed' "$RUN" | cut -c1-110 | tr '\n' ' ' | cut -c1-220)"
   # Keep the last 200 runs.
   ls -1t "$OUT"/run-*.md 2>/dev/null | tail -n +201 | while read -r old; do rm -f "$old" "${old%.md}.err"; done
   [ "$FAILED" = yes ] && exit 1
@@ -168,7 +171,7 @@ fail() {
 LOCK="$OUT/.lock"
 BUSY=0; [ "$MODE" = --pass ] && BUSY=10
 if ! mkdir "$LOCK" 2>/dev/null; then
-  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +$(((TRIAGE_LIMIT + FIX_LIMIT + 2 * PROOF_LIMIT + CHECKS_WAIT) / 60 + 10)) 2>/dev/null)" ]; then
+  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +$(((BRIDGE_LIMIT + TRIAGE_LIMIT + FIX_LIMIT + 2 * PROOF_LIMIT + CHECKS_WAIT) / 60 + 10)) 2>/dev/null)" ]; then
     rmdir "$LOCK" 2>/dev/null; mkdir "$LOCK" 2>/dev/null || { rm -f "$RUN"; exit "$BUSY"; }
   else
     rm -f "$RUN"; exit "$BUSY"
@@ -262,8 +265,7 @@ bridge_release() {
   local due line err="$OUT/state/bridge-release.err"
   due="$(/bin/bash "$ROOT/scripts/admin-feedback-bridge-release.sh" due 2> "$err")" && rm -f "$err"
   [ -n "$due" ] || return 0
-  # The status issue says that it is packing, and goes on being rewritten while it does.
-  status
+  # The status issue says that it is packing from its keeper's next rewrite on.
   keep_status
   line="$(/bin/bash "$ROOT/scripts/admin-feedback-bridge-release.sh" release 2> "$err")" && rm -f "$err"
   [ -n "$line" ] || return 0

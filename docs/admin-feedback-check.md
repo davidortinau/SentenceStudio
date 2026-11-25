@@ -298,14 +298,26 @@ red for a day because nothing said so.
         pack and verify (`scripts/session-bridge.sh test` and `package`, the steps a session
         proved the change with), copies the package into `~/work/Microsoft.SwiftUI/artifacts`
         and makes the release `v<version>` on the bridge's repository at that commit, with
-        the package attached. About five minutes; sessions wait for it, so the next one has
-        the package (`publish_shared` and `sync` hand it on).
-      - It packs only while a ruleset restricts updates of the bridge's `main`: then what is
-        on `main` is what the Captain merged, and this step runs the bridge's build scripts
-        as him. The sessions' login can open a pull request there and cannot merge one.
-      - It never replaces a package of that version already in the feed with other contents;
-        it stops and says so. A copy of the version in the Captain's own package folder that
-        differs is named, and left.
+        the package attached. Two minutes in the trials, more after a change to the Swift
+        side; sessions wait for it, so the next one has the package (`publish_shared` and
+        `sync` hand it on). It runs with the Captain's own temporary folder: launchd sets
+        none, and NuGet's locks in `/tmp/NuGetScratch` belong to the sessions' user here.
+      - It packs only while an active ruleset restricts updates of the bridge's `main` and
+        nobody but the repository's admins may bypass it: then what is on `main` is what the
+        Captain merged, and this step runs the bridge's build scripts as him. The sessions'
+        login can open a pull request there and cannot merge one.
+      - That login can make branches and tags, so neither is taken on trust. `main` is read
+        by its whole name. A tag of the version counts only where it is on `main`; one made
+        elsewhere while the version is packed gets no release, and the release's tag is read
+        back afterwards. A version that has its tag while the feed has no package of it is
+        said in the status issue. (A ruleset on the bridge that keeps everyone but admins from
+        creating tags `v*` would close this at the source; it had none on 2026-11-25.)
+      - It never replaces a package of that version in the feed that it did not put there
+        itself; it stops, before building, and says so. What it put there is recorded in
+        `state/bridge-release-fed`, because two packs of one commit are not the same bytes:
+        a later try that finds its own package makes the release from it and builds nothing.
+        A copy of the version in the Captain's own package folder that differs is named, and
+        left.
       - A release that fails is tried again after an hour, three times in all for one commit,
         and is not a failed pass. To have it look again sooner, remove
         `~/sstudio-feedback-check/state/bridge-release-seen`.

@@ -17,18 +17,23 @@
 # It runs as the Captain's user, never as the sessions': it runs the bridge's build scripts,
 # and it writes to his feed and to the bridge's repository as him. So it packs only what is on
 # the bridge's main, and only while a ruleset keeps everyone but the repository's admins from
-# updating main: then what is on main is what the Captain merged. The sessions' login can open
-# a pull request there and cannot merge one.
+# updating main (an active ruleset with "restrict updates" that only the repository's admins
+# may bypass): then what is on main is what the Captain merged. The sessions' login can open a
+# pull request there and cannot merge one. It can make branches and tags, so neither is taken
+# on trust: main is read by its exact name, a tag counts only where it is on main, and the
+# release's tag is read back.
 #
 # What it decides, from the commit main is at:
 #   - the version in the project file has a tag on main: nothing to pack. If main's code (src,
 #     native) has changed since that tag, it says so: a change reaches the app only under a
-#     new version.
+#     new version. If the feed has no package of that version, it says that too.
 #   - the version has no tag: it is packed. A failure is tried again after an hour, three times
 #     in all for one commit; after that it waits for main to change, or for the file
 #     state/bridge-release-seen to be removed.
-# A package of that version already in the feed with other contents is never replaced: the
-# release stops and says so.
+# A package of that version in the feed that this script did not put there is never replaced:
+# the release stops and says so. (Two packs of one commit are not the same bytes, so what it
+# put there itself is known by the record in state/bridge-release-fed, and a later try that
+# finds it makes the release from it without building again.)
 #
 # It looks at main with one `git ls-remote` and does nothing more while main is where it was.
 # What it last decided is in state/bridge-release-note, which the status issue shows; the logs
@@ -49,6 +54,9 @@ PACKAGES="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
 WORK="$OUT/bridge-release"
 SEEN="$OUT/state/bridge-release-seen"
 NOTE="$OUT/state/bridge-release-note"
+# The package this script put in the feed: main's commit, the version and the file's SHA-256 on
+# the first line, what the tests said on the second.
+FED="$OUT/state/bridge-release-fed"
 LOG="$WORK/release.log"
 TRIES=3
 RETRY_AFTER="${FEEDBACK_BRIDGE_RETRY_AFTER:-3600}"
@@ -80,7 +88,10 @@ seen() { printf '%s %s %s %s\n' "$SHA" "$TRY" "$(date +%s)" "$1" > "$SEEN.new" &
 # again).
 decide() {
   local was tries then outcome tag
-  SHA="$(limited 45 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 ls-remote "$BRIDGE_URL" refs/heads/main 2>/dev/null | cut -f1)"
+  # By its whole name: ls-remote also lists a ref that only ends in refs/heads/main, and anyone
+  # who can push a branch can make one.
+  SHA="$(limited 45 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 ls-remote "$BRIDGE_URL" refs/heads/main 2>/dev/null \
+          | awk '$2 == "refs/heads/main" { print $1 }')"
   case "$SHA" in *[!0-9a-f]*) SHA="" ;; esac
   [ "${#SHA}" -ge 40 ] || { say "the bridge's main could not be read at $BRIDGE_URL."; return 2; }
   SHORT="${SHA:0:7}"; TRY=1; VERSION=""
@@ -122,10 +133,48 @@ decide() {
     note nothing "The bridge's main ($SHORT) names version $VERSION, and the tag v$VERSION is at a commit that is not on main, so nothing was packed. Give main the next version to have it packed."
   elif ! sgit diff --quiet "$tag" "$SHA" -- src native 2>/dev/null; then
     note nothing "The bridge's main ($SHORT) has changed the bridge's code since v$VERSION without a new version, so nothing was packed. A change reaches the app only under the next version."
+  elif [ ! -f "$FEED/Microsoft.SwiftUI.$VERSION.nupkg" ]; then
+    # A tag is not proof that the Captain gave the version out: the sessions' login can make one.
+    note nothing "The bridge's main ($SHORT) is version $VERSION, which has its tag, but your feed ($FEED) has no package of it, so builds that pin it cannot restore. If the release v$VERSION is yours, download its package into the feed. If it is not, delete that tag and release and remove $SEEN, and the version is packed."
   else
     note nothing "Nothing to pack: the bridge's main ($SHORT) is version $VERSION, which has its tag."
   fi
   return 1
+}
+
+# Whether only the repository's admins can update the bridge's main: 0 when an active ruleset
+# restricts updates and nobody but admins may bypass it, 1 when none does, 2 when it could not
+# be read. (Rules add up, so one such ruleset is enough whatever the others allow.)
+main_is_closed() {
+  local ids id others
+  ids="$(limited 60 gh api --paginate "repos/$BRIDGE_REPO/rules/branches/main" \
+           --jq '.[] | select(.type == "update") | .ruleset_id' 2>> "$LOG")" || return 2
+  for id in $ids; do
+    case "$id" in *[!0-9]*) continue ;; esac
+    others="$(limited 60 gh api "repos/$BRIDGE_REPO/rulesets/$id" --jq \
+      '[.bypass_actors[]? | select(((.actor_type == "RepositoryRole" and .actor_id == 5) or .actor_type == "OrganizationAdmin") | not)] | length' \
+      2>> "$LOG")" || return 2
+    [ "$others" != 0 ] || return 0
+  done
+  return 1
+}
+
+# The commit the tag v$VERSION is at on the bridge's repository, or nothing when it has none.
+# 2 when that could not be read.
+tag_at() {
+  local listed
+  listed="$(limited 45 git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 ls-remote "$BRIDGE_URL" \
+              "refs/tags/v$VERSION" "refs/tags/v$VERSION^{}" 2>/dev/null)" || return 2
+  # An annotated tag is listed twice; the line that ends in ^{} is the commit.
+  printf '%s\n' "$listed" | awk -v tag="refs/tags/v$VERSION" \
+    '$2 == tag "^{}" { peeled = $1 } $2 == tag { plain = $1 } END { print (peeled != "" ? peeled : plain) }'
+}
+
+# Whether the package of $VERSION in the feed is the one this script put there from $SHA.
+fed_by_this() {
+  local commit version sum
+  [ -f "$FED" ] && [ -f "$1" ] && read -r commit version sum < "$FED" || return 1
+  [ "$commit" = "$SHA" ] && [ "$version" = "$VERSION" ] && [ "$(shasum -a 256 "$1" | cut -d' ' -f1)" = "$sum" ]
 }
 
 # Ends a release that did not get there, with why. $1 the reason, with no full stop.
@@ -153,48 +202,63 @@ step() {
 }
 
 release() {
-  local build="$WORK/build" lock="$WORK/lock" rules tests package target sum previous changes notes url lower mine extra="" pre="" proved=""
+  local build="$WORK/build" lock="$WORK/lock" tests="" package target sum previous changes notes url at code lower mine extra="" pre="" proved=""
   mkdir -p "$WORK" "$OUT/state" || { say "$WORK could not be made."; return 2; }
   # One release at a time, also when someone runs this by hand during a pass. A lock older
-  # than a release can take (its steps' limits come to 39 minutes) is one that died.
+  # than a release can take (its steps' limits come to under an hour) is one that died.
   if ! mkdir "$lock" 2>/dev/null; then
     [ -n "$(find "$lock" -maxdepth 0 -mmin +60 2>/dev/null)" ] && rmdir "$lock" 2>/dev/null && mkdir "$lock" 2>/dev/null \
       || { say "another release is running ($lock)."; return 2; }
   fi
   trap 'rmdir "$WORK/lock" 2>/dev/null' EXIT
   decide || { [ $? = 1 ] && return 0; return 2; }
+  # From here on every end rewrites the note.
+  note packing "Packing version $VERSION from the bridge's main ($SHORT), started $(now). It takes about five minutes; sessions wait for it."
   { echo "Release of $VERSION from $SHA, try $TRY, $(now)."; } > "$LOG"
 
   # What is on main is the Captain's only while nobody else can put anything there.
-  rules="$(gh api --paginate "repos/$BRIDGE_REPO/rules/branches/main" --jq '.[].type' 2>> "$LOG")" \
-    || failed "the rules of the bridge's main could not be read"
-  printf '%s\n' "$rules" | grep -qx update \
-    || failed "no ruleset restricts updates of the bridge's main, so what is on it is not known to be what you merged"
-
-  rm -rf "$build"
-  git clone -q --no-checkout "$WORK/source" "$build" >> "$LOG" 2>&1 \
-    && git -C "$build" checkout -q --detach "$SHA" >> "$LOG" 2>&1 \
-    && [ "$(git -C "$build" rev-parse HEAD 2>/dev/null)" = "$SHA" ] \
-    || failed "a clean copy of $SHORT could not be made in $build"
-
-  step test || failed "the bridge's tests did not pass${STEP_STOP:+ ($STEP_STOP)}"
-  tests="$(printf '%s\n' "$STEP_OUT" | grep -Eo 'Managed tests: [0-9]+/[0-9]+ passed' | tail -1)"
-  step package || failed "the pack did not pass${STEP_STOP:+ ($STEP_STOP)}"
-  package="$(printf '%s\n' "$STEP_OUT" | sed -n 's/^PACKAGE=//p' | tail -1)"
-  [ "$(printf '%s\n' "$STEP_OUT" | sed -n 's/^VERSION=//p' | tail -1)" = "$VERSION" ] && [ -f "$package" ] \
-    || failed "the pack left no package of version $VERSION"
+  main_is_closed; code=$?
+  [ "$code" != 2 ] || failed "the rules of the bridge's main could not be read"
+  [ "$code" = 0 ] \
+    || failed "no ruleset restricts updates of the bridge's main to the repository's admins, so what is on it is not known to be what you merged"
 
   target="$FEED/Microsoft.SwiftUI.$VERSION.nupkg"
   [ -d "$FEED" ] || failed "your feed folder $FEED is not there"
-  if [ -e "$target" ]; then
-    cmp -s "$package" "$target" \
-      || failed "your feed already holds another build of $VERSION ($target). Nothing was replaced and nothing was tagged: move that file away, or give the bridge's main the next version"
+  if fed_by_this "$target"; then
+    # An earlier try got as far as the feed: the release is made from that package.
+    tests="$(sed -n 2p "$FED")"
+    echo "The package of an earlier try is in the feed; not built again." >> "$LOG"
+  elif [ -e "$target" ]; then
+    failed "your feed already holds a build of $VERSION that this check did not put there ($target). Nothing was replaced and nothing was tagged: move that file away, or give the bridge's main the next version"
   else
-    # Under a name no restore reads, then into place, so no build sees half a package.
-    cp "$package" "$FEED/.Microsoft.SwiftUI.$VERSION.part" && mv "$FEED/.Microsoft.SwiftUI.$VERSION.part" "$target" \
-      && cmp -s "$package" "$target" \
+    rm -rf "$build"
+    git clone -q --no-checkout "$WORK/source" "$build" >> "$LOG" 2>&1 \
+      && git -C "$build" checkout -q --detach "$SHA" >> "$LOG" 2>&1 \
+      && [ "$(git -C "$build" rev-parse HEAD 2>/dev/null)" = "$SHA" ] \
+      || failed "a clean copy of $SHORT could not be made in $build"
+
+    step test || failed "the bridge's tests did not pass${STEP_STOP:+ ($STEP_STOP)}"
+    tests="$(printf '%s\n' "$STEP_OUT" | grep -Eo 'Managed tests: [0-9]+/[0-9]+ passed' | tail -1)"
+    step package || failed "the pack did not pass${STEP_STOP:+ ($STEP_STOP)}"
+    package="$(printf '%s\n' "$STEP_OUT" | sed -n 's/^PACKAGE=//p' | tail -1)"
+    [ "$(printf '%s\n' "$STEP_OUT" | sed -n 's/^VERSION=//p' | tail -1)" = "$VERSION" ] && [ -f "$package" ] \
+      || failed "the pack left no package of version $VERSION"
+
+    # Recorded before it is there, then put under a name no restore reads and moved into
+    # place, so no build sees half a package and a try that ends here knows its own file.
+    sum="$(shasum -a 256 "$package" | cut -d' ' -f1)"
+    printf '%s %s %s\n%s\n' "$SHA" "$VERSION" "$sum" "$tests" > "$FED.new" && mv "$FED.new" "$FED" \
+      && [ ! -e "$target" ] \
+      && cp "$package" "$FEED/.Microsoft.SwiftUI.$VERSION.part" && mv "$FEED/.Microsoft.SwiftUI.$VERSION.part" "$target" \
+      && fed_by_this "$target" \
       || { rm -f "$FEED/.Microsoft.SwiftUI.$VERSION.part"; failed "the package could not be put in $FEED"; }
   fi
+
+  # The sessions' login can make a tag. One of this version that is not at main's commit was
+  # not made here, and a release would be hung on it whatever --target says.
+  at="$(tag_at)" || failed "the package is in your feed, but the tags of $BRIDGE_REPO could not be read, so the release v$VERSION was not made"
+  [ -z "$at" ] || [ "$at" = "$SHA" ] \
+    || failed "the package is in your feed, but a tag v$VERSION has appeared on $BRIDGE_REPO at ${at:0:7}, which is not main's commit, so the release was not made. Delete that tag if it is not yours"
 
   sum="$(shasum -a 256 "$target" | cut -d' ' -f1)"
   previous="$(sgit describe --tags --abbrev=0 --match 'v*' "$SHA" 2>/dev/null)"
@@ -208,18 +272,24 @@ release() {
 
 ${changes}NuGet package SHA-256: $sum"
   case "$VERSION" in *-*) pre=--prerelease ;; esac
-  url="$(gh release create "v$VERSION" "$target" --repo "$BRIDGE_REPO" --target "$SHA" \
+  url="$(limited 600 gh release create "v$VERSION" "$target" --repo "$BRIDGE_REPO" --target "$SHA" \
            --title "$VERSION (local feed package)" --notes "$notes" $pre 2>> "$LOG" | tail -1)" \
     || failed "the package is in your feed, but the release v$VERSION could not be made on $BRIDGE_REPO"
   case "$url" in https://*) ;; *) url="https://github.com/$BRIDGE_REPO/releases/tag/v$VERSION" ;; esac
+  at="$(tag_at)"; code=$?
+  if [ "$code" != 0 ]; then
+    extra=" Its tag could not be read back to see that it is at $SHORT."
+  elif [ "$at" != "$SHA" ]; then
+    failed "the release v$VERSION was made ($url), but its tag is at ${at:-no commit that could be read}, not at main's $SHORT: someone else made that tag first. Delete the release and the tag, and it is made again"
+  fi
 
   # A copy of this version in the Captain's package folder is what his builds would use.
   lower="$(printf '%s' "$VERSION" | tr '[:upper:]' '[:lower:]')"
   mine="$PACKAGES/microsoft.swiftui/$lower"
   if [ -d "$mine" ] && ! cmp -s "$mine/microsoft.swiftui.$lower.nupkg" "$target"; then
-    extra=" Your package folder holds another build of $VERSION ($mine): remove that folder so that your builds take this one."
+    extra="$extra Your package folder holds another build of $VERSION ($mine): remove that folder so that your builds take this one."
   fi
-  sgit fetch -q --tags --force origin >/dev/null 2>&1
+  limited 120 git -C "$WORK/source" fetch -q --tags --force origin >/dev/null 2>&1
   rm -rf "$build"
   seen released
   note released "Version $VERSION was packed from the bridge's main ($SHORT), put in your feed and tagged v$VERSION on $(now), after the bridge's own tests passed$proved: $url.$extra"
@@ -231,7 +301,6 @@ case "${1:-}" in
     mkdir -p "$WORK" "$OUT/state" || exit 2
     decide; code=$?
     [ "$code" = 0 ] || { [ "$code" = 1 ] && exit 0; exit 2; }
-    note packing "Packing version $VERSION from the bridge's main ($SHORT), started $(now). It takes about five minutes; sessions wait for it."
     echo "$VERSION $SHORT" ;;
   release) release ;;
   *) sed -n '2,/^set -uo pipefail/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//' >&2; exit 2 ;;
