@@ -1,6 +1,6 @@
 #!/bin/bash
 # One run of the feedback check. On Lilliput, launchd starts scripts/admin-feedback-run.sh --loop
-# every five minutes (~/Library/LaunchAgents/com.sentencestudio.feedback-check.plist), from a
+# every minute (~/Library/LaunchAgents/com.sentencestudio.feedback-check.plist), from a
 # checkout of its own that follows origin/main, and that runs this with --pass again and again
 # while there is work (see "A pass" below). Two stages, each a headless Claude session:
 #
@@ -149,7 +149,7 @@ finish() {
   cp "$RUN" "$OUT/latest.md"
   printf '%s  %s\n' "$STAMP" "$(grep -E '^(RESULT|FIX RESULT|PROOF|DIFF|CHECKS|MAIN CI):' "$RUN" | tr '\n' ' ' | cut -c1-600)" >> "$OUT/history.log"
   # A run that fails before status is defined (a missing script) cannot write the status issue.
-  declare -F status >/dev/null && status
+  declare -F status >/dev/null && { stop_keeping_status; status; }
   [ "$NOTIFY" = yes ] && notify "$(grep -E '^(RESULT|FIX RESULT):|^MAIN CI: red|^CHECKS: .* [1-9][0-9]* failed' "$RUN" | tr '\n' ' ' | cut -c1-220)"
   # Keep the last 200 runs.
   ls -1t "$OUT"/run-*.md 2>/dev/null | tail -n +201 | while read -r old; do rm -f "$old" "${old%.md}.err"; done
@@ -174,7 +174,9 @@ if ! mkdir "$LOCK" 2>/dev/null; then
     rm -f "$RUN"; exit "$BUSY"
   fi
 fi
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+STATUS_KEEPER=""
+# The keeper of the status issue (see keep_status) ends with the run, however the run ends.
+trap 'declare -F stop_keeping_status >/dev/null && stop_keeping_status; rmdir "$LOCK" 2>/dev/null' EXIT
 
 # A session window that a run from before 2026-11-24 left open (it died mid-session) is closed
 # now: left open, every issue the Captain files from then on would count as inside it.
@@ -198,17 +200,44 @@ FIX_ALLOWED=yes
 TRIAGE_EVERY=14400
 LAST_TRIAGE="$OUT/state/last-triage"
 # When a pass last reported that GitHub could not be read, so an outage is reported once an
-# hour rather than every five minutes.
+# hour rather than every minute.
 UNREADABLE="$OUT/state/github-unreadable-reported"
 IDLE=10
 
 # Rewrites the status issue when what it says has changed. Its failure is kept in
-# state/status.err and never stops the run. $1 a line to say at the top, or nothing.
+# state/status.err and never stops the run. The line at the top is $STATUS_NOTE (the daily
+# cap), which a pass sets once and every rewrite of that pass repeats.
+STATUS_NOTE=""
 status() {
+  local errors="${1:-$OUT/state/status.err}"
   python3 -I "$ROOT/scripts/admin-feedback-status.py" update --cap "$DAILY_CAP" \
-    --windows "$WINDOWS" --handled "$HANDLED" ${1:+--note "$1"} >/dev/null 2> "$OUT/state/status.err" \
-    && rm -f "$OUT/state/status.err"
+    --windows "$WINDOWS" --handled "$HANDLED" ${STATUS_NOTE:+--note "$STATUS_NOTE"} >/dev/null 2> "$errors" \
+    && rm -f "$errors"
   return 0
+}
+
+# While a run has work the status issue is also rewritten every minute (Captain, 2026-11-24:
+# he filed two issues during a session, saw neither in the queue, and took the job for dead).
+# Before this it was written when a session started and when it ended, and a session and its
+# proof can take an hour. The script itself lets one rewrite run at a time, and writes only
+# when what the issue says has changed. The keeper ends with the run, and on its own if the
+# run was killed.
+STATUS_EVERY="${FEEDBACK_STATUS_EVERY:-60}"
+keep_status() {
+  [ -z "$STATUS_KEEPER" ] || return 0
+  ( nap=""
+    trap '[ -n "$nap" ] && kill "$nap" 2>/dev/null; exit 0' TERM
+    while kill -0 "$$" 2>/dev/null; do
+      sleep "$STATUS_EVERY" & nap=$!; wait "$nap"; nap=""
+      kill -0 "$$" 2>/dev/null || exit 0
+      status "$OUT/state/status-keeper.err"
+    done ) &
+  STATUS_KEEPER=$!
+}
+stop_keeping_status() {
+  [ -n "$STATUS_KEEPER" ] || return 0
+  kill "$STATUS_KEEPER" 2>/dev/null; wait "$STATUS_KEEPER" 2>/dev/null
+  STATUS_KEEPER=""
 }
 
 seconds_since() {
@@ -237,12 +266,14 @@ pass_gate() {
     note="The daily cap of $DAILY_CAP fix sessions is reached; work waiting starts after 00:00 UTC."
   fi
   # A session to settle is settled even at the cap; it starts no new one.
+  STATUS_NOTE="$note"
   if [ "$TRIAGE_DUE" = no ] && { [ "$waiting" = no ] || { [ "$FIX_ALLOWED" = no ] && [ ! -f "$INFLIGHT" ]; }; }; then
-    status "$note"
+    status
     rm -f "$RUN"
     exit "$IDLE"
   fi
-  status "$note"
+  status
+  keep_status
 }
 
 # Runs one session under its own time limit, so a run that hangs is ended and reported, not
@@ -1168,7 +1199,7 @@ fix_stage() {
 case "$MODE" in
   --probe) triage_stage ;;
   --triage-only) triage_and_stamp; main_ci; read_waiting ;;
-  --fix-only) fix_stage ;;
+  --fix-only) keep_status; fix_stage ;;
   --pass)
     pass_gate
     # The loop moves on as soon as a session ends; the status issue shows the checks.
@@ -1177,6 +1208,7 @@ case "$MODE" in
     main_ci
     fix_stage ;;
   both)
+    keep_status
     triage_and_stamp
     main_ci
     # A triage that failed is reported; the fix stage still has its turn, on what was already filed.

@@ -78,6 +78,43 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(ran.call_count, 1)
         self.assertEqual(found.call_count, 1)
 
+    def test_one_rewrite_runs_at_a_time(self):
+        # The run and its keeper both rewrite the status; the second waits for the first.
+        import fcntl
+        with status.one_at_a_time():
+            with open(self.dir / "state" / "status.lock", "w", encoding="utf-8") as other:
+                with self.assertRaises(OSError):
+                    fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with open(self.dir / "state" / "status.lock", "w", encoding="utf-8") as other:
+            fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_a_rewrite_holds_the_lock_and_a_print_does_not(self):
+        held = []
+
+        def gather(windows, handled):
+            with open(self.dir / "state" / "status.lock", "a", encoding="utf-8") as other:
+                try:
+                    fcntl_lock(other)
+                    held.append(False)
+                except OSError:
+                    held.append(True)
+            return [], [], []
+
+        def fcntl_lock(handle):
+            import fcntl
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        with mock.patch.object(status, "gather", gather), \
+                mock.patch.object(status, "status_issue", return_value=7), \
+                mock.patch.object(status.subprocess, "run", return_value=mock.Mock(returncode=0)), \
+                mock.patch("builtins.print"):
+            status.update(12, [], set(), "")
+            status.update(12, [], set(), "", show=True)
+        self.assertEqual(held, [True, False])
+
+    def test_the_idle_line_says_how_often_it_looks(self):
+        self.assertIn("looks for work every minute", status.render("", None, [], [], [], [], 0, 12))
+
     def test_a_pause_after_failures_is_said_until_it_ends(self):
         paused = self.dir / "state" / "loop-paused-until"
         paused.write_text(f"{int(time.time()) + 600}\n", encoding="utf-8")

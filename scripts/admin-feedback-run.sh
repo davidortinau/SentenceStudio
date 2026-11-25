@@ -6,11 +6,11 @@
 #   scripts/admin-feedback-run.sh [the arguments of admin-feedback-check.sh]
 #   scripts/admin-feedback-run.sh --loop
 #
-# --loop is what launchd starts, every five minutes. It runs admin-feedback-check.sh --pass,
+# --loop is what launchd starts, every minute. It runs admin-feedback-check.sh --pass,
 # bringing the checkout to origin/main before each pass, until a pass finds nothing to do (exit
 # 10), two passes in a row fail, or MAX_PASSES have run. After two failures it waits an hour
-# (state/loop-paused-until) before passing again, so a broken setup is not retried every five
-# minutes. launchd never starts the job again while it is still running.
+# (state/loop-paused-until) before passing again, so a broken setup is not retried every
+# minute. launchd never starts the job again while it is still running.
 #
 # The check's own checkout is a git worktree with a detached HEAD
 # (~/work/copilot-worktrees/SentenceStudio/feedback-runner on Lilliput, made with

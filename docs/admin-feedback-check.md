@@ -138,14 +138,14 @@ red for a day because nothing said so.
 - On Lilliput, **continuously while there is work** (Captain, 2026-11-19: issues were waiting
   hours for the next run; until then it ran every four hours, his choice of 2026-11-16). The
   launchd agent `com.sentencestudio.feedback-check` starts `scripts/admin-feedback-run.sh
-  --loop` every five minutes (`StartInterval` 300), and launchd never starts it again while it
-  is running. The loop runs `scripts/admin-feedback-check.sh --pass` again and again:
+  --loop` every minute (`StartInterval` 60; it was 300 until 2026-11-24), and launchd never
+  starts it again while it is running. The loop runs `scripts/admin-feedback-check.sh --pass` again and again:
   - A pass first looks for work without a session: a fix session to settle, a `/revise`
     request, an issue waiting. Triage, a Sonnet session, runs only when four hours have passed
     since the last one (`state/last-triage`); its instructions read the four hours before it.
     A pass with neither writes no summary and exits 10, which ends the loop until the next
-    start, five minutes later. So an issue filed from the app or on GitHub is taken within
-    about five minutes, or as soon as the session before it ends.
+    start, a minute later. So an issue filed from the app or on GitHub is taken within
+    about a minute, or as soon as the session before it ends.
   - The loop stops after two failed passes in a row and then waits an hour
     (`state/loop-paused-until`; delete it to start again sooner), and after 40 passes.
   - At most 12 fix sessions start in a UTC day (`FEEDBACK_DAILY_CAP`), counted in `usage.jsonl`,
@@ -161,9 +161,15 @@ red for a day because nothing said so.
   their checks and what the runner found of the proof and the diff, the issues worked once and
   left open, the fix sessions today against the cap,
   and the last 10 passes with how long their sessions took. Every pass and every idle look
-  rewrites it, but only when what it says has changed. The repository is public, so it holds
+  rewrites it, and while a run has work it is also rewritten every minute (`keep_status`,
+  2026-11-24), so an issue filed during a session shows in the queue within about a minute.
+  Until then it was written only when a session started and when it ended, which can be an
+  hour apart: the Captain filed two issues during a session, saw neither listed, and took the
+  job for dead. It is written only when what it says has changed, and one rewrite at a time
+  (`state/status.lock`). The repository is public, so it holds
   numbers, results and times only. It is written with the Captain's login, like the runner's
-  other posts. A failure to write it is kept in `state/status.err` and never stops a pass.
+  other posts. A failure to write it is kept in `state/status.err` (`state/status-keeper.err` for the
+  rewrite every minute) and never stops a pass.
 - **It runs what is on `main`** (2026-11-17). launchd starts `scripts/admin-feedback-run.sh` in
   the check's own checkout, `~/work/copilot-worktrees/SentenceStudio/feedback-runner`, a git
   worktree with a detached HEAD. That script brings the checkout to `origin/main` and then runs

@@ -18,6 +18,8 @@ wrote or a run's summary.
 The check's folder is FEEDBACK_CHECK_DIR, ~/sstudio-feedback-check by default. Exit 0 on
 success, 3 when GitHub could not be read or written.
 """
+import contextlib
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -119,8 +121,8 @@ def in_flight_number(path=None):
 
 
 def in_flight(path=None):
-    """The session running now, said in a line, or None. The status is written when a session
-    starts and when it ends, not during it, so it says when it started, not how long so far."""
+    """The session running now, said in a line, or None. It says when the session started, not
+    how long so far: the status is rewritten only when what it says changes."""
     path = path or OUT / "state" / "session-in-flight"
     try:
         parts = path.read_text(encoding="utf-8").split()
@@ -141,7 +143,7 @@ def render(note, running, queue, prs, waiting_on_you, recent, today, cap):
     lines = [f"_Kept by the feedback check on Lilliput (docs/admin-feedback-check.md). Last changed {utc()}._", ""]
     if note:
         lines += [f"**{note}**", ""]
-    lines += ["## Now", "", running or "Idle: it looks for work every 5 minutes and runs passes back to back while there is some.",
+    lines += ["## Now", "", running or "Idle: it looks for work every minute and runs passes back to back while there is some.",
               "", f"Fix sessions today: {today} of {cap}.", "", "## Queue", ""]
     lines += queue or ["Nothing waiting."]
     lines += ["", "## Pull requests waiting for you", ""]
@@ -256,7 +258,28 @@ def paused_note(path=None):
     return f"Paused until {utc(time.gmtime(until))} after two failed passes in a row; the last run's summary on Lilliput says why."
 
 
+@contextlib.contextmanager
+def one_at_a_time(path=None):
+    """Holds the status lock. While a run has work two things rewrite the status: the run, when
+    a session starts or ends, and its keeper, every minute. Without the lock a rewrite that read
+    GitHub earlier could land after one that read it later, and the issue would say the older
+    thing until the next change. The lock goes with the process, so a killed rewrite leaves
+    nothing to clear."""
+    path = path or OUT / "state" / "status.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)
+        yield
+
+
 def update(cap, windows, handled, note, show=False):
+    if not show:
+        with one_at_a_time():
+            return write(cap, windows, handled, note)
+    return write(cap, windows, handled, note, show=True)
+
+
+def write(cap, windows, handled, note, show=False):
     note = " ".join(part for part in (paused_note(), note) if part)
     records = usage()
     queue, prs, waiting_on_you = gather(windows, handled)
