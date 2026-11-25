@@ -6,29 +6,40 @@
 # where it is and turns a change to it into a package this user's builds use.
 #
 #   scripts/session-bridge.sh where   where the clone is, what it is at, the version this
-#                                     worktree pins, where that version's source is, and the
-#                                     next free version
-#   scripts/session-bridge.sh pack    builds the native framework, packs and verifies the version
-#                                     the bridge's project file names, and puts the package in
-#                                     this user's package folder, where every build of this
-#                                     user's finds it
+#                                     worktree pins, where that version's source is, the next
+#                                     free version, the branch a pull request there goes to,
+#                                     and whether this login may push there
 #   scripts/session-bridge.sh test    builds the native framework and the bridge's own tests,
 #                                     and runs them
+#   scripts/session-bridge.sh pack    builds the native framework, packs and verifies the version
+#                                     the bridge's project file names, puts the package in
+#                                     this user's package folder, where every build of this
+#                                     user's finds it, and removes the view tests' build
+#                                     output in this worktree, which would keep the old
+#                                     native code
+#   scripts/session-bridge.sh sync <folder>
+#                                     for the runner: every Microsoft.SwiftUI package in the
+#                                     folder (the ones the Captain packed) goes into this
+#                                     user's package folder, over a copy that differs
 #
-# pack refuses a version that the bridge's repository already has a tag for: a version that was
-# given out is never packed again with other contents. Give the change the next version first
-# (<Version> in src/Microsoft.SwiftUI/Microsoft.SwiftUI.csproj).
+# pack packs what is committed: it refuses a clone with uncommitted changes, so the package
+# that is built and proved is the source in the bridge's pull request. It also refuses a
+# version that the bridge's repository has a tag for: a version that was given out is never
+# packed again with other contents. Give the change the next version first (<Version> in
+# src/Microsoft.SwiftUI/Microsoft.SwiftUI.csproj).
 #
 # The two project files that name the bridge's feed (src/SentenceStudio.Native.iOS/NuGet.Config
 # and the view tests') point at the Captain's own folder, which a session cannot read. NuGet
 # looks in the user's package folder before any feed, so a package put there is found. That is
-# what pack does, by restoring a project that only downloads it.
+# what pack and sync do, by restoring a project that only downloads it.
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)"
 BRIDGE="${SESSION_BRIDGE:-$HOME/sstudio/bridge}"
+BRIDGE_REPO="${SESSION_BRIDGE_REPO:-davidortinau/Microsoft.SwiftUI}"
 PROJECT="$BRIDGE/src/Microsoft.SwiftUI/Microsoft.SwiftUI.csproj"
 PINS="$ROOT/src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj"
+VIEW_TESTS="$ROOT/tests/SentenceStudio.Native.SwiftUIViews.Tests"
 PACKAGES="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
 
 say() { printf '%s\n' "$*" >&2; }
@@ -66,49 +77,55 @@ PY
 
 well_formed() { case "$1" in ""|*[!A-Za-z0-9.-]*) return 1 ;; esac; }
 
+# The branch of the bridge's repository that holds a version: main when it does, or the first
+# other branch there that does (while the Captain has not merged that line into main). A pull
+# request goes to that branch, or it would carry every version main lacks. $1 the version.
+branch_holding() {
+  local tag="refs/tags/v$1" found
+  git -C "$BRIDGE" rev-parse -q --verify "$tag^{commit}" >/dev/null 2>&1 || { echo main; return 0; }
+  if git -C "$BRIDGE" merge-base --is-ancestor "$tag" origin/main 2>/dev/null; then echo main; return 0; fi
+  found="$(git -C "$BRIDGE" for-each-ref --format='%(refname:short)' --contains "$tag" refs/remotes/origin \
+            | sed -n 's#^origin/##p' | grep -v -e '^HEAD$' -e '^feedback/' | head -1)"
+  echo "${found:-main}"
+}
+
+# Whether this login may push to the bridge's repository: the session's token covers it only
+# when the app is installed there and its main is protected (docs/admin-feedback-check.md).
+may_push() {
+  [ "$(gh api "repos/$BRIDGE_REPO" --jq '.permissions.push' 2>/dev/null)" = true ]
+}
+
 where() {
   have_bridge
-  local pinned at source next
+  local pinned at source
   pinned="$(version_in "$PINS" pin)"
   at="$(git -C "$BRIDGE" symbolic-ref -q --short HEAD || git -C "$BRIDGE" rev-parse --short HEAD)"
   source="$(git -C "$BRIDGE" rev-parse -q --verify --short "refs/tags/v$pinned^{commit}" 2>/dev/null || echo "no tag v$pinned")"
-  next="$(next_version "$pinned")"
   echo "BRIDGE=$BRIDGE"
   echo "AT=$at $(git -C "$BRIDGE" log -1 --format=%s | cut -c1-80)"
   echo "PINNED=$pinned"
   echo "SOURCE_OF_PINNED=$source"
-  echo "NEXT=$next"
+  echo "NEXT=$(next_version "$pinned")"
+  echo "PR_BASE=$(branch_holding "$pinned")"
+  if may_push; then echo "PUSH=yes"; else echo "PUSH=no"; fi
   [ -z "$(git -C "$BRIDGE" status --porcelain)" ] || echo "UNCOMMITTED=yes"
 }
 
-pack() {
-  have_bridge
-  local version log package kept probe
-  version="$(version_in "$PROJECT" version)"
-  well_formed "$version" || stop "the bridge's project file names no usable version ($version)."
-  if git -C "$BRIDGE" rev-parse -q --verify "refs/tags/v$version" >/dev/null 2>&1; then
-    stop "version $version was already given out (tag v$version). Give your change the next version in $PROJECT first; scripts/session-bridge.sh where prints it."
-  fi
-  log="${TMPDIR:-/tmp}/session-bridge-pack.log"
-  say "building the native framework and packing $version (log: $log)"
-  ( cd "$BRIDGE" && bash scripts/build-xcframework.sh && bash scripts/pack-and-verify.sh ) > "$log" 2>&1 \
-    || { tail -15 "$log" >&2; stop "the bridge did not build, pack or verify. The whole log is $log."; }
-  package="$BRIDGE/artifacts/Microsoft.SwiftUI.$version.nupkg"
-  [ -f "$package" ] || stop "no package at $package after the pack."
-
-  # Into this user's package folder. A copy of the same version from an earlier pack goes
-  # first, or the build keeps using it.
+# Puts one package file into this user's package folder, keeping the copy that was there if it
+# cannot. $1 the .nupkg, $2 its version, $3 a log to add to.
+install() {
+  local package="$1" version="$2" log="$3" kept probe code
   kept="$PACKAGES/microsoft.swiftui/$version"
-  rm -rf "$kept"
-  probe="$(mktemp -d "${TMPDIR:-/tmp}/session-bridge.XXXXXXXX")" || stop "no scratch folder."
+  probe="$(mktemp -d "${TMPDIR:-/tmp}/session-bridge.XXXXXXXX")" || { say "no scratch folder."; return 1; }
+  mkdir -p "$probe/feed" && cp "$package" "$probe/feed/Microsoft.SwiftUI.$version.nupkg" || { rm -rf "$probe"; return 1; }
   cat > "$probe/NuGet.config" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
-  <packageSources><clear /><add key="bridge" value="$BRIDGE/artifacts" /></packageSources>
+  <packageSources><clear /><add key="bridge" value="$probe/feed" /></packageSources>
   <packageSourceMapping><clear /><packageSource key="bridge"><package pattern="*" /></packageSource></packageSourceMapping>
 </configuration>
 EOF
-  # A project that downloads the package and nothing else, with no SDK to fetch.
+  # A project that downloads the package and nothing else.
   cat > "$probe/probe.csproj" <<EOF
 <Project>
   <PropertyGroup>
@@ -123,13 +140,47 @@ EOF
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>
 EOF
+  # The copy of this version from an earlier pack goes aside first, or the restore keeps it.
+  rm -rf "$kept.before"
+  [ ! -e "$kept" ] || mv "$kept" "$kept.before" || { rm -rf "$probe"; return 1; }
   ( cd "$probe" && dotnet restore probe.csproj --configfile "$probe/NuGet.config" -p:NuGetAudit=false ) >> "$log" 2>&1
+  code=$?
   rm -rf "$probe"
-  [ -f "$kept/microsoft.swiftui.$version.nupkg" ] \
-    || { tail -15 "$log" >&2; stop "the package was packed but could not be put in $PACKAGES. The whole log is $log."; }
-  cmp -s "$kept/microsoft.swiftui.$version.nupkg" "$package" \
-    || stop "the package in $PACKAGES is not the one just packed."
+  if [ "$code" = 0 ] && cmp -s "$kept/microsoft.swiftui.$version.nupkg" "$package"; then
+    rm -rf "$kept.before"
+    return 0
+  fi
+  rm -rf "$kept"
+  [ ! -e "$kept.before" ] || mv "$kept.before" "$kept"
+  return 1
+}
+
+pack() {
+  have_bridge
+  local version log package
+  version="$(version_in "$PROJECT" version)"
+  well_formed "$version" || stop "the bridge's project file names no usable version ($version)."
+  if git -C "$BRIDGE" rev-parse -q --verify "refs/tags/v$version" >/dev/null 2>&1; then
+    stop "version $version was already given out (tag v$version). Give your change the next version in $PROJECT first; scripts/session-bridge.sh where prints it."
+  fi
+  [ -z "$(git -C "$BRIDGE" status --porcelain)" ] \
+    || stop "the bridge clone has uncommitted changes. Commit them first: the package must be the source that is in your branch, or what is proved is not what is merged."
+  log="${TMPDIR:-/tmp}/session-bridge-pack.log"
+  say "building the native framework and packing $version (log: $log)"
+  ( cd "$BRIDGE" && bash scripts/build-xcframework.sh && bash scripts/pack-and-verify.sh ) > "$log" 2>&1 \
+    || { tail -15 "$log" >&2; stop "the bridge did not build, pack or verify. The whole log is $log."; }
+  package="$BRIDGE/artifacts/Microsoft.SwiftUI.$version.nupkg"
+  [ -f "$package" ] || stop "no package at $package after the pack."
+  [ -z "$(git -C "$BRIDGE" status --porcelain)" ] \
+    || stop "the pack changed files the bridge's repository tracks ($(git -C "$BRIDGE" status --porcelain | head -3 | tr '\n' ' ')). Look at them before going on."
+  install "$package" "$version" "$log" \
+    || { tail -15 "$log" >&2; stop "the package was packed but could not be put in $PACKAGES; the copy that was there is kept. The whole log is $log."; }
+  # The view tests keep the native code they took from the package the first time; a pack of
+  # the same version again would not replace it. Their build output goes, so the next build
+  # takes it afresh. (scripts/ios-build.sh does the same for the app.)
+  [ ! -d "$VIEW_TESTS" ] || rm -rf "$VIEW_TESTS/obj" "$VIEW_TESTS/bin"
   echo "VERSION=$version"
+  echo "COMMIT=$(git -C "$BRIDGE" rev-parse --short HEAD)"
   echo "PACKAGE=$package"
   say "packed. Pin $version in the two project files that name Microsoft.SwiftUI, then build."
 }
@@ -150,9 +201,27 @@ bridge_tests() {
   grep -Eq 'Managed tests: ([0-9]+)/\1 passed' "$log" || stop "the bridge's tests did not all pass. The whole output is $log."
 }
 
+# The packages the Captain packed are the ones a version means once it is given out. A copy of
+# the same version that a session packed from its branch must not outlive that, and a version
+# this user never had is put there, since it cannot read the feed the project files name.
+sync() {
+  local folder="${1:-}" package version log failed=0
+  [ -d "$folder" ] || stop "sync needs the folder the packages are in."
+  log="${TMPDIR:-/tmp}/session-bridge-sync.log"; : > "$log"
+  for package in "$folder"/Microsoft.SwiftUI.*.nupkg; do
+    [ -f "$package" ] || continue
+    version="${package##*/Microsoft.SwiftUI.}"; version="${version%.nupkg}"
+    well_formed "$version" || continue
+    cmp -s "$package" "$PACKAGES/microsoft.swiftui/$version/microsoft.swiftui.$version.nupkg" && continue
+    if install "$package" "$version" "$log"; then echo "SYNCED=$version"; else echo "NOT_SYNCED=$version"; failed=1; fi
+  done
+  return "$failed"
+}
+
 case "${1:-}" in
   where) where ;;
   pack) pack ;;
   test) bridge_tests ;;
+  sync) sync "${2:-}" ;;
   *) sed -n '2,/^set -uo pipefail/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

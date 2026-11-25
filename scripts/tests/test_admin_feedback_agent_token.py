@@ -39,10 +39,20 @@ class TokenTests(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
 
-    def keep(self, token, expires_at):
+    def keep(self, token, expires_at, bridge="covered"):
         os.makedirs(os.path.dirname(self.cache), exist_ok=True)
         with open(self.cache, "w", encoding="utf-8") as out:
-            json.dump({"token": token, "expires_at": expires_at}, out)
+            json.dump({"token": token, "expires_at": expires_at, "bridge": bridge}, out)
+
+    def test_a_token_without_the_bridge_is_not_used_again(self):
+        # The Captain may have installed the app on the bridge since it was made.
+        for bridge in ("the app is not installed on it", ""):
+            self.keep("ghs_kept", in_minutes(40), bridge)
+            with mock.patch.object(agent, "new_token", return_value=(
+                    {"id": 1}, {"token": "ghs_new", "expires_at": in_minutes(60), "bridge": "covered"})):
+                self.assertEqual(agent.token(), "ghs_new")
+            with open(self.cache, encoding="utf-8") as source:
+                self.assertEqual(json.load(source)["bridge"], "covered")
 
     def test_a_token_with_time_left_is_used_again(self):
         self.keep("ghs_kept", in_minutes(40))
@@ -81,32 +91,44 @@ class TokenTests(unittest.TestCase):
                 os.environ["TZ"] = old
             time.tzset()
 
-    def asked_for(self, bridge_answer):
-        """The token requests made, when GitHub answers the one that names the bridge so."""
+    def asked_for(self, rules, bridge_answer=None):
+        """The token requests made and what the token says of the bridge, when the bridge's main
+        has these rules and GitHub answers the request that names the bridge so."""
         calls = []
 
         def call(method, path, bearer, body=None):
             calls.append((method, path, body))
             if path.endswith("/installation"):
                 return {"id": 42, "account": {"login": "davidortinau"}}
+            if path.endswith("/rules/branches/main"):
+                if rules is None:
+                    raise agent.TokenError("GitHub answered 404 to GET the rules")
+                return [{"type": kind} for kind in rules]
             if "Microsoft.SwiftUI" in body["repositories"] and bridge_answer:
                 raise agent.TokenError(f"GitHub answered {bridge_answer} to POST {path}")
             return {"token": "ghs_new", "expires_at": in_minutes(60)}
 
         with mock.patch.object(agent, "app_jwt", return_value="jwt"), mock.patch.object(agent, "call", call):
-            agent.new_token()
-        return [body for method, path, body in calls if method == "POST"]
+            _, token = agent.new_token()
+        return [body["repositories"] for method, path, body in calls if method == "POST"], token["bridge"]
 
-    def test_the_token_is_asked_for_this_repository_and_the_bridge_and_no_other(self):
-        self.assertEqual(self.asked_for(None), [{"repositories": ["SentenceStudio", "Microsoft.SwiftUI"]}])
+    def test_the_token_is_for_this_repository_and_the_bridge_and_no_other(self):
+        self.assertEqual(self.asked_for(["deletion", "update", "non_fast_forward"]),
+                         ([["SentenceStudio"], ["SentenceStudio", "Microsoft.SwiftUI"]], "covered"))
+
+    def test_a_bridge_whose_main_anyone_can_update_is_never_asked_for(self):
+        for rules in ([], ["deletion", "non_fast_forward"], None):
+            self.assertEqual(self.asked_for(rules),
+                             ([["SentenceStudio"]], "its main is not closed to the app by a ruleset"))
 
     def test_without_the_app_on_the_bridge_the_token_is_for_this_repository_alone(self):
-        self.assertEqual(self.asked_for(422), [{"repositories": ["SentenceStudio", "Microsoft.SwiftUI"]},
-                                               {"repositories": ["SentenceStudio"]}])
+        self.assertEqual(self.asked_for(["update"], 422),
+                         ([["SentenceStudio"], ["SentenceStudio", "Microsoft.SwiftUI"]],
+                          "the app is not installed on it"))
 
     def test_another_refusal_is_not_taken_for_a_missing_bridge(self):
         with self.assertRaises(agent.TokenError):
-            self.asked_for(500)
+            self.asked_for(["update"], 500)
 
     def test_check_never_prints_the_token(self):
         app = {"slug": "ss-fix-agent", "id": 5826863, "owner": {"login": "davidortinau"}}

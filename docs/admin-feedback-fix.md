@@ -311,7 +311,9 @@ not on this machine" and left a cause unexplained. It had only the package then.
 that now: read the source.)
 
 `scripts/session-bridge.sh where` prints the clone, what it is at, the version your worktree
-pins (`PINNED`), the commit that version was built from, and the next free version (`NEXT`).
+pins (`PINNED`), the commit that version was built from, the next free version (`NEXT`), the
+branch a pull request there goes to (`PR_BASE`), and whether your login may push there
+(`PUSH`).
 
 **Reading it.** When a layout or a control behaves in a way the app's code does not explain,
 look in the bridge before you call the cause unknown:
@@ -326,7 +328,9 @@ The app runs the pinned version, so read that version's source
 **Changing it.** AGENTS.md gives a standing approval ("Bridge standing approval"): when a fix is
 blocked by the bridge, because it lacks a view or a modifier or has a fault of its own, make
 the change there without asking. It does not cover a new dependency, a change of architecture,
-or UIKit. The steps:
+UIKit, or publishing. A branch and a pull request for the Captain to merge are not publishing
+(his word, 2026-11-24: the sessions are to maintain the bridge). A push to its `main`, a tag,
+a release or a package in anyone else's feed are, and stay his. The steps:
 
 1. `git -C ~/sstudio/bridge switch -c feedback/issue-<n>`. In a follow-up pass the branch is
    already there: `switch feedback/issue-<n>`.
@@ -338,7 +342,9 @@ or UIKit. The steps:
    its whole source.
 4. `scripts/session-bridge.sh test` runs the bridge's own tests (about a minute) and
    `scripts/session-bridge.sh pack` builds the native framework, packs, verifies and puts the
-   package where your builds find it (about 40 seconds).
+   package where your builds find it (about a minute). `pack` packs what is committed and
+   refuses a clone with uncommitted changes, so that what you prove is what is in your
+   branch.
    - If `pack` stops at "NuGet dependency groups are missing or duplicate the net11.0-ios
      platform target", the bridge's package check on your branch predates this Mac's .NET SDK:
      it expects platform 27.0 and this SDK builds 27.2. Merge `origin/main` if it has the
@@ -347,9 +353,9 @@ or UIKit. The steps:
 5. In your worktree, pin the new version in the two project files that name `Microsoft.SwiftUI`
    (`src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj` and
    `tests/SentenceStudio.Native.SwiftUIViews.Tests/SentenceStudio.Native.SwiftUIViews.Tests.csproj`),
-   use the change, and build. Before the first build on a new version, move the view tests'
-   `obj` and `bin` aside, or the test program runs the old native code; `scripts/ios-build.sh`
-   does the same for the app by itself.
+   use the change, and build. Every `pack` removes the view tests' `obj` and `bin` in your
+   worktree, because a build that keeps them runs the native code of the package it first
+   saw; `scripts/ios-build.sh` does the same for the app by itself.
 6. After a further change to the bridge, commit and `pack` again; it replaces the copy your
    builds use. A version that has a tag in the bridge's repository was given out and is never
    packed again: `pack` refuses it.
@@ -357,19 +363,24 @@ or UIKit. The steps:
 **Delivering it.** Two pull requests, each naming the other:
 
 - **The bridge's.** `git -C ~/sstudio/bridge push -u origin feedback/issue-<n>`, then
-  `gh pr create --repo davidortinau/Microsoft.SwiftUI --base main --head feedback/issue-<n>`.
-  Say what it adds or mends, the tests, and which SentenceStudio pull request needs it. Never
-  push to the bridge's `main`, and make no tag and no release there: those say a version was
-  given out, and that is the Captain's to say by merging.
+  `gh pr create --repo davidortinau/Microsoft.SwiftUI --base <PR_BASE> --head feedback/issue-<n>`.
+  `PR_BASE` is the branch that holds the pinned version: `main`, or another branch while the
+  Captain has not merged that line into `main`; against the wrong one the pull request would
+  carry every version in between. Say what it adds or mends, the tests, and which
+  SentenceStudio pull request needs it. Never push to the bridge's `main` or to `PR_BASE`
+  itself, and make no tag and no release there: those say a version was given out, and that
+  is the Captain's to say by merging.
 - **This repository's**, as always, pinning the new version. Its first line under "The fix":
   "Needs bridge <version>: merge <the bridge pull request> first." GitHub's checks do not build
   the iOS head, so they pass without the package; the runner's proof runs as your user and has
   it.
-- **If the push to the bridge is refused** (the app that is your login is not installed on
-  that repository), do not look for another way. Your branch stays in the clone: the runner
-  keeps every branch there. Put the bridge change's diff in this repository's pull request,
-  and under "Needs your answer" ask for the app `ss-fix-agent` to be installed on
-  `davidortinau/Microsoft.SwiftUI`, to be followed by `/revise push the bridge branch`.
+- **When `where` says `PUSH=no`**, your login has no access to the bridge's repository: the
+  app is not installed on it, or its `main` is not yet protected (the runner asks for access
+  only when it is). Do not try to push and do not look for another way. Your branch stays in
+  the clone: the runner keeps every branch there. Put the bridge change's diff in this
+  repository's pull request, and under "Needs your answer" ask for what
+  docs/admin-feedback-check.md, "The SwiftUI bridge", says is needed, to be followed by
+  `/revise push the bridge branch`.
 - Under "Left undone", say that nobody else has the package yet: after merging the bridge's
   pull request the Captain packs that version from `main` (docs/admin-feedback-check.md, "The
   SwiftUI bridge"), and until then his own builds of your branch cannot restore.
