@@ -174,8 +174,7 @@ internal static class YouTubeChannelView
         {
             var toggleAll = NativeForm.Bordered(style, text(state.AllNewSelected
                     ? "ChannelDetail_SelectNone" : "ChannelDetail_SelectAllNew"),
-                channel.ToggleSelectAll, "native.import.youtube.channel.select-all")
-                .WithFixedSize();
+                channel.ToggleSelectAll, "native.import.youtube.channel.select-all");
             var countRow = Views.HStack(Caption(style, Format(text("ChannelDetail_VideosFound"),
                     state.Videos.Length)).WithFlexibleWidth(), toggleAll);
             countRow.Spacing = SourceUiLayout.ItemGap;
@@ -247,11 +246,11 @@ internal static class YouTubeChannelView
     {
         var content = Views.HStack(Views.Image(symbol), style.Text(Views.Text(label), SourceTextRole.BadgeSmall));
         content.Spacing = 3;
-        // Source .badge is white-space: nowrap: the badge keeps its width and the title truncates.
+        // Source .badge is white-space: nowrap: the row gives the badge its own width (it is the
+        // least flexible item) and the title, limited to one line, truncates.
         return content.WithPadding(4, 8, 4, 8)
             .WithRoundedSurface(fill.Light, fill.Dark, 6)
             .WithForegroundColor(foreground.Light, foreground.Dark)
-            .WithFixedSize()
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
     }

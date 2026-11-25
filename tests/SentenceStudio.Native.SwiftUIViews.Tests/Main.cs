@@ -8,6 +8,7 @@ using SentenceStudio.Native;
 using SentenceStudio.Native.Features.Lookups;
 using SentenceStudio.Native.iOS.Features.Activities;
 using SentenceStudio.Native.iOS.Features.Browse;
+using SentenceStudio.Native.iOS.Features.Import;
 using SentenceStudio.Native.iOS.Features.LearningResources;
 using SentenceStudio.Native.iOS.Features.Lookups;
 using SentenceStudio.Native.iOS.Features.Quiz;
@@ -1038,6 +1039,67 @@ var cases = new (string Name, Action Test)[]
             }
         }
     }),
+    // Issue 260, the Captain's follow-up: the YouTube pages' badges, Retry and Select All New were
+    // fixed-size since bridge 0.1.0-preview.43. On 0.1.0-preview.67 a row gives its least
+    // flexible items their own width, so they keep one line beside a title that truncates
+    // without it. The rows are put together here as ImportRow, VideoRow and the count row put
+    // them together, from the views' own badges and buttons, and drawn 330 points wide (an
+    // iPhone's Form row): a row whose badge or button wrapped would be taller.
+    ("YouTube rows: the badges, Retry and Select All New keep one line beside a long title, without fixed size (issue 260)", () =>
+    {
+        const double width = 330;
+        const string longTitle = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var phone = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+        SwiftView Free(SwiftView view, string what) => view.FixedHorizontalSize
+            ? throw new Exception($"{what} is fixed-size; its row keeps its width without that.")
+            : view;
+        SwiftView StatusBadge() => Free((SwiftView)typeof(YouTubeImportView).GetMethod("StatusBadge", flags)!
+            .Invoke(null, [VideoImportStatus.Failed, phone, (Func<string, string>)(_ => "Failed"), "status"])!, "The import's status badge");
+        SwiftView VideoBadge() => Free((SwiftView)typeof(YouTubeChannelView).GetMethod("Badge", flags)!
+            .Invoke(null, [phone, "xmark.circle", "Failed", phone.Appearance.Danger, new SourceColorPair("#FFFFFF", "#FFFFFF"), "failed"])!, "The video's badge");
+        SwiftView Retry()
+        {
+            var label = Views.HStack(Views.Image("arrow.clockwise"), Views.Text("Retry"));
+            label.Spacing = 4;
+            return Free(YouTubeImportView.OutlineWarningButton(label, () => { }, phone), "Retry");
+        }
+        SwiftView SelectAll() => NativeForm.Bordered(phone, "Select All New", () => { }, "select-all");
+        SwiftView Caption(string value) => phone.Text(Views.Text(value), SourceTextRole.Caption1, SourceTextTone.Secondary);
+        SwiftView ImportRow(string title)
+        {
+            var open = Views.Button(phone.Text(Views.Text(title), SourceTextRole.Body1Strong).WithLineLimit(1), () => { })
+                .WithButtonStyle(SwiftButtonStyle.Plain).WithFlexibleWidth();
+            var line = Views.HStack(StatusBadge(), open, Caption("11/25/2026"), Retry()).WithFlexibleWidth();
+            line.Spacing = SourceUiLayout.ItemGap + 4;
+            return line;
+        }
+        SwiftView VideoRow(string title)
+        {
+            var row = Views.HStack(Views.Toggle(title, false, _ => { }).WithLabelsHidden(),
+                phone.Text(Views.Text(title), SourceTextRole.Body2).WithLineLimit(1).WithFlexibleWidth(),
+                VideoBadge(), Retry()).WithFlexibleWidth();
+            row.Spacing = SourceUiLayout.ItemGap + 4;
+            return row;
+        }
+        foreach (var (what, row) in new (string, Func<string, SwiftView>)[] { ("The import's row", ImportRow), ("The channel's video row", VideoRow) })
+        {
+            using var brief = row("Short");
+            using var full = row(longTitle);
+            var (one, tall) = (PaintedHeight(brief, width, 120), PaintedHeight(full, width, 120));
+            if (Math.Abs(tall - one) > 1)
+                throw new Exception($"{what} is {tall:0.#} points high with a long title and {one:0.#} with a short one: something beside the title wrapped.");
+        }
+        using var alone = SelectAll();
+        var countRow = Views.HStack(Caption("128 videos found").WithFlexibleWidth(), SelectAll());
+        countRow.Spacing = SourceUiLayout.ItemGap;
+        using (countRow)
+        {
+            var (button, counted) = (PaintedHeight(alone, width, 120), PaintedHeight(countRow, width, 120));
+            if (Math.Abs(counted - button) > 1)
+                throw new Exception($"The video count row is {counted:0.#} points high and Select All New alone is {button:0.#}: the button wrapped.");
+        }
+    }),
 };
 
 var failures = 0;
@@ -1228,6 +1290,41 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
         if (rows.Count == 0)
             throw new Exception("The host painted nothing: this is the drawing, not the layout.");
         return rows;
+    }
+    finally
+    {
+        SwiftUIHost.DetachView(root, host);
+    }
+}
+
+// The height in points of everything a view paints in a real SwiftUI host of the given size.
+static double PaintedHeight(SwiftView root, double width, double height)
+{
+    var host = SwiftUIHost.CreateView(root);
+    try
+    {
+        host.Frame = new CGRect(0, 0, width, height);
+        host.LayoutSubtreeIfNeeded();
+        var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
+            ?? throw new Exception("The host has no bitmap to draw in.");
+        host.CacheDisplay(host.Bounds, bitmap);
+        if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
+            throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
+        var (data, stride, wide, high) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide, (int)bitmap.PixelsHigh);
+        var samples = (int)bitmap.BitsPerPixel / 8;
+        var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
+        int top = -1, bottom = -1;
+        for (var y = 0; y < high; y++)
+            for (var x = 0; x < wide; x++)
+                if (Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0)
+                {
+                    top = top < 0 ? y : top;
+                    bottom = y;
+                    break;
+                }
+        if (top < 0)
+            throw new Exception("The host painted nothing: this is the drawing, not the layout.");
+        return (bottom + 1 - top) / (high / height);
     }
     finally
     {

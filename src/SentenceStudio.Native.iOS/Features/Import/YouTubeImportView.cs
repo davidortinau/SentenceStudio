@@ -360,8 +360,7 @@ internal static class YouTubeImportView
         return Views.Button(label, action)
             .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithButtonAppearance(null, null,
-                style.Appearance.Warning.Light, style.Appearance.Warning.Dark, 6)
-            .WithFixedSize();
+                style.Appearance.Warning.Light, style.Appearance.Warning.Dark, 6);
     }
 
     /// <summary>Source RenderStatusBadge: the status's color, icon and text, with a spinner while it runs.</summary>
@@ -383,12 +382,12 @@ internal static class YouTubeImportView
         content.Spacing = 3;
         if (status >= VideoImportStatus.FetchingTranscript && status < VideoImportStatus.Completed)
             content.Add(Views.IndeterminateProgress(label).WithTintColor(foreground.Light, foreground.Dark));
-        // Source .badge is white-space: nowrap: the badge keeps its width and the title truncates.
+        // Source .badge is white-space: nowrap: the row gives the badge its own width (it is the
+        // least flexible item) and the title, limited to one line, truncates.
         return content
             .WithPadding(4, 8, 4, 8)
             .WithRoundedSurface(fill.Light, fill.Dark, 6)
             .WithForegroundColor(foreground.Light, foreground.Dark)
-            .WithFixedSize()
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
     }
