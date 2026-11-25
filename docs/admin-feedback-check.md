@@ -144,23 +144,25 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
 
 - **The list.** A session writes what its pull request leaves for later as tasks, to a file
   the runner names in its prompt (`issue-<n>-next.json`, a JSON list of title and body; the
-  session guide's "Next"). After the session the runner takes the list
-  (`scripts/admin-feedback-next.py record`), keeps it in `state/next/<pr>.json`, and shows it
-  in its comment on the pull request under "Next, when you merge", every task in full as it
-  will be filed. At most five for one pull request. A follow-up pass is handed the list and
-  brings it up to date.
+  session guide's "Next"). As soon as the session ends, before the proof, the runner takes
+  the list (`record_next`, `scripts/admin-feedback-next.py record`), keeps it in
+  `state/next/<pr>.json`, and posts it on the pull request as a comment of its own, "Next,
+  when you merge": every task in full, quoted, as it will be filed. At most five for one
+  pull request. A follow-up pass is handed the list and brings it up to date; a list that
+  did not change is not posted again.
 - **Merging starts them.** At the start of each pass (`next_on_merge`) the runner looks at the
-  pull requests that have a list. For one that was merged it files each task as an issue
-  under the Captain's login, labelled `feedback-follow-up`, says so on the pull request, and
-  writes a `NEXT:` line in the run's summary. The check then works them like any issue, one
+  pull requests that have a list. For one the Captain merged into `main` after its list was
+  posted, it files each task as an issue under his login, labelled `feedback-follow-up`, says
+  so on the pull request, and writes a `NEXT:` line in the run's summary. The check then works them like any issue, one
   pull request each, after everything he or a learner filed (`admin-feedback-pr.py issues`
   puts follow-ups last). The list of a pull request closed without merging is dropped.
 - **What he can say on the pull request**, each a comment of his own:
   - `/skip 2 4` or `/skip all`, before merging: those are not filed.
   - `/revise all` or `/revise 2`: a follow-up pass does them in this pull request instead.
   - `/next 1 3` or `/next all`: only under the narrow appetite, below.
-  The numbers are those of the runner's newest comment; a `/skip` or `/next` written before
-  the list last changed is not counted.
+  The numbers are those of the runner's newest list; a `/skip` or `/next` written before
+  that list was posted is not counted. Items are named by number (`2`, `#2`, `2-4`) or by
+  the one word `all`.
 - **The appetite** (`FEEDBACK_APPETITE`, default `wide`, in `scripts/admin-feedback-check.sh`).
   `wide`: sessions also fix the same fault nearby, run the checks they would have listed, and
   list what they notice on the way; every task starts on merge. `narrow`, for when the app
@@ -169,17 +171,31 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
   it down, change the default in the script on `main`.
 - **Whose words these are.** The rule stands that nothing a session wrote becomes a later
   run's task by itself: a session reads learners' reports and could be misled by one. A
-  follow-up is a session's text, so it runs only through him. He is shown exactly what will
-  be filed (HTML comments are taken out, and an `@name` notifies nobody), nothing is filed
-  before he merges, only the runner files (a session cannot open an issue), and a follow-up's
-  own pull request needs his merge before its list starts in turn. The session that works it
-  is told the text is an earlier session's reading, to be checked against the code.
+  follow-up is a session's text, so it runs only through him:
+  - A list is taken only for the open pull request of the session's own branch
+    (`feedback/issue-<n>` into `main`, not from a fork). The number comes from the session's
+    reply, and it could name another.
+  - He is shown exactly what will be filed. Nothing in a task can hide: HTML shows as text,
+    characters that draw nothing are taken out, link definitions and images show as written,
+    an `@name` notifies nobody, and each task is quoted so it cannot pass for the runner's
+    own words.
+  - A list counts only once it was posted. One that could not be posted, or that a pass
+    which did not finish left out of date, is never filed; the next pass posts it again.
+  - Nothing is filed unless he himself merged the pull request into `main`, after the list
+    was posted. One merged before its list was shown starts nothing: the runner says so there
+    and waits for his `/next`. A pull request marked merged any other way drops its list.
+  - Only the runner files, as his login (a session cannot open an issue), and never twice:
+    it looks for an issue it already filed from that list first.
+  - A follow-up's own pull request needs his merge before its list starts in turn, and the
+    session that works a follow-up is told the text is an earlier session's reading, to be
+    checked against the code.
 - **A draft while a pass runs.** The runner makes a pull request a draft when a follow-up
-  pass starts on it and ready again when the session ends (`draft_for_pass`, `ready_again`,
-  `state/drafted`), because GitHub does not merge a draft. He merged pull request 263 five
+  pass starts on it and ready again when the session has ended and its list is posted
+  (`draft_for_pass`, `ready_again`, `state/drafted`), because GitHub does not merge a draft.
+  One he made a draft himself is left his. He merged pull request 263 five
   minutes into a pass; its commit reached the branch after the merge and had to go into a
-  new pull request. A run that dies leaves the record, and the next run makes the pull
-  request ready.
+  new pull request. A run that dies leaves the record, and the next pass makes the pull
+  request ready, also a pass with nothing else to do.
 - **The status issue** shows, beside each open pull request, how many tasks its list holds.
   A list that could not be filed is tried again by the next pass; why is in `state/next.err`.
   What became of each list is kept in `state/next/done/`.

@@ -303,16 +303,31 @@ next_on_merge() {
   NEXT_FILED=yes; NOTIFY=yes
 }
 
-# The list a session left of what is next, taken from the session's user, kept, and written
-# out as what the runner says of it on the pull request. $1 the pull request's number, $2 the
-# issue, $3 the session's file, $4 where what to say goes. Nothing listed says nothing.
+# The list a session left of what is next: taken from the session's user, kept, and posted on
+# the pull request at once, before the proof, so that it is there before he can merge. A list
+# counts only once it was posted (scripts/admin-feedback-next.py): one he was not shown is
+# never filed. $1 the pull request's number, $2 the issue, $3 the session's file. Says in the
+# summary what it could not do.
+# The file is the session's: whatever that user left running is ended first, and then only a
+# plain file is read, with a time limit, so that nothing put in its place can hold the pass.
 record_next() {
-  local copy="$OUT/state/next-$STAMP.json"
-  : > "$4"
-  as_session /bin/sh -c 'head -c 200000 "$1"' sh "$3" > "$copy" 2>/dev/null || rm -f "$copy"
-  python3 -I "$ROOT/scripts/admin-feedback-next.py" record --pr "$1" --issue "$2" --file "$copy" \
-    --appetite "$APPETITE" > "$4" 2>/dev/null
-  rm -f "$copy"
+  local copy="$OUT/state/next-$STAMP.json" said="$OUT/state/next-$STAMP.md" why="$OUT/state/next-$STAMP.err"
+  stop_session_processes
+  as_session /usr/bin/perl -e 'alarm 20; exec @ARGV or exit 127' /bin/sh -c \
+    '[ -f "$1" ] && [ ! -L "$1" ] && head -c 200000 "$1"' sh "$3" > "$copy" 2>/dev/null || rm -f "$copy"
+  if python3 -I "$ROOT/scripts/admin-feedback-next.py" record --pr "$1" --issue "$2" --file "$copy" \
+       --appetite "$APPETITE" > "$said" 2> "$why"; then
+    if [ -s "$said" ]; then
+      if gh pr comment "$1" --repo "$REPO" --body-file "$said" >/dev/null 2>&1; then
+        python3 -I "$ROOT/scripts/admin-feedback-next.py" posted --pr "$1" 2>/dev/null
+      else
+        { echo "The list of what pull request #$1 leaves for later could not be posted on it, so nothing is filed from it when it is merged; the next pass on it posts it."; echo; } >> "$RUN"
+      fi
+    fi
+  else
+    { echo "What pull request #$1 leaves for later was not taken: $(head -c 400 "$why" 2>/dev/null | tr '\n' ' ')"; echo; } >> "$RUN"
+  fi
+  rm -f "$copy" "$said" "$why"
 }
 
 # A pull request is a draft while a follow-up pass works on it: GitHub does not merge a draft,
@@ -322,7 +337,13 @@ record_next() {
 # until they are ready again, so a run that dies leaves none a draft for good. $1 the number.
 DRAFTED="$OUT/state/drafted"
 draft_for_pass() {
-  [ "$(gh pr view "$1" --repo "$REPO" --json isDraft --jq .isDraft 2>/dev/null)" = false ] || return 0
+  local is
+  is="$(gh pr view "$1" --repo "$REPO" --json isDraft --jq .isDraft 2>/dev/null)"
+  # One he made a draft himself is left his.
+  [ "$is" != true ] || return 0
+  [ "$is" = false ] \
+    || { echo "Whether pull request #$1 is a draft could not be read, so it was not made one for the pass and can be merged while the pass runs; its work would then be left on the branch."; echo; } >> "$RUN"
+  [ "$is" = false ] || return 0
   printf '%s\n' "$1" >> "$DRAFTED"
   gh pr ready "$1" --repo "$REPO" --undo >/dev/null 2>&1 \
     || { echo "Pull request #$1 could not be made a draft for the pass, so it can be merged while the pass runs; its work would then be left on the branch."; echo; } >> "$RUN"
@@ -1078,7 +1099,7 @@ follow_up_stage() {
   local proof="$SESSION_FIX/issue-$issue-proof.json" asked="$SESSION_FIX/issue-$issue-request-$STAMP.md"
   local reports="$SESSION_FIX/issue-$issue-reports.txt" codes=""
   local checked="$OUT/state/checked-$STAMP.md" verdicts="$OUT/state/checked-$STAMP.json"
-  local next="$SESSION_FIX/issue-$issue-next.json" next_said="$OUT/state/next-$STAMP.md"
+  local next="$SESSION_FIX/issue-$issue-next.json" next_stale=""
   local code started why id wall result_line
 
   if ! sgit show-ref --verify --quiet "refs/remotes/origin/$branch"; then
@@ -1139,8 +1160,10 @@ follow_up_stage() {
   status
   # The list the earlier passes left, for this one to bring up to date. Without it the
   # session's file is missing, and a missing file leaves the list as it was.
+  # (Whatever is at that path goes first, and the write has a time limit.)
   python3 -I "$ROOT/scripts/admin-feedback-next.py" show --pr "$pr" 2>/dev/null \
-    | as_session /bin/sh -c 'cat > "$1"' sh "$next" 2>/dev/null || as_session /bin/rm -f "$next" 2>/dev/null
+    | as_session /usr/bin/perl -e 'alarm 20; exec @ARGV or exit 127' /bin/sh -c 'rm -f "$1" && cat > "$1"' sh "$next" 2>/dev/null \
+    || as_session /bin/rm -f "$next" 2>/dev/null
 
   as_session /bin/sh -c 'printf "\n## Follow-up pass, %s\n\n" "$2" >> "$1"' sh "$log" "$(date -u +%Y-%m-%dT%H:%MZ)"
   there "$reports" && codes=" The codes of the reports the issue names are in the file $reports: the output of scripts/admin-api.sh sam-show, which you cannot run here."
@@ -1153,15 +1176,20 @@ follow_up_stage() {
   wall=$(( $(date +%s) - started ))
   local docker_state; docker_state="$(session_docker_state)"
   local finished=yes; { [ $code -ne 0 ] || [ ! -s "$reply" ]; } && finished=no
+  result_line="$(head -1 "$reply" 2>/dev/null)"
+  # What the pull request leaves for later is posted before it can be merged again. A pass
+  # that did not end with the pull request brought up to date may have done part of the list
+  # and not said so: that list no longer counts until a pass records it again.
+  case "$finished $result_line" in
+    "yes RESULT: pr"*) record_next "$pr" "$issue" "$next" ;;
+    *) [ "$(python3 -I "$ROOT/scripts/admin-feedback-next.py" stale --pr "$pr" 2>/dev/null)" != yes ] \
+         || next_stale="This pass did not bring the list of what is next up to date, so nothing is filed from it when you merge. A further \`/revise\` pass posts it again." ;;
+  esac
   # The session has ended, so nothing more reaches the branch: it can be merged again.
   ready_again
-  result_line="$(head -1 "$reply" 2>/dev/null)"
   VERDICT=""
-  : > "$next_said"
   case "$finished $result_line" in
-    "yes RESULT: pr"*)
-      record_next "$pr" "$issue" "$next" "$next_said"
-      verify_pr "$pr" "$issue" "$branch" "$tree" "$checked" "$verdicts" ;;
+    "yes RESULT: pr"*) verify_pr "$pr" "$issue" "$branch" "$tree" "$checked" "$verdicts" ;;
   esac
   stop_session_processes
   [ -s "$errors" ] || rm -f "$errors"
@@ -1206,12 +1234,12 @@ follow_up_stage() {
       echo "Comment \`/revise\` again to have it tried once more."
     fi
     echo
-    [ -s "$next_said" ] && { cat "$next_said"; echo; }
+    [ -n "$next_stale" ] && { echo "$next_stale"; echo; }
     [ -s "$checked" ] && { cat "$checked"; echo; }
     [ -s "$record" ] && python3 -I "$ROOT/scripts/admin-feedback-usage.py" markdown "$record"
   } > "$closing"
   answer_requests "$pr" "$ids" "$closing"
-  rm -f "$closing" "$checked" "$verdicts" "$next_said" "$INFLIGHT"
+  rm -f "$closing" "$checked" "$verdicts" "$INFLIGHT"
   report_checks "$pr" "$(git -C "$ROOT" rev-parse --verify -q "origin/$branch" 2>/dev/null)"
   return 0
 }
@@ -1272,7 +1300,7 @@ fix_stage() {
   local proof="$SESSION_FIX/issue-$issue-proof.json"
   local reports="$SESSION_FIX/issue-$issue-reports.txt" codes=""
   local checked="$OUT/state/checked-$STAMP.md" verdicts="$OUT/state/checked-$STAMP.json"
-  local next="$SESSION_FIX/issue-$issue-next.json" next_said="$OUT/state/next-$STAMP.md"
+  local next="$SESSION_FIX/issue-$issue-next.json"
 
   if sgit show-ref --verify --quiet "refs/heads/$branch" || sgit show-ref --verify --quiet "refs/remotes/origin/$branch" \
      || git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch" || there "$tree"; then
@@ -1324,8 +1352,7 @@ fix_stage() {
   local result_line; result_line="$(head -1 "$reply" 2>/dev/null)"
   local pr; pr="$(printf '%s' "$result_line" | sed -n 's|^RESULT: pr \(https://github.com/'"$REPO"'/pull/[0-9][0-9]*\).*|\1|p')"
   VERDICT=""
-  : > "$next_said"
-  [ $code -eq 0 ] && [ -n "$pr" ] && record_next "${pr##*/}" "$issue" "$next" "$next_said"
+  [ $code -eq 0 ] && [ -n "$pr" ] && record_next "${pr##*/}" "$issue" "$next"
   [ $code -eq 0 ] && [ -n "$pr" ] && verify_pr "${pr##*/}" "$issue" "$branch" "$tree" "$checked" "$verdicts"
   stop_session_processes
   # It has had its go, whatever came of it: it is not picked again until someone asks.
@@ -1359,9 +1386,8 @@ fix_stage() {
   # The pull request carries what the runner checked and what the work cost, beside its
   # activity log.
   if [ -n "$pr" ]; then
-    if [ -s "$next_said" ] || [ -s "$checked" ] || [ -s "$record" ]; then
-      { [ -s "$next_said" ] && { cat "$next_said"; echo; }
-        [ -s "$checked" ] && { cat "$checked"; echo; }
+    if [ -s "$checked" ] || [ -s "$record" ]; then
+      { [ -s "$checked" ] && { cat "$checked"; echo; }
         [ -s "$record" ] && python3 -I "$ROOT/scripts/admin-feedback-usage.py" markdown "$record"
         true
       } | gh pr comment "$pr" --body-file - >/dev/null 2>&1 \
@@ -1369,7 +1395,7 @@ fix_stage() {
     fi
     report_checks "${pr##*/}" "$(git -C "$ROOT" rev-parse --verify -q "origin/$branch" 2>/dev/null)"
   fi
-  rm -f "$checked" "$verdicts" "$next_said"
+  rm -f "$checked" "$verdicts"
 }
 
 case "$MODE" in
@@ -1378,6 +1404,9 @@ case "$MODE" in
   --fix-only) keep_status; fix_stage ;;
   --pass)
     bridge_release
+    # A pull request an earlier pass could not make ready again; never while a session may
+    # still be running on it (the fix stage settles that one first).
+    [ -f "$INFLIGHT" ] || ready_again
     next_on_merge
     pass_gate
     # The loop moves on as soon as a session ends; the status issue shows the checks.
