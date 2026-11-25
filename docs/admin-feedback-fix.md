@@ -180,8 +180,10 @@ Then:
 - **Add to the activity log** under the heading already written for this pass, in the same file,
   and add that section to the pull request's "Activity log", after the earlier passes and before
   the footer. Update the rest of the description to match what the pull request now does: the
-  problem, the fix, how it was checked, and "For the Captain to decide" (mark what he has
-  settled as settled, with his answer).
+  problem, the fix, how it was checked, and "Choices made for you" (take out a choice he has
+  settled, and say under the fix what he asked for). An earlier pass may have used the old
+  heading, "For the Captain to decide": rename it and sort what is under it into the headings
+  below.
 - Check it as in a first pass: tests and a review of your own diff. Do not wait for the
   checks, and keep to the same 15 minutes.
 - **Never write a comment or a review that starts with `/revise`, and never edit one of his, on
@@ -195,10 +197,24 @@ Then:
 
 - Branch `feedback/issue-<n>`, base `main`. Push only that branch.
 - Title: what the change does. Body: the problem, the cause, the fix, how it was checked (the
-  commands and their results, including anything that failed or was skipped), "For the Captain
-  to decide" (what a learner will now see, and anything left undone and why), then "Activity
-  log". Refer to the issue with `Fixes #<n>` when
+  commands and their results, including anything that failed or was skipped), "Choices made
+  for you", "Left undone", then "Activity log". Refer to the issue with `Fixes #<n>` when
   the change resolves it and `Refs #<n>` when it does not.
+- **"Choices made for you" is a record, not a list of questions.** (Captain, 2026-11-24: the
+  heading used until then, "For the Captain to decide", promised him a decision and then asked
+  nothing.) Merging accepts every choice in it, and the section says so in its first line:
+  "Merging accepts these. To change one, comment with the `/revise` line beside it."
+  - First, what a learner will now see, in the exact words.
+  - Then one entry for each choice he might have made differently: what you chose, the option
+    you did not take, and the comment that would switch it, written out
+    (`/revise ask the question only once per activity`). Leave out choices no one would
+    question.
+  - With no such choice, write "None."
+- **"Left undone"**: what you did not do and why, each as something he could ask for.
+- **"Needs your answer"**, only when the work could not go on without him: one of the stops
+  under "Where you stop". One question he can answer in a line, your recommendation first.
+  A change you are unsure he wants is not a question (see "How far to go"): make it, and
+  list it as a choice. Leave the heading out when there is nothing to ask.
 - **The repository is public.** A report's codes include the learner's profile id. Never put a
   profile id, or any part of one, an email or a name in a pull request, a commit, a comment or
   the activity log. Refer to a report by its own id only. (The first run of this stage put the
@@ -224,8 +240,9 @@ defaults) is in scope. Make it:
   prompts, responses, modes, toggles or defaults, work through the gate and put its artifacts
   in the pull request. If it does not (a notice, a limit, how Sam answers a request about the
   app), say so in one line.
-- In the pull request, under "For the Captain to decide", give the exact words a learner will
-  now see and the options you did not take, so he can change the wording before merging.
+- In the pull request, under "Choices made for you", give the exact words a learner will
+  now see and the options you did not take, each with the `/revise` line that would switch
+  it, so he can change the wording before merging.
 
 **Something Sam cannot do yet** that the learner can already do in the app: build it when it
 fits the patterns the code already has for Sam's tools and proposals and needs none of the
@@ -342,5 +359,5 @@ of:
 A follow-up pass ends with `RESULT: pr <address>` (the same pull request), `RESULT: stuck` or
 `RESULT: failed`.
 
-Then, in a few plain lines: the cause, what you changed, how it was checked, and what the
-Captain needs to decide.
+Then, in a few plain lines: the cause, what you changed, how it was checked, the choices you
+made for the Captain, and anything that needs his answer.
