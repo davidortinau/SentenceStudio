@@ -13,10 +13,10 @@ namespace SentenceStudio.Contracts.Coach.Intent;
 [Description("One piece of text in one language.")]
 public sealed class CoachAnswerSpanIntent
 {
-    [Description("The text. Plain words only, no markup and no links. The largest length is 320 characters.")]
+    [Description("The text, exactly as the learner will read it. Plain words only, no markup and no links. Do not begin it with Target, Display or Native, or with the name of the part. The largest length is 320 characters.")]
     public string Text { get; set; } = string.Empty;
 
-    [Description("Which language the text is in. Use Target for the language the learner studies, Display for your explanation, and Native for the learner's first language.")]
+    [Description("Which language the text is in. Use Target for the language the learner studies, Display for your explanation, and Native for the learner's first language. Set it here only; never write it into the text.")]
     public CoachLanguageRole Language { get; set; }
 }
 
