@@ -249,7 +249,7 @@ internal static class QuizQuestionView
             {
                 submit = style.QuizPrimaryButton(
                         text("VocabQuiz_SubmitAnswer"), "checkmark",
-                        correcting ? submitCorrection : submitText)
+                        correcting ? submitCorrection : submitText, leadingSymbol: true)
                     .WithAccessibilityIdentifier(correcting
                         ? "native.quiz.correction" : "native.quiz.submit");
                 SourceUiStyle.SetCustomButtonAvailability(submit, style.Appearance,
@@ -280,6 +280,10 @@ internal static class QuizQuestionView
             items.Add(field);
             if (submit is not null)
             {
+                // Issue 260 (Captain, 2026-11-24): each button keeps its own width. Sharing
+                // the row squeezed Submit until its label wrapped a letter at a time.
+                submit.WithFixedSize();
+                besideSubmit?.WithFixedSize();
                 var submitRow = besideSubmit is null
                     ? Views.HStack(submit) : Views.HStack(submit, besideSubmit);
                 submitRow.Spacing = SourceUiLayout.ItemGap;
