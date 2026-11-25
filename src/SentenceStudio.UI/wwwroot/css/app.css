@@ -2827,10 +2827,15 @@ body.coach-open .toast-container-ss {
 }
 
 /* Each choice keeps a comfortable touch row on a coarse pointer without stretching the list on a
-   mouse-driven desktop, where the same height would make five options fill the message column. */
+   mouse-driven desktop, where the same height would make five options fill the message column.
+
+   The gap is the space between the radio button and its label (issue 270). Bootstrap makes that
+   space by floating the button into the row's left padding, and a float does nothing in a flex
+   row: the label started where the button ended and the two touched. */
 .coach-report-reason {
     display: flex;
     align-items: center;
+    gap: 0.5rem;
     min-height: 32px;
 }
 
