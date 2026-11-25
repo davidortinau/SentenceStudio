@@ -128,11 +128,19 @@ internal sealed partial class ApplicationController
     /// <summary>
     /// A correction draws the answer field's focus, but not while Sam is open: every Sam
     /// keystroke rebuilds the quiz, and a rebuilt field that requests focus takes the keyboard
-    /// from Sam's composer. A field the learner focused keeps its focus either way; closing Sam
-    /// gives a pending correction its focus back.
+    /// from Sam's composer. A field the learner focused keeps its focus, except across Sam
+    /// opening (<see cref="YieldInputFocusToSam"/>): tapped again beside an open Sam, it keeps
+    /// it. Closing Sam gives a pending correction its focus back.
     /// </summary>
     private bool QuizAnswerShouldFocus => _quizInputFocused
         || (_quizState.RequiresCorrection && !IsSamPresented);
+
+    /// <summary>
+    /// Sam opening takes the keyboard for his composer (issue 262). The answer field the
+    /// learner was typing in stops asking for focus, so the quiz drawn under Sam in the same
+    /// update does not take the keyboard back; what was typed stays in the field.
+    /// </summary>
+    internal void YieldInputFocusToSam() => _quizInputFocused = false;
 
     internal SwiftView RenderQuiz(SourceUiStyle style)
     {

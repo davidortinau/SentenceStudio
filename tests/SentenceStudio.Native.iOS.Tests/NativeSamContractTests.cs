@@ -342,6 +342,49 @@ public sealed class NativeSamContractTests
         Assert.True(checkedRoutes > 0);
     }
 
+    [Fact]
+    public void OpeningSam_MovesTheKeyboardToHisComposer()
+    {
+        static string Slice(string text, string from, string to)
+        {
+            var start = text.IndexOf(from, StringComparison.Ordinal);
+            Assert.True(start >= 0, from);
+            var end = text.IndexOf(to, start, StringComparison.Ordinal);
+            Assert.True(end > start, to);
+            return text[start..end];
+        }
+
+        // Issue 262: with the keyboard up in the quiz answer, opening Sam left the keyboard
+        // there, and what the learner typed for Sam went into the answer under him. The
+        // source overlay focuses its composer when it opens (SamOverlayHost.OpenPanelAsync).
+        var sam = Source("App/ApplicationScene.Sam.cs");
+        var handoff = Slice(sam, "private void BeginSamFocusHandoff()",
+            "private void OnSamSheetDismissed()");
+        Assert.Contains("if (presented && !_samRenderedPresented)", handoff);
+        Assert.Contains("_samComposerFocusPending = true;", handoff);
+        Assert.Contains("_app.YieldInputFocusToSam();", handoff);
+
+        // The composer asks once it can take text (its conversation is loaded), not before.
+        var update = Slice(sam, "private void UpdateSam()", "private SwiftView BuildSamPanel(");
+        var composerUpdated = update.IndexOf("SamView.UpdateComposer(", StringComparison.Ordinal);
+        var requested = update.IndexOf("composer.FocusRequested = true;", StringComparison.Ordinal);
+        Assert.True(composerUpdated >= 0 && requested > composerUpdated);
+        Assert.Contains("_samField is { IsEnabled: true } composer", update);
+
+        // The field under Sam gives up its focus before the pages are drawn again: the quiz
+        // is rebuilt in the same update, and a rebuilt answer that asks for focus keeps the
+        // keyboard under Sam.
+        var core = Slice(Source("App/ApplicationScene.cs"), "private void UpdateCore()",
+            "private void InstallTabs()");
+        var begin = core.IndexOf("BeginSamFocusHandoff();", StringComparison.Ordinal);
+        Assert.True(begin >= 0, "BeginSamFocusHandoff();");
+        Assert.True(begin < core.IndexOf("_app.RenderDashboardContent(_style)", StringComparison.Ordinal));
+        Assert.True(begin < core.IndexOf("UpdateQuiz();", StringComparison.Ordinal));
+        Assert.True(begin < core.IndexOf("UpdateSam();", StringComparison.Ordinal));
+        Assert.Contains("internal void YieldInputFocusToSam() => _quizInputFocused = false;",
+            Source("App/ApplicationController.Quiz.cs"));
+    }
+
     private static string Source(string relative) => File.ReadAllText(Path.Combine(HeadPath, relative));
 
     private static string HeadPath => Path.GetFullPath(Path.Combine(
