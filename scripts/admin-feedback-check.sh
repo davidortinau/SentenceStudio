@@ -187,7 +187,7 @@ fi
 cd "$ROOT" || fail "The checkout at $ROOT is not there."
 for needed in scripts/admin-api.sh scripts/admin-feedback-issue.sh scripts/admin-feedback-pr.py \
               scripts/admin-feedback-agent-token.py scripts/admin-feedback-verify.py \
-              scripts/admin-feedback-usage.py scripts/session-ailoha.sh docs/admin-feedback-check.md \
+              scripts/admin-feedback-usage.py scripts/session-ailoha.sh scripts/session-bridge.sh docs/admin-feedback-check.md \
               docs/admin-feedback-fix.md docs/admin-api.md; do
   [ -f "$needed" ] || fail "$needed is missing from the checkout at $ROOT (on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)). The check cannot run from a branch without it."
 done
@@ -423,6 +423,7 @@ session_places() {
   WORKTREES="$SESSION_HOME/sstudio/trees"
   SESSION_FIX="$SESSION_HOME/sstudio/fix"
   SESSION_GH="$SESSION_HOME/sstudio/gh"
+  BRIDGE="$SESSION_HOME/sstudio/bridge"
 }
 
 # Runs a command as the session's user, from /, with an environment made from nothing: none of
@@ -583,7 +584,52 @@ session_ready() {
   sgit fetch -q --prune origin 2>/dev/null \
     || { SESSION_ERROR="GitHub could not be fetched into $CLONE"; return 1; }
   publish_shared || return 1
+  bridge_ready
   SESSION_READY=yes
+}
+
+# The SwiftUI bridge's source for the sessions (Captain, 2026-11-24: a session wrote that the
+# bridge's source "is not on this machine"; it had only the package). The bridge is a public
+# repository of its own, so the sessions' user clones it without a login. Before each session
+# the clone is fetched and put, with nothing uncommitted, where the next change starts: main,
+# or the tag of the version this checkout pins when main does not hold that version yet. A
+# session's branches stay in the clone; what one left uncommitted is put in the clone's own
+# stash, never thrown away. Its tags are made to be the repository's own, because a tag there
+# says a version was given out. Then the packages the Captain packed go into that user's
+# package folder (scripts/session-bridge.sh sync): it cannot read the feed the project files
+# name, and a copy of a version that a session packed from its branch must not outlive the one
+# he packed from merged source. No session fails over any of this: BRIDGE_NOTE, in the run's
+# summary, says what could not be done.
+BRIDGE_REPO="${FEEDBACK_BRIDGE_REPO:-davidortinau/Microsoft.SwiftUI}"
+BRIDGE_NOTE=""
+bgit() { as_session git -C "$BRIDGE" "$@"; }
+bridge_ready() {
+  local pinned base synced
+  BRIDGE_NOTE=""
+  if ! there "$BRIDGE/.git"; then
+    as_session git clone -q "https://github.com/$BRIDGE_REPO.git" "$BRIDGE" >/dev/null 2>&1 \
+      || { BRIDGE_NOTE="The SwiftUI bridge ($BRIDGE_REPO) could not be cloned to $BRIDGE, so sessions cannot read or change it."; return 0; }
+  fi
+  bgit fetch -q --prune --prune-tags --tags --force origin 2>/dev/null \
+    || BRIDGE_NOTE="The SwiftUI bridge in $BRIDGE could not be fetched; sessions have it as it was."
+  if [ -n "$(bgit status --porcelain 2>/dev/null)" ]; then
+    bgit -c user.name=session -c user.email=session@localhost stash push -q -u \
+        -m "left uncommitted by a session, found $(date -u +%Y-%m-%dT%H:%MZ)" 2>/dev/null \
+      || { BRIDGE_NOTE="The SwiftUI bridge in $BRIDGE has uncommitted changes that could not be set aside; it was left as it is."; return 0; }
+  fi
+  pinned="$(sed -n 's/.*<PackageVersion Include="Microsoft\.SwiftUI" Version="\([A-Za-z0-9.-]*\)".*/\1/p' \
+    "$ROOT/src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj" 2>/dev/null | head -1)"
+  base=origin/main
+  if [ -n "$pinned" ] && bgit rev-parse -q --verify "refs/tags/v$pinned^{commit}" >/dev/null 2>&1 \
+     && ! bgit merge-base --is-ancestor "refs/tags/v$pinned" origin/main 2>/dev/null; then
+    base="refs/tags/v$pinned"
+  fi
+  bgit checkout -q --detach "$base" 2>/dev/null \
+    || BRIDGE_NOTE="The SwiftUI bridge in $BRIDGE could not be put at ${base#refs/tags/}; it was left where it was."
+  # The script is read from here: the sessions' user cannot read this checkout.
+  synced="$(as_session /bin/bash -s sync "$SHARED/LocalNuGets" < "$ROOT/scripts/session-bridge.sh" 2>/dev/null)" \
+    || BRIDGE_NOTE="${BRIDGE_NOTE:+$BRIDGE_NOTE }A SwiftUI bridge package the Captain packed could not be put in the sessions' package folder ($(printf '%s' "$synced" | tr '\n' ' ' | cut -c1-200)), so their builds may use another copy of that version."
+  return 0
 }
 
 # A fix session's own GitHub login: the GitHub App ss-fix-agent, never the Captain's
@@ -1020,6 +1066,7 @@ follow_up_stage() {
     echo
     [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
     echo "$docker_state"
+    [ -n "$BRIDGE_NOTE" ] && echo "$BRIDGE_NOTE"
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo "His request: $request"
@@ -1180,6 +1227,7 @@ fix_stage() {
     echo
     [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
     echo "$docker_state"
+    [ -n "$BRIDGE_NOTE" ] && echo "$BRIDGE_NOTE"
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo
