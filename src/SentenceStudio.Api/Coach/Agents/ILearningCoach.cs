@@ -102,6 +102,12 @@ public sealed record CoachAgentTurnRequest
     public CoachConstraintDeltaDto? PendingSuggestionDelta { get; init; }
 
     /// <summary>
+    /// True when this message replies to a clarifying question just asked (issue 268), so the
+    /// model is told to carry out the original request in this reply, not only acknowledge it.
+    /// </summary>
+    public bool AnswersAClarifyingQuestion { get; init; }
+
+    /// <summary>
     /// True when the learner's screen is hiding an answer and this message replies to a clarifying
     /// question just asked, which may be the hint-or-answer question (issue 258).
     /// </summary>

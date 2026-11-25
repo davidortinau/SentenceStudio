@@ -1855,6 +1855,7 @@ public sealed class CoachSessionService : ICoachSessionService
                         != CoachWriteAuthority.PlanRoutingDecision.NoPlanReference,
                 PendingSuggestionId = session.PendingSuggestionId,
                 PendingSuggestionDelta = pendingDelta,
+                AnswersAClarifyingQuestion = session.Status == CoachSessionStatus.AwaitingClarification,
                 AnswersAQuestionWhileTheScreenHidesAnAnswer =
                     session.Status == CoachSessionStatus.AwaitingClarification
                     && request.ClientScreen is { AnswerHidden: true },
