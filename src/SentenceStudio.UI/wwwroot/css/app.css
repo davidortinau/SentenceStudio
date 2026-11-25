@@ -2699,19 +2699,42 @@ body.coach-open .toast-container-ss {
 .coach-message-actions {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     margin-top: 0.25rem;
 }
 
-/* The full 44px target is kept even though the glyph is small: this sits next to running text
-   and is easy to miss by a few pixels. */
+/* The row's buttons are as wide as what they show, so the glyphs start at the message's own left
+   edge and sit one 0.5rem step apart. Each used to be a 44px-wide box (Copy's glyph at its left,
+   the flag's in its centre) with 0.75rem between the boxes, which put the two glyphs about 66px
+   apart under a line of text (issue 269).
+
+   The selector is this long on purpose: `.coach-workspace .btn` further down gives every coach
+   button a 44px min-width, and a single class here would lose to it.
+
+   The pseudo-element keeps the pointer target wider than a 13px glyph: it reaches half the gap on
+   each side, so the two targets meet and there is no dead strip between them. The row stays 44px
+   tall. A finger gets the full 44px width back in the coarse-pointer block below. */
+.coach-message-footer .coach-message-actions > .btn {
+    position: relative;
+    justify-content: flex-start;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+}
+
+.coach-message-footer .coach-message-actions > .btn::after {
+    content: "";
+    position: absolute;
+    inset: 0 -0.25rem;
+}
+
+/* The full 44px height is kept even though the glyph is small: this sits next to running text
+   and is easy to miss by a few pixels. Its width and padding are the row's (above). */
 .coach-copy {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
     min-height: 44px;
-    min-width: 44px;
-    padding: 0 0.25rem;
     color: var(--bs-secondary-color);
     text-decoration: none;
     font-size: calc(13px * var(--ss-font-scale, 1));
@@ -2731,17 +2754,14 @@ body.coach-open .toast-container-ss {
 }
 
 /* --- report a response ---------------------------------------------------
-   The flag sits beside Copy and is the same shape of control: a quiet glyph over a full 44px
+   The flag sits beside Copy and is the same shape of control: a quiet glyph in a 44px-tall
    target. The glyph is small because this is a secondary action next to running text; the target
-   is not, because a control that is easy to miss by a few pixels is a control that gets pressed
-   by accident on the way past. */
+   is taller, because a control that is easy to miss by a few pixels is a control that gets pressed
+   by accident on the way past. Its width and padding are the row's (above), the same as Copy's. */
 .coach-report-flag {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
     min-height: 44px;
-    min-width: 44px;
-    padding: 0 0.25rem;
     color: var(--bs-secondary-color);
     text-decoration: none;
     font-size: calc(13px * var(--ss-font-scale, 1));
@@ -2770,7 +2790,7 @@ body.coach-open .toast-container-ss {
     align-items: center;
     gap: 0.3rem;
     min-height: 44px;
-    padding: 0 0.25rem;
+    padding: 0;
     color: var(--bs-secondary-color);
     font-size: calc(12px * var(--ss-font-scale, 1));
 }
@@ -3789,6 +3809,21 @@ body:has(.sam-fab) .shared-ingest-toast {
        against. One block, one meaning. */
     .coach-report-reason {
         min-height: 44px;
+    }
+
+    /* Copy and the flag under each of Sam's messages: a finger gets the full 44px target back.
+       The boxes touch, so the glyphs are as close as two 44px targets allow, and each glyph stays
+       at the left of its box so the first still lines up with the message. */
+    .coach-message-footer .coach-message-actions {
+        gap: 0;
+    }
+
+    .coach-message-footer .coach-message-actions > .btn {
+        min-width: 44px;
+    }
+
+    .coach-message-footer .coach-message-actions > .btn::after {
+        content: none;
     }
 
     .coach-report-reason .form-check-input {
