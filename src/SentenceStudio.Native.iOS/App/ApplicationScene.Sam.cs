@@ -34,6 +34,8 @@ internal sealed partial class ApplicationScene
     private (NativeSamPanelSize Size, string Persona)? _renderedSamPanel;
     private NativeSamPanelSize? _renderedSamSize;
     private double _samDetent;
+    private bool _samRenderedPresented;
+    private bool _samComposerFocusPending;
 
     private readonly List<(object Owner, Func<IReadOnlyList<string>> Path, string Route, SwiftView Slot, Func<bool>? TabBarShown)> _samToolbars = [];
 
@@ -225,6 +227,26 @@ internal sealed partial class ApplicationScene
             field.FocusRequested = true;
     }
 
+    /// <summary>
+    /// Opening Sam moves the keyboard to his composer, as the source overlay does
+    /// (SamOverlayHost.OpenPanelAsync ends by focusing the composer). Runs before the pages
+    /// are drawn again in the update that first presents him: the field under him gives up
+    /// its focus there (issue 262: typing went into the quiz answer under Sam), and the
+    /// composer asks for it in <see cref="UpdateSam"/> as soon as it can take text.
+    /// </summary>
+    private void BeginSamFocusHandoff()
+    {
+        var presented = _app.IsSamPresented;
+        if (presented && !_samRenderedPresented)
+        {
+            _samComposerFocusPending = true;
+            _app.YieldInputFocusToSam();
+        }
+        else if (!presented)
+            _samComposerFocusPending = false;
+        _samRenderedPresented = presented;
+    }
+
     /// <summary>Only a sheet the person closes, while Sam lives in it, closes Sam.</summary>
     private void OnSamSheetDismissed()
     {
@@ -280,6 +302,13 @@ internal sealed partial class ApplicationScene
                 action.IsEnabled = enabled;
         }
         SamView.UpdateComposer(state, _samField!, _samSend!, _samCounter!, _app.Localize);
+        // The composer cannot take text until the conversation is loaded; the request waits for it.
+        if (_samComposerFocusPending && !state.ConversationsOpen
+            && _samField is { IsEnabled: true } composer)
+        {
+            _samComposerFocusPending = false;
+            composer.FocusRequested = true;
+        }
 
         if (state.ConversationsOpen && _samConversationsSlot is null
             && _samStack.NavigationPath.Count == 0)
@@ -344,5 +373,7 @@ internal sealed partial class ApplicationScene
         _renderedSamSize = null;
         _renderedSamVersion = -1;
         _renderedSamConversationsVersion = -1;
+        _samRenderedPresented = false;
+        _samComposerFocusPending = false;
     }
 }
