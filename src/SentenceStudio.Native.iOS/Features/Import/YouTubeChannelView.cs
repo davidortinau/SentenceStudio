@@ -246,11 +246,12 @@ internal static class YouTubeChannelView
     {
         var content = Views.HStack(Views.Image(symbol), style.Text(Views.Text(label), SourceTextRole.BadgeSmall));
         content.Spacing = 3;
-        // Source .badge is white-space: nowrap: the row gives the badge its own width (it is the
-        // least flexible item) and the title, limited to one line, truncates.
+        // Source .badge is white-space: nowrap, so the badge is fixed-size and the title, limited
+        // to one line, truncates (YouTubeImportView.StatusBadge says why the row does not do it).
         return content.WithPadding(4, 8, 4, 8)
             .WithRoundedSurface(fill.Light, fill.Dark, 6)
             .WithForegroundColor(foreground.Light, foreground.Dark)
+            .WithFixedSize()
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
     }

@@ -327,7 +327,10 @@ internal static class YouTubeImportView
                 .WithLineLimit(1)
                 .WithAccessibilityIdentifier($"{id}.channel"));
         if (row.CreatedAt is { } created)
+            // Its own width, like the badge (StatusBadge): at the largest app text size the date
+            // is wider than its share of an iPhone's row and broke after the month.
             cells.Add(Caption(style, created.ToLocalTime().ToString("d", CultureInfo.CurrentCulture))
+                .WithFixedSize()
                 .WithAccessibilityIdentifier($"{id}.date"));
         if (row.CanRetry)
         {
@@ -351,7 +354,8 @@ internal static class YouTubeImportView
 
     /// <summary>
     /// Source btn btn-sm btn-outline-warning: no fill, a warning border and text. The fill stays
-    /// unset (the bridge's surface colors are opaque #RRGGBB only).
+    /// unset (the bridge's surface colors are opaque #RRGGBB only). Fixed-size, like the badge
+    /// beside it (StatusBadge says why).
     /// </summary>
     internal static SwiftView OutlineWarningButton(SwiftView label, Action action, SourceUiStyle style)
     {
@@ -360,7 +364,8 @@ internal static class YouTubeImportView
         return Views.Button(label, action)
             .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithButtonAppearance(null, null,
-                style.Appearance.Warning.Light, style.Appearance.Warning.Dark, 6);
+                style.Appearance.Warning.Light, style.Appearance.Warning.Dark, 6)
+            .WithFixedSize();
     }
 
     /// <summary>Source RenderStatusBadge: the status's color, icon and text, with a spinner while it runs.</summary>
@@ -382,12 +387,16 @@ internal static class YouTubeImportView
         content.Spacing = 3;
         if (status >= VideoImportStatus.FetchingTranscript && status < VideoImportStatus.Completed)
             content.Add(Views.IndeterminateProgress(label).WithTintColor(foreground.Light, foreground.Dark));
-        // Source .badge is white-space: nowrap: the row gives the badge its own width (it is the
-        // least flexible item) and the title, limited to one line, truncates.
+        // Source .badge is white-space: nowrap, so the badge is fixed-size and the title, limited
+        // to one line, truncates. A row offers each item an equal share of its width first (73
+        // points of an iPhone's row of four), and an item that can wrap takes no more: "Failed"
+        // fits in that, "Generating..." with its spinner does not and broke at every letter
+        // (issue 277, drawn in the native view tests).
         return content
             .WithPadding(4, 8, 4, 8)
             .WithRoundedSurface(fill.Light, fill.Dark, 6)
             .WithForegroundColor(foreground.Light, foreground.Dark)
+            .WithFixedSize()
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
     }
