@@ -193,6 +193,9 @@ internal sealed partial class ApplicationScene : IDisposable
             _tabs.SelectedIndex = _app.SelectedTab;
         if (_tabs is not null)
             _tabs.IsEnabled = !_app.NavigationBlocked;
+        // Before the pages are drawn again: a page field must not ask for the keyboard in the
+        // update that presents Sam.
+        BeginSamFocusHandoff();
         if (_starterOverlay is not null)
         {
             _starterOverlay.Text = _app.BlockingOverlayTitle;
