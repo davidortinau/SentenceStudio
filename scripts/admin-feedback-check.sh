@@ -113,7 +113,7 @@ CHECKS_WAIT=3000
 PROOF_LIMIT=900
 # The longest a release of the SwiftUI bridge may take at the start of a pass (the limits of
 # its steps in scripts/admin-feedback-bridge-release.sh and scripts/session-bridge.sh).
-BRIDGE_LIMIT=3600
+BRIDGE_LIMIT=4500
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 MODE="${1:-both}"

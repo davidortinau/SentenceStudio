@@ -3,7 +3,10 @@
 The bridge is a git repository made here, the builder and gh are stand-ins, and the feed and
 the check's folder are temporary: nothing is built and nothing leaves this machine."""
 
+import json
 import os
+import re
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -26,7 +29,9 @@ case "$1" in
     echo "Managed tests: 81/81 passed" ;;
   package)
     [ ! -f "$STUB/fail-package" ] || { echo "STOP: the bridge's pack and verify failed." >&2; exit 1; }
-    [ ! -f "$STUB/tag-during-the-build" ] || git -C "$FEEDBACK_BRIDGE_URL" tag "v$version" "$(cat "$STUB/tag-during-the-build")"
+    # An annotated tag, as a person's `git tag -a` makes; the release's own is a plain one.
+    [ ! -f "$STUB/tag-during-the-build" ] || git -C "$FEEDBACK_BRIDGE_URL" -c user.name=other -c user.email=other@localhost \\
+      tag -a -m "not made by the release" "v$version" "$(cat "$STUB/tag-during-the-build")"
     mkdir -p "$SESSION_BRIDGE/artifacts"
     printf 'package %s %s %s' "$version" "$RANDOM$RANDOM" "$(date +%s)" > "$SESSION_BRIDGE/artifacts/Microsoft.SwiftUI.$version.nupkg"
     echo "VERSION=$version"
@@ -331,6 +336,46 @@ class BridgeReleaseTests(unittest.TestCase):
         os.utime(self.out / "bridge-release" / "lock", (old, old))
         self.assertTrue(self.run_script("release").stdout.startswith("BRIDGE: packed"))
         self.assertFalse((self.out / "bridge-release" / "lock").exists())
+
+    def test_the_lock_of_a_release_that_is_no_longer_running_is_taken_over(self):
+        self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
+        gone = subprocess.Popen(["/usr/bin/true"])
+        gone.wait()
+        (self.out / "bridge-release" / "lock").mkdir(parents=True)
+        (self.out / "bridge-release" / "lock" / "pid").write_text(f"{gone.pid}\n", encoding="utf-8")
+        self.assertTrue(self.run_script("release").stdout.startswith("BRIDGE: packed"))
+        self.assertFalse((self.out / "bridge-release" / "lock").exists())
+
+    def test_its_own_unreleased_package_gives_way_when_main_moves_under_the_same_version(self):
+        self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
+        (self.stub / "fail-release").touch()
+        self.run_script("release")
+        first = self.package("0.1.0-preview.8").read_text(encoding="utf-8")
+        (self.stub / "fail-release").unlink()
+        head = self.commit("0.1.0-preview.8", "docs: a word more, same version")
+        released = self.run_script("release")
+        self.assertTrue(released.stdout.startswith(f"BRIDGE: packed 0.1.0-preview.8 from the bridge's main ({head[:7]})"), released.stdout)
+        self.assertNotEqual(self.package("0.1.0-preview.8").read_text(encoding="utf-8"), first)
+        self.assertEqual(self.built(), ["test", "package", "test", "package"])
+        self.assertEqual(self.git("rev-parse", "v0.1.0-preview.8"), head)
+
+    @unittest.skipUnless(shutil.which("jq"), "needs jq to run the script's own filter")
+    def test_only_a_ruleset_that_names_admins_alone_counts_as_closed(self):
+        found = re.search(r"repos/\$BRIDGE_REPO/rulesets/\$id\" --jq \\\n\s+'([^']+)'", SCRIPT.read_text(encoding="utf-8"))
+        self.assertIsNotNone(found)
+
+        def others(ruleset):
+            done = subprocess.run(["jq", "-r", found.group(1)], input=json.dumps(ruleset), capture_output=True, text=True, check=True)
+            return done.stdout.strip()
+
+        admin = {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}
+        self.assertEqual(others({"bypass_actors": [admin]}), "0")
+        self.assertEqual(others({"bypass_actors": []}), "0")
+        self.assertEqual(others({"bypass_actors": [admin, {"actor_id": 5826863, "actor_type": "Integration"}]}), "1")
+        self.assertEqual(others({"bypass_actors": [{"actor_id": 2, "actor_type": "RepositoryRole"}]}), "1")
+        # A list GitHub left out is not an empty one.
+        self.assertEqual(others({"id": 7}), "unknown")
+        self.assertEqual(others({"bypass_actors": None}), "unknown")
 
 
 class RunnerStepTests(unittest.TestCase):

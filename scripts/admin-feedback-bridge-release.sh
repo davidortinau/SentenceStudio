@@ -144,7 +144,9 @@ decide() {
 
 # Whether only the repository's admins can update the bridge's main: 0 when an active ruleset
 # restricts updates and nobody but admins may bypass it, 1 when none does, 2 when it could not
-# be read. (Rules add up, so one such ruleset is enough whatever the others allow.)
+# be read. (Rules add up, so one such ruleset is enough whatever the others allow.) A ruleset
+# that does not say who may bypass it is not taken for one that nobody may: GitHub leaves the
+# list out for a login that may not see it.
 main_is_closed() {
   local ids id others
   ids="$(limited 60 gh api --paginate "repos/$BRIDGE_REPO/rules/branches/main" \
@@ -152,11 +154,19 @@ main_is_closed() {
   for id in $ids; do
     case "$id" in *[!0-9]*) continue ;; esac
     others="$(limited 60 gh api "repos/$BRIDGE_REPO/rulesets/$id" --jq \
-      '[.bypass_actors[]? | select(((.actor_type == "RepositoryRole" and .actor_id == 5) or .actor_type == "OrganizationAdmin") | not)] | length' \
+      'if (.bypass_actors | type) != "array" then "unknown" else [.bypass_actors[] | select(((.actor_type == "RepositoryRole" and .actor_id == 5) or .actor_type == "OrganizationAdmin") | not)] | length end' \
       2>> "$LOG")" || return 2
     [ "$others" != 0 ] || return 0
   done
   return 1
+}
+
+# Whether the package in the feed is one this script built from an earlier commit of main
+# under the same version, which no release was made of.
+fed_from_another_commit() {
+  local commit version sum
+  [ -f "$FED" ] && [ -f "$1" ] && read -r commit version sum < "$FED" || return 1
+  [ "$commit" != "$SHA" ] && [ "$version" = "$VERSION" ] && [ "$(shasum -a 256 "$1" | cut -d' ' -f1)" = "$sum" ]
 }
 
 # The commit the tag v$VERSION is at on the bridge's repository, or nothing when it has none.
@@ -202,15 +212,23 @@ step() {
 }
 
 release() {
-  local build="$WORK/build" lock="$WORK/lock" tests="" package target sum previous changes notes url at code lower mine extra="" pre="" proved=""
+  local build="$WORK/build" lock="$WORK/lock" holder tests="" package target sum previous changes notes url at code lower mine extra="" pre="" proved=""
   mkdir -p "$WORK" "$OUT/state" || { say "$WORK could not be made."; return 2; }
-  # One release at a time, also when someone runs this by hand during a pass. A lock older
-  # than a release can take (its steps' limits come to under an hour) is one that died.
+  # One release at a time, also when someone runs this by hand during a pass. A lock whose
+  # release is no longer running, or that is older than a release can take (its steps' limits
+  # come to about 62 minutes), is one that died.
   if ! mkdir "$lock" 2>/dev/null; then
-    [ -n "$(find "$lock" -maxdepth 0 -mmin +60 2>/dev/null)" ] && rmdir "$lock" 2>/dev/null && mkdir "$lock" 2>/dev/null \
-      || { say "another release is running ($lock)."; return 2; }
+    holder="$(cat "$lock/pid" 2>/dev/null)"
+    case "$holder" in *[!0-9]*) holder="" ;; esac
+    if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || [ -n "$(find "$lock" -maxdepth 0 -mmin +75 2>/dev/null)" ]; then
+      rm -rf "$lock"
+      mkdir "$lock" 2>/dev/null || { say "the lock $lock could not be taken."; return 2; }
+    else
+      say "another release is running ($lock)."; return 2
+    fi
   fi
-  trap 'rmdir "$WORK/lock" 2>/dev/null' EXIT
+  echo $$ > "$lock/pid"
+  trap 'rm -rf "$WORK/lock"' EXIT
   decide || { [ $? = 1 ] && return 0; return 2; }
   # From here on every end rewrites the note.
   note packing "Packing version $VERSION from the bridge's main ($SHORT), started $(now). It takes about five minutes; sessions wait for it."
@@ -228,9 +246,15 @@ release() {
     # An earlier try got as far as the feed: the release is made from that package.
     tests="$(sed -n 2p "$FED")"
     echo "The package of an earlier try is in the feed; not built again." >> "$LOG"
-  elif [ -e "$target" ]; then
+  elif [ -e "$target" ] && ! fed_from_another_commit "$target"; then
     failed "your feed already holds a build of $VERSION that this check did not put there ($target). Nothing was replaced and nothing was tagged: move that file away, or give the bridge's main the next version"
   else
+    # Its own package from where main was before, of which no release was made (the version
+    # has no tag), gives way to one from where main is now.
+    if [ -e "$target" ]; then
+      echo "The feed holds this check's own package of $VERSION from $(cut -c1-7 "$FED"), never released; replaced by one from $SHORT." >> "$LOG"
+      rm -f "$target" || failed "the package of an earlier commit could not be taken out of $FEED"
+    fi
     rm -rf "$build"
     git clone -q --no-checkout "$WORK/source" "$build" >> "$LOG" 2>&1 \
       && git -C "$build" checkout -q --detach "$SHA" >> "$LOG" 2>&1 \
@@ -258,7 +282,7 @@ release() {
   # not made here, and a release would be hung on it whatever --target says.
   at="$(tag_at)" || failed "the package is in your feed, but the tags of $BRIDGE_REPO could not be read, so the release v$VERSION was not made"
   [ -z "$at" ] || [ "$at" = "$SHA" ] \
-    || failed "the package is in your feed, but a tag v$VERSION has appeared on $BRIDGE_REPO at ${at:0:7}, which is not main's commit, so the release was not made. Delete that tag if it is not yours"
+    || failed "the package is in your feed, but a tag v$VERSION has appeared on $BRIDGE_REPO at ${at:0:7}, which is not main's commit, so the release was not made. If that tag is not yours, delete it and remove $SEEN"
 
   sum="$(shasum -a 256 "$target" | cut -d' ' -f1)"
   previous="$(sgit describe --tags --abbrev=0 --match 'v*' "$SHA" 2>/dev/null)"
@@ -280,7 +304,7 @@ ${changes}NuGet package SHA-256: $sum"
   if [ "$code" != 0 ]; then
     extra=" Its tag could not be read back to see that it is at $SHORT."
   elif [ "$at" != "$SHA" ]; then
-    failed "the release v$VERSION was made ($url), but its tag is at ${at:-no commit that could be read}, not at main's $SHORT: someone else made that tag first. Delete the release and the tag, and it is made again"
+    failed "the release v$VERSION was made ($url), but its tag is at ${at:-no commit that could be read}, not at main's $SHORT: someone else made that tag first. Delete the release and the tag, then remove $SEEN, and it is made again"
   fi
 
   # A copy of this version in the Captain's package folder is what his builds would use.
