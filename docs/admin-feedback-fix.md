@@ -16,6 +16,8 @@ session on Lilliput needs to know and where it must stop.
   `feedback/issue-<n>`. It is your working directory. Its `src/NuGet.config` is a local copy
   (Lilliput reaches only a package mirror) and is hidden from git; never commit it.
 - A file to keep your activity log in (its path is in your prompt).
+- The source of the SwiftUI bridge the native iOS app draws through, in a clone of your own at
+  `~/sstudio/bridge`. See "The SwiftUI bridge".
 - A macOS user of your own on Lilliput (`lemuel`). Your home, your clone and your worktree are
   yours; the Captain's home, his repositories and his logins are closed to you, and that is
   intended. Do not look for a way around it. See "Hard limits on this machine" for what that
@@ -299,6 +301,79 @@ needs vocabulary or history needs you to add some through the app or the API fir
 sheets and alerts (the keyboard, "Save Password?") are outside Ailoha; `signin` already works
 around the one it meets.
 
+## The SwiftUI bridge
+
+The native iOS app draws every screen through the package `Microsoft.SwiftUI`. Its source is a
+public repository of its own, `github.com/davidortinau/Microsoft.SwiftUI`, and **you have it**:
+a clone at `~/sstudio/bridge`, fetched before your session and left with nothing uncommitted at
+the place a change starts. (Captain, 2026-11-24: a session wrote that the bridge's source "is
+not on this machine" and left a cause unexplained. It had only the package then. Never write
+that now: read the source.)
+
+`scripts/session-bridge.sh where` prints the clone, what it is at, the version your worktree
+pins (`PINNED`), the commit that version was built from, and the next free version (`NEXT`).
+
+**Reading it.** When a layout or a control behaves in a way the app's code does not explain,
+look in the bridge before you call the cause unknown:
+
+- `src/Microsoft.SwiftUI/` is the C# side: the views and modifiers the app calls.
+- `native/MicrosoftSwiftUIShim/Sources/` is the Swift that draws them.
+- `tests/Microsoft.SwiftUI.Tests/` shows how each one is meant to behave.
+
+The app runs the pinned version, so read that version's source
+(`git -C ~/sstudio/bridge show v<PINNED>:<path>`), not what a newer branch has.
+
+**Changing it.** AGENTS.md gives a standing approval ("Bridge standing approval"): when a fix is
+blocked by the bridge, because it lacks a view or a modifier or has a fault of its own, make
+the change there without asking. It does not cover a new dependency, a change of architecture,
+or UIKit. The steps:
+
+1. `git -C ~/sstudio/bridge switch -c feedback/issue-<n>`. In a follow-up pass the branch is
+   already there: `switch feedback/issue-<n>`.
+2. Make the change. Keep the defaults for existing callers, read Apple's documentation for the
+   SwiftUI API and the bridge code around it, and add a test to `tests/Microsoft.SwiftUI.Tests`.
+3. Give it the next version: `<Version>` in `src/Microsoft.SwiftUI/Microsoft.SwiftUI.csproj`
+   becomes `NEXT`. Commit, the subject ending with the version in brackets, as the bridge's
+   history does: `feat: <what it adds> (0.1.0-preview.67)`. One version, one commit that holds
+   its whole source.
+4. `scripts/session-bridge.sh test` runs the bridge's own tests (about a minute) and
+   `scripts/session-bridge.sh pack` builds the native framework, packs, verifies and puts the
+   package where your builds find it (about 40 seconds).
+   - If `pack` stops at "NuGet dependency groups are missing or duplicate the net11.0-ios
+     platform target", the bridge's package check on your branch predates this Mac's .NET SDK:
+     it expects platform 27.0 and this SDK builds 27.2. Merge `origin/main` if it has the
+     fix; if not, make `tests/Microsoft.SwiftUI.PackageVerifier/Program.cs` accept any platform
+     version as part of your change.
+5. In your worktree, pin the new version in the two project files that name `Microsoft.SwiftUI`
+   (`src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj` and
+   `tests/SentenceStudio.Native.SwiftUIViews.Tests/SentenceStudio.Native.SwiftUIViews.Tests.csproj`),
+   use the change, and build. Before the first build on a new version, move the view tests'
+   `obj` and `bin` aside, or the test program runs the old native code; `scripts/ios-build.sh`
+   does the same for the app by itself.
+6. After a further change to the bridge, commit and `pack` again; it replaces the copy your
+   builds use. A version that has a tag in the bridge's repository was given out and is never
+   packed again: `pack` refuses it.
+
+**Delivering it.** Two pull requests, each naming the other:
+
+- **The bridge's.** `git -C ~/sstudio/bridge push -u origin feedback/issue-<n>`, then
+  `gh pr create --repo davidortinau/Microsoft.SwiftUI --base main --head feedback/issue-<n>`.
+  Say what it adds or mends, the tests, and which SentenceStudio pull request needs it. Never
+  push to the bridge's `main`, and make no tag and no release there: those say a version was
+  given out, and that is the Captain's to say by merging.
+- **This repository's**, as always, pinning the new version. Its first line under "The fix":
+  "Needs bridge <version>: merge <the bridge pull request> first." GitHub's checks do not build
+  the iOS head, so they pass without the package; the runner's proof runs as your user and has
+  it.
+- **If the push to the bridge is refused** (the app that is your login is not installed on
+  that repository), do not look for another way. Your branch stays in the clone: the runner
+  keeps every branch there. Put the bridge change's diff in this repository's pull request,
+  and under "Needs your answer" ask for the app `ss-fix-agent` to be installed on
+  `davidortinau/Microsoft.SwiftUI`, to be followed by `/revise push the bridge branch`.
+- Under "Left undone", say that nobody else has the package yet: after merging the bridge's
+  pull request the Captain packs that version from `main` (docs/admin-feedback-check.md, "The
+  SwiftUI bridge"), and until then his own builds of your branch cannot restore.
+
 ## Where you stop
 
 Do everything short of these, write up the rest, and say in your result what is waiting:
@@ -313,7 +388,8 @@ Do everything short of these, write up the rest, and say in your result what is 
 - **Work only in your own worktree.** You run as the macOS user `lemuel`; the Captain's home is
   closed to you. Anything in AGENTS.md or the docs that points into `/Users/davidortinau` (his
   checkouts, his local package folders, his memory notes) is not yours to read: use what is in
-  your worktree and in `/Users/Shared/sstudio-feedback`.
+  your worktree and in `/Users/Shared/sstudio-feedback`. Where they name
+  `~/work/Microsoft.SwiftUI`, yours is `~/sstudio/bridge` ("The SwiftUI bridge").
 - **Never touch the Captain's running stack.** It listens on this Mac's localhost ports, which
   you can reach (the API on 5081 among them): do not call it, and do not use its database
   ports. Never run `aspire stop --all`.
@@ -330,11 +406,13 @@ Do everything short of these, write up the rest, and say in your result what is 
   on purpose, and expect nothing from an earlier session to be running.
 - A package restore that fails with NU1101 for a package no feed has (the Captain's own builds
   come from `/Users/Shared/sstudio-feedback/LocalNuGets`) is not yours to fix: say which
-  package is missing and stop there.
+  package is missing and stop there. `Microsoft.SwiftUI` is the one you can pack yourself
+  ("The SwiftUI bridge").
 - No Azure commands (`az`, `azd`), no production database access, no deploy scripts.
 - No push to `main` or `native-platform-heads`, no force push, no history rewriting, no merge.
 - Do not comment on, close or edit any issue but the one you were given, and do not touch other
-  repositories.
+  repositories. The one exception is the SwiftUI bridge's repository, and there only a branch
+  `feedback/issue-<n>` and its pull request ("The SwiftUI bridge").
 - Build with `-p:IncludeMobileTargets=false`. Name the project and target framework.
 - The API tests that need PostgreSQL read `COACH_PG_TEST_CONNECTION` and
   `APP_OPERATION_PG_TEST_CONNECTION`. Both are already in your environment and point at a

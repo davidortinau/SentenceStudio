@@ -8,7 +8,10 @@ an hour; the one kept in CACHE (readable only by this user) is used again while 
 than MIN_LEFT left, so a token handed out always outlives the next renewal.
 
   admin-feedback-agent-token.py token
-      Prints a token for the app's installation on the repository, and nothing else.
+      Prints a token for the app's installation on the repository, and nothing else. When the
+      app is also installed on the SwiftUI bridge's repository (BRIDGE), the token is good for
+      that one too, so a session can push a bridge change and open its pull request there
+      (docs/admin-feedback-fix.md, "The SwiftUI bridge"). For no other repository, ever.
   admin-feedback-agent-token.py check
       Prints the app, its installation, the token's permissions and repositories, and the bot's
       commit identity, as JSON. Never a token or a key.
@@ -37,6 +40,8 @@ import urllib.request
 
 APP_ID = "5826863"
 REPO = "davidortinau/SentenceStudio"
+# The SwiftUI bridge the native iOS app draws through. Same owner, so the same installation.
+BRIDGE = "davidortinau/Microsoft.SwiftUI"
 KEY_SERVICE = "sstudio-fix-agent-key"
 KEY_ACCOUNT = "sstudio-fix-agent"
 API = "https://api.github.com"
@@ -110,9 +115,17 @@ def installation(jwt):
 def new_token(jwt=None):
     jwt = jwt or app_jwt()
     found = installation(jwt)
-    # Only this repository, whatever else the app may one day be installed on.
-    token = call("POST", f"/app/installations/{found['id']}/access_tokens", jwt,
-                 {"repositories": [REPO.split("/")[1]]})
+    # Only this repository and the bridge, whatever else the app may one day be installed on.
+    # GitHub refuses the request (422) when the app is not installed on a repository it names,
+    # which is how it is until the Captain adds the bridge to the installation: then the token
+    # is for this repository alone, as it always was.
+    path = f"/app/installations/{found['id']}/access_tokens"
+    try:
+        token = call("POST", path, jwt, {"repositories": [REPO.split("/")[1], BRIDGE.split("/")[1]]})
+    except TokenError as error:
+        if "answered 422" not in str(error):
+            raise
+        token = call("POST", path, jwt, {"repositories": [REPO.split("/")[1]]})
     return found, token
 
 

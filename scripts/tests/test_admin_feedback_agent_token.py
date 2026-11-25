@@ -81,19 +81,32 @@ class TokenTests(unittest.TestCase):
                 os.environ["TZ"] = old
             time.tzset()
 
-    def test_the_token_is_asked_for_this_repository_only(self):
+    def asked_for(self, bridge_answer):
+        """The token requests made, when GitHub answers the one that names the bridge so."""
         calls = []
 
         def call(method, path, bearer, body=None):
             calls.append((method, path, body))
             if path.endswith("/installation"):
                 return {"id": 42, "account": {"login": "davidortinau"}}
+            if "Microsoft.SwiftUI" in body["repositories"] and bridge_answer:
+                raise agent.TokenError(f"GitHub answered {bridge_answer} to POST {path}")
             return {"token": "ghs_new", "expires_at": in_minutes(60)}
 
         with mock.patch.object(agent, "app_jwt", return_value="jwt"), mock.patch.object(agent, "call", call):
             agent.new_token()
-        self.assertEqual(calls[-1], ("POST", "/app/installations/42/access_tokens",
-                                     {"repositories": ["SentenceStudio"]}))
+        return [body for method, path, body in calls if method == "POST"]
+
+    def test_the_token_is_asked_for_this_repository_and_the_bridge_and_no_other(self):
+        self.assertEqual(self.asked_for(None), [{"repositories": ["SentenceStudio", "Microsoft.SwiftUI"]}])
+
+    def test_without_the_app_on_the_bridge_the_token_is_for_this_repository_alone(self):
+        self.assertEqual(self.asked_for(422), [{"repositories": ["SentenceStudio", "Microsoft.SwiftUI"]},
+                                               {"repositories": ["SentenceStudio"]}])
+
+    def test_another_refusal_is_not_taken_for_a_missing_bridge(self):
+        with self.assertRaises(agent.TokenError):
+            self.asked_for(500)
 
     def test_check_never_prints_the_token(self):
         app = {"slug": "ss-fix-agent", "id": 5826863, "owner": {"login": "davidortinau"}}

@@ -173,8 +173,8 @@ red for a day because nothing said so.
   on GitHub.) Each summary ends with the commit it ran from. If `origin/main` cannot be
   fetched, the last copy runs and the summary says so.
 - **Whose login a session uses** (2026-11-18). A fix session uses the GitHub App
-  `ss-fix-agent` (App ID 5826863), installed on this repository only, never the Captain's
-  login. Its pushes, pull requests and comments show as `ss-fix-agent[bot]`, and so do its
+  `ss-fix-agent` (App ID 5826863), installed on this repository (and, once the Captain adds
+  it, on the SwiftUI bridge's: see "The SwiftUI bridge" below), never the Captain's login. Its pushes, pull requests and comments show as `ss-fix-agent[bot]`, and so do its
   commits. The app can write contents, pull requests and issues, and read Actions, checks and
   statuses; it has no access to workflows. The `main` ruleset (restrict updates and deletions,
   block force pushes, bypass for repository admins) refuses it on `main`.
@@ -236,6 +236,45 @@ red for a day because nothing said so.
     Azure sign-in (Sam and the other AI features on its stack, `scripts/admin-api.sh`). For
     an issue the triage filed, the runner itself reads the codes of the reports it names
     (`sam-show`, at most five) and hands them to the session as a file.
+  - **The SwiftUI bridge** (2026-11-24). The native iOS app draws through the package
+    `Microsoft.SwiftUI`, whose source is its own public repository,
+    `davidortinau/Microsoft.SwiftUI` (`FEEDBACK_BRIDGE_REPO`). A session wrote that this source
+    "is not on this machine": it had only the package, and the Captain's checkout
+    (`~/work/Microsoft.SwiftUI`) is in his home. Now:
+    - **The clone.** `~lemuel/sstudio/bridge`, made and fetched by the runner as that user
+      before each session (`bridge_ready`), then left with nothing uncommitted at `origin/main`,
+      or at the tag of the version this checkout pins while `main` does not hold it. A
+      session's branches stay; what one left uncommitted goes to that clone's stash. When the
+      clone cannot be made or fetched the session still runs, and the summary says so.
+    - **A change.** A session branches there, gives the change the next version, and runs
+      `scripts/session-bridge.sh pack`: the bridge's own build, pack and verify, then the
+      package into that user's package folder (`~lemuel/.nuget/packages`), because the two
+      project files that name the bridge's feed point into the Captain's home and NuGet looks
+      in the package folder first. So a session's builds and the runner's proof, which runs as
+      the same user, use the new version. Nobody else has it yet.
+    - **Its pull request.** The session pushes `feedback/issue-<n>` to the bridge's repository
+      and opens a pull request there, as `ss-fix-agent[bot]`. For that the app must be
+      installed on the bridge's repository as well, which is the Captain's to do once: GitHub,
+      Settings, Applications, Installed GitHub Apps, `ss-fix-agent`, Configure, Repository
+      access, add `Microsoft.SwiftUI`. Give the bridge's `main` the ruleset this
+      repository's `main` has first (restrict updates and deletions, block force pushes,
+      bypass for repository admins): on 2026-11-24 it had no protection, and the app can write
+      contents. The session's token is asked for these two
+      repositories and no other (`scripts/admin-feedback-agent-token.py`); until the app is
+      there GitHub refuses that request and the token is for this repository alone, the push
+      is refused, and the session puts the bridge's diff in this repository's pull request
+      and asks.
+    - **After the Captain merges a bridge pull request**, the version exists as source only.
+      Pack it from the merged `main`, on his side, before merging the pull request here that
+      pins it: in `~/work/Microsoft.SwiftUI` on an up-to-date `main`,
+      `bash scripts/build-xcframework.sh && bash scripts/pack-and-verify.sh`, then
+      `gh release create v<version> --repo davidortinau/Microsoft.SwiftUI --prerelease --target
+      main artifacts/Microsoft.SwiftUI.<version>.nupkg`. The package in `artifacts` is what
+      his builds restore; the tag is what says the version was given out (a session's `pack`
+      refuses a tagged version, and the runner starts the next change from `main`).
+    - **What this does not cover.** A session's package is built from its own branch, so it
+      is for that session's builds and the proof, never for a phone: a build for Duotopia
+      uses the package packed from merged source.
   - **Its own Docker and simulators** (2026-11-24). The Captain's Docker is never shared with
     it: that socket can mount his whole home. It has a Colima virtual machine of its own
     (`brew install colima docker`, done once by the Captain's user; the machine is under
