@@ -294,6 +294,14 @@ red for a day because nothing said so.
       main artifacts/Microsoft.SwiftUI.<version>.nupkg`. The package in `artifacts` is what
       his builds restore; the tag is what says the version was given out (a session's `pack`
       refuses a tagged version, and the runner starts the next change from `main`).
+    - **The first session to use it** (2026-11-24, the follow-up on pull request 263) found
+      the cause in the bridge and fixed it there, and was let down twice by the helper, both
+      mended the same day. It was told `PUSH=no` with a token that covered the bridge: GitHub
+      reports every permission of an app's token on a repository as false, so the helper now
+      asks the token which repositories it is for. And its `pack` stopped for good at the
+      bridge's first `dotnet run`, after two runs of the tests: the helper now builds with no
+      build server and no kept build nodes, as the runner's proof always has, and every step
+      has a time limit. The cause of that stop was not confirmed; it did not happen again.
     - **What this does not cover.** A session's package is built from its own branch, so it
       is for that session's builds and the proof, never for a phone: a build for Duotopia
       uses the package packed from merged source.
