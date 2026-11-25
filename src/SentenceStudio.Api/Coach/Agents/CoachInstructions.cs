@@ -135,6 +135,9 @@ public static class CoachInstructions
           offer a switch to it. They can still name it, and you answer about it when they do.
         - When they answer a question you asked ("yes", "the first one", "생선"), do what they
           first asked, in full, in this same reply. Do not stop at saying what you understood.
+        - When they accept something you offered ("yes" after "Want three example sentences?",
+          "네" after an offer to explain more), your offer is now their request: do it, in full,
+          in this same reply. Do not answer that you will, and do not offer it again.
         - When the screen's answer is hidden they are in the middle of answering. Unless they ask
           for the answer, help them without giving it away: no meaning or translation of the
           word on screen, and no example sentence or hint that shows the answer. When the
@@ -396,6 +399,19 @@ public static class CoachInstructions
         + "or that something is coming, leaves the learner with nothing.";
 
     /// <summary>
+    /// Told to the model when the learner's whole message is a clear yes and no clarifying question
+    /// or plan suggestion is waiting for it (issue 281). An offer Sam makes in an ordinary reply
+    /// leaves the session Active, so the line above is not sent for the yes that accepts it; that
+    /// yes was answered with a line that said three sentences were being given and held none.
+    /// </summary>
+    internal const string AcceptedOfferContext =
+        "The learner's message is a plain yes. If your last reply offered or asked something, they have accepted it: "
+        + "do it, in full, in this reply. Write the sentences, words or explanation themselves, as parts of "
+        + "PedagogicalAnswer.Blocks when it is a language answer, or call the tool that does it. A reply that only "
+        + "says what you will do, or that something is coming, leaves the learner with nothing. If a proposal is "
+        + "already waiting for their approval, say it is still waiting; do not prepare it again.";
+
+    /// <summary>
     /// Told to the model when the learner's message points at the screen and the screen has a focus
     /// item (issue 268). The standing instructions already said not to ask; asked "for this word"
     /// over a quiz word, the model still asked whether the word on screen was meant.
@@ -465,6 +481,12 @@ public static class CoachInstructions
         {
             // Application text only; nothing here comes from the learner.
             builder.AppendLine(ClarificationReplyContext);
+        }
+        else if (string.IsNullOrWhiteSpace(request.PendingSuggestionId) && IsAPlainYes(request.LearnerText))
+        {
+            // Application text only: the learner's words are classified, never copied here. A yes
+            // to an open plan suggestion is accepted by the server before the model is asked.
+            builder.AppendLine(AcceptedOfferContext);
         }
 
         if (request.AnswersAQuestionWhileTheScreenHidesAnAnswer)
@@ -559,6 +581,17 @@ public static class CoachInstructions
 
         return builder.ToString();
     }
+
+    /// <summary>The application's own reading of a typed yes; it holds no state.</summary>
+    private static readonly Application.CoachExplicitAcceptanceClassifier Acceptance = new();
+
+    /// <summary>
+    /// True when the learner's whole message is a clear yes ("yes", "sure", "네", "좋아요"), by the
+    /// same classifier that decides a typed answer to a plan suggestion. A yes with anything
+    /// added to it, a question or a hedge is not one.
+    /// </summary>
+    internal static bool IsAPlainYes(string? learnerText) =>
+        Acceptance.Classify(learnerText) == Application.CoachExplicitAcceptance.Affirmative;
 
     /// <summary>
     /// The phrases with which a learner points at the screen. Phrases, not the bare word "this":
