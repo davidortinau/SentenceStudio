@@ -1595,7 +1595,12 @@ public sealed class CoachConversationService : ICoachConversationService
             }
 
             budget -= text.Length;
-            selected.Add(new CoachPriorMessage(record.Role, text));
+            // The ledger's own time for the row, so the model can tell how old each line is.
+            // A provider that hands the instant back as local time is put back to UTC first.
+            var sentAtUtc = record.CreatedAt.Kind == DateTimeKind.Local
+                ? record.CreatedAt.ToUniversalTime()
+                : DateTime.SpecifyKind(record.CreatedAt, DateTimeKind.Utc);
+            selected.Add(new CoachPriorMessage(record.Role, text, new DateTimeOffset(sentAtUtc)));
         }
 
         selected.Reverse();

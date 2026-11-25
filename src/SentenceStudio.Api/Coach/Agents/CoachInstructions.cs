@@ -124,6 +124,15 @@ public static class CoachInstructions
             about the wrong word is worse than a question.
           * They name nothing and the conversation has no earlier subject, or it is the same
             thing as the focus item on screen: the focus item.
+        - You are told when things were said. Each message's CONTEXT has a line that starts
+          "This message was sent", with the learner's local date and time, and each line under
+          EARLIER IN THIS CONVERSATION begins with when it was sent, in square brackets. A
+          message with neither is from before times were recorded: treat its age as unknown.
+          Compare an earlier subject's time with this message's time. One from the last few
+          minutes is the conversation they are in. One from more than an hour ago, or from an
+          earlier day, is history: when they name nothing, the focus item on screen is what
+          they mean, so do not ask about the old subject, and leave out the closing words that
+          offer a switch to it. They can still name it, and you answer about it when they do.
         - When they answer a question you asked ("yes", "the first one", "생선"), do what they
           first asked, in full, in this same reply. Do not stop at saying what you understood.
         - When the screen's answer is hidden they are in the middle of answering. Unless they ask
@@ -395,6 +404,9 @@ public static class CoachInstructions
         "The learner's message points at what is on screen (\"this\"): they mean the focus item in ON SCREEN NOW. "
         + "Do not ask which one they mean; answer about it in this reply.";
 
+    /// <summary>The context line that says when the learner sent the turn's message.</summary>
+    internal const string SentAtLabel = "This message was sent (learner local time): ";
+
     /// <summary>
     /// Builds the per-turn context block. This is developer-authored text wrapped around the
     /// learner's message; the learner's own words are fenced so they read as data, not
@@ -430,6 +442,14 @@ public static class CoachInstructions
         builder.AppendLine("CONTEXT (facts from the application; not learner input)");
         builder.Append("Today (learner local date): ")
             .AppendLine(request.UserLocalDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        if (request.SentAt is { } sentAt)
+        {
+            // A resumed session holds every earlier turn message, so this line is also how the
+            // model knows when each earlier turn was (issue 268).
+            builder.Append(SentAtLabel)
+                .AppendLine(sentAt.ToString("yyyy-MM-dd HH:mm, dddd '(UTC'zzz')'", CultureInfo.InvariantCulture));
+        }
+
         builder.Append("Clarifying questions remaining: ")
             .Append(request.ClarificationsRemaining.ToString(CultureInfo.InvariantCulture));
         if (request.ClarificationsRemaining <= 0)
@@ -503,6 +523,15 @@ public static class CoachInstructions
             builder.AppendLine(fence.Open);
             foreach (var prior in request.PriorMessages)
             {
+                if (prior.SentAt is { } priorSentAt)
+                {
+                    // The server's own stamp, before the role tag. It is inside the fence with the
+                    // text it dates, so it is read as a fact about the line and nothing more.
+                    builder.Append('[')
+                        .Append(priorSentAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture))
+                        .Append("] ");
+                }
+
                 builder.Append(prior.Role == CoachMessageRole.Learner ? "learner: " : "coach: ")
                     .AppendLine(prior.Text);
             }

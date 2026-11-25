@@ -118,6 +118,17 @@ public sealed record CoachAgentTurnRequest
 
     /// <summary>The learner's local date, so evidence windows can be described without a clock read.</summary>
     public required DateOnly UserLocalDate { get; init; }
+
+    /// <summary>
+    /// When the learner sent this message, in their own time zone, or null when the caller has no
+    /// clock for it.
+    /// </summary>
+    /// <remarks>
+    /// Rendered into the turn message. A resumed agent session holds every earlier turn message,
+    /// so each turn in the conversation the model reads then carries its own time, and the model
+    /// can tell an earlier subject from a minute ago from one from last week (issue 268).
+    /// </remarks>
+    public DateTimeOffset? SentAt { get; init; }
 }
 
 /// <summary>
@@ -125,7 +136,11 @@ public sealed record CoachAgentTurnRequest
 /// </summary>
 /// <param name="Role">Who said it.</param>
 /// <param name="Text">What was said, already bounded by the caller.</param>
-public readonly record struct CoachPriorMessage(CoachMessageRole Role, string Text);
+/// <param name="SentAt">
+/// When it was said, as the ledger recorded it, or null when unknown. The session service puts it
+/// in the learner's time zone before the turn message is built.
+/// </param>
+public readonly record struct CoachPriorMessage(CoachMessageRole Role, string Text, DateTimeOffset? SentAt = null);
 
 /// <summary>Why a coach agent turn ended. Only <see cref="Completed"/> carries an intent.</summary>
 public enum CoachAgentOutcome

@@ -529,7 +529,7 @@ internal sealed class FakePlanDateContext : IPlanDateContext
 {
     public FakePlanDateContext(DateOnly today) => UserLocalDate = today;
 
-    public TimeZoneInfo TimeZone => TimeZoneInfo.Utc;
+    public TimeZoneInfo TimeZone { get; set; } = TimeZoneInfo.Utc;
 
     public DateTime UtcNow { get; set; } = new(2026, 8, 14, 12, 0, 0, DateTimeKind.Utc);
 

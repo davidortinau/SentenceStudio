@@ -1840,7 +1840,8 @@ public sealed class CoachSessionService : ICoachSessionService
                 AgentSessionJson = agentSessionJson,
                 // Only populated when the checkpoint could not be reused and the turn is being
                 // rebuilt from the ledger. Role-tagged conversation data, never instructions.
-                PriorMessages = context.PriorMessages,
+                // Each with the time the ledger gave it, put in the learner's time zone.
+                PriorMessages = InLearnerTime(context.PriorMessages, _dateContext.TimeZone),
                 LearnerText = LearnerTextFor(request),
                 MemoryBlock = memoryBlock,
                 // What the learner is looking at as they send this, in every turn.
@@ -1861,9 +1862,37 @@ public sealed class CoachSessionService : ICoachSessionService
                     && request.ClientScreen is { AnswerHidden: true },
                 ClarificationsRemaining =
                     Math.Max(0, options.MaxClarificationsPerSession - session.ClarificationCount),
-                UserLocalDate = _dateContext.UserLocalDate
+                UserLocalDate = _dateContext.UserLocalDate,
+                // The same clock and zone that give the date above, so the two cannot disagree.
+                SentAt = TimeZoneInfo.ConvertTime(
+                    new DateTimeOffset(DateTime.SpecifyKind(_dateContext.UtcNow, DateTimeKind.Utc)),
+                    _dateContext.TimeZone)
             },
             cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The rebuilt transcript with each message's time in the learner's time zone, converted one
+    /// by one so a daylight-saving change between two messages is honoured.
+    /// </summary>
+    private static IReadOnlyList<CoachPriorMessage> InLearnerTime(
+        IReadOnlyList<CoachPriorMessage> messages,
+        TimeZoneInfo zone)
+    {
+        if (messages.Count == 0)
+        {
+            return messages;
+        }
+
+        var local = new CoachPriorMessage[messages.Count];
+        for (var i = 0; i < messages.Count; i++)
+        {
+            local[i] = messages[i].SentAt is { } sentAt
+                ? messages[i] with { SentAt = TimeZoneInfo.ConvertTime(sentAt, zone) }
+                : messages[i];
+        }
+
+        return local;
     }
 
     private async Task<CoachOperationResult<CoachTurnResponse>> ReduceAgentResultAsync(
