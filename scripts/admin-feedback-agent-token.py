@@ -8,7 +8,11 @@ an hour; the one kept in CACHE (readable only by this user) is used again while 
 than MIN_LEFT left, so a token handed out always outlives the next renewal.
 
   admin-feedback-agent-token.py token
-      Prints a token for the app's installation on the repository, and nothing else.
+      Prints a token for the app's installation on the repository, and nothing else. When the
+      app is also installed on the SwiftUI bridge's repository (BRIDGE) and that repository's
+      main is closed to it by a ruleset, the token is good for that one too, so a session can
+      push a bridge change and open its pull request there (docs/admin-feedback-fix.md, "The
+      SwiftUI bridge"). For no other repository, ever.
   admin-feedback-agent-token.py check
       Prints the app, its installation, the token's permissions and repositories, and the bot's
       commit identity, as JSON. Never a token or a key.
@@ -37,6 +41,8 @@ import urllib.request
 
 APP_ID = "5826863"
 REPO = "davidortinau/SentenceStudio"
+# The SwiftUI bridge the native iOS app draws through. Same owner, so the same installation.
+BRIDGE = "davidortinau/Microsoft.SwiftUI"
 KEY_SERVICE = "sstudio-fix-agent-key"
 KEY_ACCOUNT = "sstudio-fix-agent"
 API = "https://api.github.com"
@@ -46,6 +52,7 @@ CACHE = os.path.join(STATE, "agent-token.json")
 IDENTITY = os.path.join(STATE, "agent-identity.json")
 # More than the runner's 20-minute renewal, with ten minutes to spare.
 MIN_LEFT = 1800
+COVERED = "covered"
 SECONDS = 30
 
 
@@ -110,10 +117,33 @@ def installation(jwt):
 def new_token(jwt=None):
     jwt = jwt or app_jwt()
     found = installation(jwt)
-    # Only this repository, whatever else the app may one day be installed on.
-    token = call("POST", f"/app/installations/{found['id']}/access_tokens", jwt,
-                 {"repositories": [REPO.split("/")[1]]})
+    # Only this repository, and the bridge when a session may safely write there, whatever else
+    # the app may one day be installed on.
+    path = f"/app/installations/{found['id']}/access_tokens"
+    token = call("POST", path, jwt, {"repositories": [REPO.split("/")[1]]})
+    token["bridge"] = "its main is not closed to the app by a ruleset"
+    if bridge_main_is_closed(token["token"]):
+        try:
+            both = call("POST", path, jwt, {"repositories": [REPO.split("/")[1], BRIDGE.split("/")[1]]})
+            both["bridge"] = COVERED
+            token = both
+        except TokenError as error:
+            # GitHub refuses (422) a repository the app is not installed on.
+            if "answered 422" not in str(error):
+                raise
+            token["bridge"] = "the app is not installed on it"
     return found, token
+
+
+def bridge_main_is_closed(bearer):
+    """Whether a ruleset keeps everyone without a bypass from updating the bridge's main. The app
+    can write contents, so without that rule a session could push to main there; with it, as on
+    this repository's main, it can only push a branch and ask. Not readable counts as not."""
+    try:
+        rules = call("GET", f"/repos/{BRIDGE}/rules/branches/main", bearer)
+        return any(rule.get("type") == "update" for rule in rules)
+    except (TokenError, AttributeError, TypeError):
+        return False
 
 
 def cached():
@@ -123,7 +153,9 @@ def cached():
         with open(CACHE, encoding="utf-8") as source:
             saved = json.load(source)
         left = calendar.timegm(time.strptime(saved["expires_at"], "%Y-%m-%dT%H:%M:%SZ")) - time.time()
-        return saved["token"] if left > MIN_LEFT and saved["token"] else None
+        # A token without the bridge is not kept: the Captain may have installed the app there
+        # a minute ago, and the next session must not be refused for another half hour.
+        return saved["token"] if left > MIN_LEFT and saved["token"] and saved["bridge"] == COVERED else None
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -145,7 +177,8 @@ def write_private(path, content):
 
 
 def keep(fresh):
-    write_private(CACHE, {"token": fresh["token"], "expires_at": fresh["expires_at"]})
+    write_private(CACHE, {"token": fresh["token"], "expires_at": fresh["expires_at"],
+                          "bridge": fresh.get("bridge", "")})
 
 
 def token():
@@ -207,6 +240,8 @@ def main(args):
                 "repository_selection": fresh.get("repository_selection"),
                 "repositories": [r["full_name"] for r in fresh.get("repositories", [])],
                 "permissions": fresh.get("permissions"), "expires_at": fresh["expires_at"],
+                "bridge": BRIDGE, "bridge_covered": fresh.get("bridge") == COVERED,
+                "bridge_reason": fresh.get("bridge"),
                 "commit_name": login, "commit_email": email,
             }, indent=2, sort_keys=True))
             return 0

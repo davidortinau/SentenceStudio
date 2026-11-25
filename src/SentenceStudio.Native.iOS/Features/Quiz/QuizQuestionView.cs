@@ -257,8 +257,6 @@ internal static class QuizQuestionView
                     !busy && (correcting || state.CanSubmit)
                         && !string.IsNullOrWhiteSpace(answer));
             }
-            items.Add(style.Text(Views.Text(text("VocabQuiz_TypeTranslation")),
-                SourceTextRole.Body2, SourceTextTone.Secondary));
             var field = style.TextInput(Views.TextField(
                     text(correcting
                         ? NativeText.CorrectionRequired : NativeText.AnswerRequired),

@@ -152,6 +152,30 @@ var cases = new (string Name, Action Test)[]
         scroll.InvokeScrollGeometryChanged(Geometry(330));
         Assert(entry.IsHidden);
     }),
+    ("Quiz typed answer: the field's hint is its only instruction (issue 261)", () =>
+    {
+        var items = new List<SwiftView>();
+        QuizQuestionView.Add(items,
+            new NativeQuizState(NativePhase.Ready, NativeDestination.VocabularyQuiz,
+                Prompt: new NativeQuizPrompt("w-1", "Prompt", "Korean", null, null,
+                    IsTargetLanguagePrompt: true, ShowWrittenPrompt: true,
+                    CanPlayPromptAudio: false, ShowPhoto: false, TargetLanguageEngaged: true),
+                Mode: "Text", CanSubmit: true, TurnId: "t-1"),
+            answer: string.Empty, correctionCompleted: false, busy: false, style, Text,
+            answerChanged: _ => { }, answerFocusChanged: _ => { }, answerShouldFocus: false,
+            selectChoice: _ => { }, playPrompt: () => { }, playChoiceAudio: _ => { },
+            submitText: () => { }, submitCorrection: () => { }, openDetails: () => { },
+            toggleSentenceHints: () => { }, photoRendered: _ => { },
+            photoFailed: (_, _) => { }, openPhoto: () => { }, togglePhotoVisible: () => { });
+        using var page = Views.VStack(items.ToArray());
+        // The field says what to do; nothing above it says so a second time.
+        Assert(!AllText(page).Contains("VocabQuiz_TypeTranslation"));
+        var answerIndex = items.FindIndex(item => Find(item, NativeAccess.QuizAnswer) is not null);
+        Assert(answerIndex > 0 && items[answerIndex].Kind == "textField");
+        // What sits right above the field is the prompt's controls, not a line of text.
+        Assert(items[answerIndex - 1].AccessibilityIdentifier == "native.quiz.prompt.actions");
+        Assert(Find(page, "native.quiz.submit") is not null);
+    }),
     ("Quiz footer: its rows leave while the keyboard is up and return after (issue 254)", () =>
     {
         var footer = Views.VStack(Views.Divider(), Views.Text("1 / 10"));

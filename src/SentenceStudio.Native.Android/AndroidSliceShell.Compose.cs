@@ -935,7 +935,6 @@ internal sealed partial class AndroidSliceShell
             var text = needsCorrection ? Correction : Answer;
             var label = Localize(needsCorrection
                 ? NativeText.CorrectionRequired : NativeText.AnswerRequired);
-            viewport.Add(Body(Localize("VocabQuiz_TypeTranslation"), palette, secondary: true));
             var keyboard = KeyboardOptionsCompanion.Default;
             var fieldModifier = Modifier.FillMaxWidth();
             if (needsCorrection && _correctionFocus is not null)

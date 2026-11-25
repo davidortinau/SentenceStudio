@@ -1,6 +1,6 @@
 #!/bin/bash
 # One run of the feedback check. On Lilliput, launchd starts scripts/admin-feedback-run.sh --loop
-# every five minutes (~/Library/LaunchAgents/com.sentencestudio.feedback-check.plist), from a
+# every minute (~/Library/LaunchAgents/com.sentencestudio.feedback-check.plist), from a
 # checkout of its own that follows origin/main, and that runs this with --pass again and again
 # while there is work (see "A pass" below). Two stages, each a headless Claude session:
 #
@@ -149,7 +149,7 @@ finish() {
   cp "$RUN" "$OUT/latest.md"
   printf '%s  %s\n' "$STAMP" "$(grep -E '^(RESULT|FIX RESULT|PROOF|DIFF|CHECKS|MAIN CI):' "$RUN" | tr '\n' ' ' | cut -c1-600)" >> "$OUT/history.log"
   # A run that fails before status is defined (a missing script) cannot write the status issue.
-  declare -F status >/dev/null && status
+  declare -F status >/dev/null && { stop_keeping_status; status; }
   [ "$NOTIFY" = yes ] && notify "$(grep -E '^(RESULT|FIX RESULT):|^MAIN CI: red|^CHECKS: .* [1-9][0-9]* failed' "$RUN" | tr '\n' ' ' | cut -c1-220)"
   # Keep the last 200 runs.
   ls -1t "$OUT"/run-*.md 2>/dev/null | tail -n +201 | while read -r old; do rm -f "$old" "${old%.md}.err"; done
@@ -174,7 +174,9 @@ if ! mkdir "$LOCK" 2>/dev/null; then
     rm -f "$RUN"; exit "$BUSY"
   fi
 fi
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+STATUS_KEEPER=""
+# The keeper of the status issue (see keep_status) ends with the run, however the run ends.
+trap 'declare -F stop_keeping_status >/dev/null && stop_keeping_status; rmdir "$LOCK" 2>/dev/null' EXIT
 
 # A session window that a run from before 2026-11-24 left open (it died mid-session) is closed
 # now: left open, every issue the Captain files from then on would count as inside it.
@@ -185,7 +187,7 @@ fi
 cd "$ROOT" || fail "The checkout at $ROOT is not there."
 for needed in scripts/admin-api.sh scripts/admin-feedback-issue.sh scripts/admin-feedback-pr.py \
               scripts/admin-feedback-agent-token.py scripts/admin-feedback-verify.py \
-              scripts/admin-feedback-usage.py scripts/session-ailoha.sh docs/admin-feedback-check.md \
+              scripts/admin-feedback-usage.py scripts/session-ailoha.sh scripts/session-bridge.sh docs/admin-feedback-check.md \
               docs/admin-feedback-fix.md docs/admin-api.md; do
   [ -f "$needed" ] || fail "$needed is missing from the checkout at $ROOT (on branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)). The check cannot run from a branch without it."
 done
@@ -198,17 +200,52 @@ FIX_ALLOWED=yes
 TRIAGE_EVERY=14400
 LAST_TRIAGE="$OUT/state/last-triage"
 # When a pass last reported that GitHub could not be read, so an outage is reported once an
-# hour rather than every five minutes.
+# hour rather than every minute.
 UNREADABLE="$OUT/state/github-unreadable-reported"
 IDLE=10
 
 # Rewrites the status issue when what it says has changed. Its failure is kept in
-# state/status.err and never stops the run. $1 a line to say at the top, or nothing.
+# state/status.err and never stops the run. The script itself says when the daily cap is
+# reached, from the sessions counted as it writes, so a run that goes on past midnight UTC
+# does not repeat yesterday's cap.
 status() {
   python3 -I "$ROOT/scripts/admin-feedback-status.py" update --cap "$DAILY_CAP" \
-    --windows "$WINDOWS" --handled "$HANDLED" ${1:+--note "$1"} >/dev/null 2> "$OUT/state/status.err" \
+    --windows "$WINDOWS" --handled "$HANDLED" >/dev/null 2> "$OUT/state/status.err" \
     && rm -f "$OUT/state/status.err"
   return 0
+}
+
+# While a run has work the status issue is also rewritten every minute (Captain, 2026-11-24:
+# he filed two issues during a session, saw neither in the queue, and took the job for dead).
+# Before this it was written when a session started and when it ended, and a session and its
+# proof can take an hour. The keeper's rewrite is a spare one (--spare): it is skipped when
+# the run itself is rewriting the status or when little is left of the hour's GitHub calls,
+# and it writes only when what the issue says has changed. It reads the run's files as they
+# are at that moment, so for a minute it can say a pull request is not yet checked while the
+# check is being recorded. Stopping the keeper ends a rewrite it is in the middle of, so the
+# run never waits for one. The keeper ends with the run, and on its own if the run was killed.
+STATUS_EVERY="${FEEDBACK_STATUS_EVERY:-60}"
+case "$STATUS_EVERY" in ""|*[!0-9]*) STATUS_EVERY=60 ;; esac
+[ "$STATUS_EVERY" -ge 15 ] || STATUS_EVERY=60
+keep_status() {
+  [ -z "$STATUS_KEEPER" ] || return 0
+  ( nap=""; work=""
+    trap 'for job in $nap $work; do kill "$job" 2>/dev/null; done; exit 0' TERM
+    while kill -0 "$$" 2>/dev/null; do
+      sleep "$STATUS_EVERY" & nap=$!; wait "$nap"; nap=""
+      kill -0 "$$" 2>/dev/null || exit 0
+      python3 -I "$ROOT/scripts/admin-feedback-status.py" update --spare --cap "$DAILY_CAP" \
+        --windows "$WINDOWS" --handled "$HANDLED" >/dev/null 2> "$OUT/state/status-keeper.err" &
+      work=$!; wait "$work" && rm -f "$OUT/state/status-keeper.err"; work=""
+    done ) &
+  STATUS_KEEPER=$!
+}
+# The keeper's last failure goes with it: the rewrite that follows reports in state/status.err.
+stop_keeping_status() {
+  [ -n "$STATUS_KEEPER" ] || return 0
+  kill "$STATUS_KEEPER" 2>/dev/null; wait "$STATUS_KEEPER" 2>/dev/null
+  STATUS_KEEPER=""
+  rm -f "$OUT/state/status-keeper.err"
 }
 
 seconds_since() {
@@ -219,7 +256,7 @@ seconds_since() {
 # Whether this pass has work, into TRIAGE_DUE and FIX_ALLOWED; exits $IDLE, with no summary,
 # when it has none.
 pass_gate() {
-  local waiting=no today note=""
+  local waiting=no today
   TRIAGE_DUE=no
   [ "$(seconds_since "$LAST_TRIAGE")" -ge "$TRIAGE_EVERY" ] && TRIAGE_DUE=yes
   if [ -f "$INFLIGHT" ]; then
@@ -234,15 +271,15 @@ pass_gate() {
   today="$(python3 -I "$ROOT/scripts/admin-feedback-status.py" today 2>/dev/null)" || today=0
   if [ "$today" -ge "$DAILY_CAP" ] 2>/dev/null; then
     FIX_ALLOWED=no
-    note="The daily cap of $DAILY_CAP fix sessions is reached; work waiting starts after 00:00 UTC."
   fi
   # A session to settle is settled even at the cap; it starts no new one.
   if [ "$TRIAGE_DUE" = no ] && { [ "$waiting" = no ] || { [ "$FIX_ALLOWED" = no ] && [ ! -f "$INFLIGHT" ]; }; }; then
-    status "$note"
+    status
     rm -f "$RUN"
     exit "$IDLE"
   fi
-  status "$note"
+  status
+  keep_status
 }
 
 # Runs one session under its own time limit, so a run that hangs is ended and reported, not
@@ -386,6 +423,7 @@ session_places() {
   WORKTREES="$SESSION_HOME/sstudio/trees"
   SESSION_FIX="$SESSION_HOME/sstudio/fix"
   SESSION_GH="$SESSION_HOME/sstudio/gh"
+  BRIDGE="$SESSION_HOME/sstudio/bridge"
 }
 
 # Runs a command as the session's user, from /, with an environment made from nothing: none of
@@ -546,7 +584,52 @@ session_ready() {
   sgit fetch -q --prune origin 2>/dev/null \
     || { SESSION_ERROR="GitHub could not be fetched into $CLONE"; return 1; }
   publish_shared || return 1
+  bridge_ready
   SESSION_READY=yes
+}
+
+# The SwiftUI bridge's source for the sessions (Captain, 2026-11-24: a session wrote that the
+# bridge's source "is not on this machine"; it had only the package). The bridge is a public
+# repository of its own, so the sessions' user clones it without a login. Before each session
+# the clone is fetched and put, with nothing uncommitted, where the next change starts: main,
+# or the tag of the version this checkout pins when main does not hold that version yet. A
+# session's branches stay in the clone; what one left uncommitted is put in the clone's own
+# stash, never thrown away. Its tags are made to be the repository's own, because a tag there
+# says a version was given out. Then the packages the Captain packed go into that user's
+# package folder (scripts/session-bridge.sh sync): it cannot read the feed the project files
+# name, and a copy of a version that a session packed from its branch must not outlive the one
+# he packed from merged source. No session fails over any of this: BRIDGE_NOTE, in the run's
+# summary, says what could not be done.
+BRIDGE_REPO="${FEEDBACK_BRIDGE_REPO:-davidortinau/Microsoft.SwiftUI}"
+BRIDGE_NOTE=""
+bgit() { as_session git -C "$BRIDGE" "$@"; }
+bridge_ready() {
+  local pinned base synced
+  BRIDGE_NOTE=""
+  if ! there "$BRIDGE/.git"; then
+    as_session git clone -q "https://github.com/$BRIDGE_REPO.git" "$BRIDGE" >/dev/null 2>&1 \
+      || { BRIDGE_NOTE="The SwiftUI bridge ($BRIDGE_REPO) could not be cloned to $BRIDGE, so sessions cannot read or change it."; return 0; }
+  fi
+  bgit fetch -q --prune --prune-tags --tags --force origin 2>/dev/null \
+    || BRIDGE_NOTE="The SwiftUI bridge in $BRIDGE could not be fetched; sessions have it as it was."
+  if [ -n "$(bgit status --porcelain 2>/dev/null)" ]; then
+    bgit -c user.name=session -c user.email=session@localhost stash push -q -u \
+        -m "left uncommitted by a session, found $(date -u +%Y-%m-%dT%H:%MZ)" 2>/dev/null \
+      || { BRIDGE_NOTE="The SwiftUI bridge in $BRIDGE has uncommitted changes that could not be set aside; it was left as it is."; return 0; }
+  fi
+  pinned="$(sed -n 's/.*<PackageVersion Include="Microsoft\.SwiftUI" Version="\([A-Za-z0-9.-]*\)".*/\1/p' \
+    "$ROOT/src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj" 2>/dev/null | head -1)"
+  base=origin/main
+  if [ -n "$pinned" ] && bgit rev-parse -q --verify "refs/tags/v$pinned^{commit}" >/dev/null 2>&1 \
+     && ! bgit merge-base --is-ancestor "refs/tags/v$pinned" origin/main 2>/dev/null; then
+    base="refs/tags/v$pinned"
+  fi
+  bgit checkout -q --detach "$base" 2>/dev/null \
+    || BRIDGE_NOTE="The SwiftUI bridge in $BRIDGE could not be put at ${base#refs/tags/}; it was left where it was."
+  # The script is read from here: the sessions' user cannot read this checkout.
+  synced="$(as_session /bin/bash -s sync "$SHARED/LocalNuGets" < "$ROOT/scripts/session-bridge.sh" 2>/dev/null)" \
+    || BRIDGE_NOTE="${BRIDGE_NOTE:+$BRIDGE_NOTE }A SwiftUI bridge package the Captain packed could not be put in the sessions' package folder ($(printf '%s' "$synced" | tr '\n' ' ' | cut -c1-200)), so their builds may use another copy of that version."
+  return 0
 }
 
 # A fix session's own GitHub login: the GitHub App ss-fix-agent, never the Captain's
@@ -983,6 +1066,7 @@ follow_up_stage() {
     echo
     [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
     echo "$docker_state"
+    [ -n "$BRIDGE_NOTE" ] && echo "$BRIDGE_NOTE"
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo "His request: $request"
@@ -1143,6 +1227,7 @@ fix_stage() {
     echo
     [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
     echo "$docker_state"
+    [ -n "$BRIDGE_NOTE" ] && echo "$BRIDGE_NOTE"
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo
@@ -1168,7 +1253,7 @@ fix_stage() {
 case "$MODE" in
   --probe) triage_stage ;;
   --triage-only) triage_and_stamp; main_ci; read_waiting ;;
-  --fix-only) fix_stage ;;
+  --fix-only) keep_status; fix_stage ;;
   --pass)
     pass_gate
     # The loop moves on as soon as a session ends; the status issue shows the checks.
@@ -1177,6 +1262,7 @@ case "$MODE" in
     main_ci
     fix_stage ;;
   both)
+    keep_status
     triage_and_stamp
     main_ci
     # A triage that failed is reported; the fix stage still has its turn, on what was already filed.

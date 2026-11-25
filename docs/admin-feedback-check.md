@@ -138,14 +138,14 @@ red for a day because nothing said so.
 - On Lilliput, **continuously while there is work** (Captain, 2026-11-19: issues were waiting
   hours for the next run; until then it ran every four hours, his choice of 2026-11-16). The
   launchd agent `com.sentencestudio.feedback-check` starts `scripts/admin-feedback-run.sh
-  --loop` every five minutes (`StartInterval` 300), and launchd never starts it again while it
-  is running. The loop runs `scripts/admin-feedback-check.sh --pass` again and again:
+  --loop` every minute (`StartInterval` 60; it was 300 until 2026-11-24), and launchd never
+  starts it again while it is running. The loop runs `scripts/admin-feedback-check.sh --pass` again and again:
   - A pass first looks for work without a session: a fix session to settle, a `/revise`
     request, an issue waiting. Triage, a Sonnet session, runs only when four hours have passed
     since the last one (`state/last-triage`); its instructions read the four hours before it.
     A pass with neither writes no summary and exits 10, which ends the loop until the next
-    start, five minutes later. So an issue filed from the app or on GitHub is taken within
-    about five minutes, or as soon as the session before it ends.
+    start, a minute later. So an issue filed from the app or on GitHub is taken within
+    about a minute, or as soon as the session before it ends.
   - The loop stops after two failed passes in a row and then waits an hour
     (`state/loop-paused-until`; delete it to start again sooner), and after 40 passes.
   - At most 12 fix sessions start in a UTC day (`FEEDBACK_DAILY_CAP`), counted in `usage.jsonl`,
@@ -161,9 +161,19 @@ red for a day because nothing said so.
   their checks and what the runner found of the proof and the diff, the issues worked once and
   left open, the fix sessions today against the cap,
   and the last 10 passes with how long their sessions took. Every pass and every idle look
-  rewrites it, but only when what it says has changed. The repository is public, so it holds
+  rewrites it, and while a run has work it is also rewritten every minute (`keep_status`,
+  2026-11-24), so an issue filed during a session shows in the queue within about a minute.
+  Until then it was written only when a session started and when it ended, which can be an
+  hour apart: the Captain filed two issues during a session, saw neither listed, and took the
+  job for dead. It is written only when what it says has changed, and one rewrite at a time
+  (`state/status.lock`). The rewrite every minute is a spare one: it is skipped while the run
+  itself is rewriting, and when less than a fifth of the hour's GitHub calls are left. One
+  rewrite costs about three calls with no pull request open. The "Idle" line says how often
+  the check looks for work from `StartInterval` in the launchd file itself, and the day's cap
+  is said from the sessions counted as it writes. The repository is public, so it holds
   numbers, results and times only. It is written with the Captain's login, like the runner's
-  other posts. A failure to write it is kept in `state/status.err` and never stops a pass.
+  other posts. A failure to write it is kept in `state/status.err` (`state/status-keeper.err` for the
+  rewrite every minute) and never stops a pass.
 - **It runs what is on `main`** (2026-11-17). launchd starts `scripts/admin-feedback-run.sh` in
   the check's own checkout, `~/work/copilot-worktrees/SentenceStudio/feedback-runner`, a git
   worktree with a detached HEAD. That script brings the checkout to `origin/main` and then runs
@@ -173,8 +183,8 @@ red for a day because nothing said so.
   on GitHub.) Each summary ends with the commit it ran from. If `origin/main` cannot be
   fetched, the last copy runs and the summary says so.
 - **Whose login a session uses** (2026-11-18). A fix session uses the GitHub App
-  `ss-fix-agent` (App ID 5826863), installed on this repository only, never the Captain's
-  login. Its pushes, pull requests and comments show as `ss-fix-agent[bot]`, and so do its
+  `ss-fix-agent` (App ID 5826863), installed on this repository (and, once the Captain adds
+  it, on the SwiftUI bridge's: see "The SwiftUI bridge" below), never the Captain's login. Its pushes, pull requests and comments show as `ss-fix-agent[bot]`, and so do its
   commits. The app can write contents, pull requests and issues, and read Actions, checks and
   statuses; it has no access to workflows. The `main` ruleset (restrict updates and deletions,
   block force pushes, bypass for repository admins) refuses it on `main`.
@@ -236,6 +246,57 @@ red for a day because nothing said so.
     Azure sign-in (Sam and the other AI features on its stack, `scripts/admin-api.sh`). For
     an issue the triage filed, the runner itself reads the codes of the reports it names
     (`sam-show`, at most five) and hands them to the session as a file.
+  - **The SwiftUI bridge** (2026-11-24). The native iOS app draws through the package
+    `Microsoft.SwiftUI`, whose source is its own public repository,
+    `davidortinau/Microsoft.SwiftUI` (`FEEDBACK_BRIDGE_REPO`). A session wrote that this source
+    "is not on this machine": it had only the package, and the Captain's checkout
+    (`~/work/Microsoft.SwiftUI`) is in his home. Now:
+    - **The clone.** `~lemuel/sstudio/bridge`, made and fetched by the runner as that user
+      before each session (`bridge_ready`), then left with nothing uncommitted at `origin/main`,
+      or at the tag of the version this checkout pins while `main` does not hold it. A
+      session's branches stay; what one left uncommitted goes to that clone's stash; its tags
+      are made the repository's own. When the clone cannot be made or fetched the session
+      still runs, and the summary says so.
+    - **The Captain's packages.** The same step puts every `Microsoft.SwiftUI` package in
+      `/Users/Shared/sstudio-feedback/LocalNuGets` (copied from his `artifacts`) into that
+      user's package folder when its copy is missing or differs (`scripts/session-bridge.sh
+      sync`). So a version he packs reaches the sessions, and a copy a session packed from
+      its branch does not outlive the one he packed from merged source.
+    - **A change.** A session branches there, gives the change the next version, commits,
+      and runs `scripts/session-bridge.sh pack`, which refuses uncommitted changes and a
+      version that has a tag: the bridge's own build, pack and verify, then the
+      package into that user's package folder (`~lemuel/.nuget/packages`), because the two
+      project files that name the bridge's feed point into the Captain's home and NuGet looks
+      in the package folder first. So a session's builds and the runner's proof, which runs as
+      the same user, use the new version. Nobody else has it yet.
+    - **Its pull request.** The session pushes `feedback/issue-<n>` to the bridge's repository
+      and opens a pull request there, as `ss-fix-agent[bot]`. For that the app must be
+      installed on the bridge's repository as well, which is the Captain's to do once: GitHub,
+      Settings, Applications, Installed GitHub Apps, `ss-fix-agent`, Configure, Repository
+      access, add `Microsoft.SwiftUI`. Give the bridge's `main` the ruleset this
+      repository's `main` has first (restrict updates and deletions, block force pushes,
+      bypass for repository admins): on 2026-11-24 it had no protection, and the app can write
+      contents. The session's token is asked for these two
+      repositories and no other (`scripts/admin-feedback-agent-token.py`), and for the bridge
+      only when a ruleset restricts updates of its `main`; `admin-feedback-agent-token.py
+      check` says whether the bridge is covered and, if not, which of the two is missing.
+      Until both are there the token is for this repository alone, the session is told it
+      cannot push (`PUSH=no`), puts the bridge's diff in this repository's pull request and
+      asks. A token without the bridge is not kept between sessions, so the next session
+      after the Captain's change has it. The pull request goes to the branch that holds the
+      pinned version (`PR_BASE`): `main` once he has merged `split-view` into it, which
+      2026-11-24 he had not (`main` was at preview.46, the pinned preview.66 on `split-view`).
+    - **After the Captain merges a bridge pull request**, the version exists as source only.
+      Pack it from the merged `main`, on his side, before merging the pull request here that
+      pins it: in `~/work/Microsoft.SwiftUI` on an up-to-date `main`,
+      `bash scripts/build-xcframework.sh && bash scripts/pack-and-verify.sh`, then
+      `gh release create v<version> --repo davidortinau/Microsoft.SwiftUI --prerelease --target
+      main artifacts/Microsoft.SwiftUI.<version>.nupkg`. The package in `artifacts` is what
+      his builds restore; the tag is what says the version was given out (a session's `pack`
+      refuses a tagged version, and the runner starts the next change from `main`).
+    - **What this does not cover.** A session's package is built from its own branch, so it
+      is for that session's builds and the proof, never for a phone: a build for Duotopia
+      uses the package packed from merged source.
   - **Its own Docker and simulators** (2026-11-24). The Captain's Docker is never shared with
     it: that socket can mount his whole home. It has a Colima virtual machine of its own
     (`brew install colima docker`, done once by the Captain's user; the machine is under
