@@ -22,7 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.66" />
+    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.67" />
     <PackageReference Include="Microsoft.SwiftUI" />
     <ProjectReference Include="../../src/SentenceStudio.Native/SentenceStudio.Native.csproj" />
     <!-- The views under test and the iOS styling they use (SwiftUI facade only, no UIKit). -->
@@ -32,6 +32,10 @@
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Sam/SamFloatingEntry.cs"
              Link="Features/SamFloatingEntry.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Quiz/*.cs" LinkBase="Features/Quiz" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Import/YouTubeImportView.cs"
+             Link="Features/Import/YouTubeImportView.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Import/YouTubeChannelView.cs"
+             Link="Features/Import/YouTubeChannelView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/GlobalUsings.SharedFeatures.cs"
              Link="GlobalUsings.SharedFeatures.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyWordEditView.cs"

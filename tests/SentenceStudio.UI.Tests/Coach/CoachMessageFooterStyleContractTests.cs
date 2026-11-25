@@ -130,6 +130,57 @@ public class CoachMessageFooterStyleContractTests
             "a block element already fills its column; a width here would fight the cap");
     }
 
+    // ================================================================ the row's spacing (issue 269)
+
+    /// <summary>
+    /// The row's buttons. Three classes on purpose: <c>.coach-workspace .btn</c> gives every coach
+    /// button a 44px min-width, and a rule with fewer classes than that one loses to it.
+    /// </summary>
+    private const string RowButtons = ".coach-message-footer .coach-message-actions > .btn";
+
+    /// <summary>
+    /// Copy and the flag sat about 66px apart under a line of text: each was a 44px-wide box with
+    /// 0.75rem between the boxes. The row now steps by 0.5rem, the stylesheet's small unit.
+    /// </summary>
+    [Fact]
+    public void TheActionRowSpacesItsControlsByOneSmallStep()
+    {
+        Declarations(Block(".coach-message-actions"), "gap").Should().ContainSingle().Which
+            .Should().Be("0.5rem", "the glyphs under a message sit one small step apart, not a touch target apart");
+    }
+
+    /// <summary>
+    /// The gap alone does not bring the glyphs together: a 44px-wide button puts 31px of empty box
+    /// after a 13px glyph. With a mouse, a button on the row is as wide as what it shows, with the
+    /// glyph at its left edge so the first one lines up with the message text.
+    /// </summary>
+    [Fact]
+    public void TheRowsButtonsAreAsWideAsTheirGlyphAndStartAtTheLeft()
+    {
+        var buttons = Block(RowButtons);
+
+        Declarations(buttons, "min-width").Should().ContainSingle().Which
+            .Should().Be("0", "a 44px-wide box around a 13px glyph is what spread the row out");
+        Declarations(buttons, "padding").Should().ContainSingle().Which
+            .Should().Be("0", "padding on each button adds to the gap between the glyphs");
+        Declarations(buttons, "justify-content").Should().ContainSingle().Which
+            .Should().Be("flex-start", "both glyphs are left aligned; the flag used to be centred in its box");
+    }
+
+    /// <summary>
+    /// A finger keeps the full 44px target in both directions. The boxes touch, so the glyphs are as
+    /// close as two such targets allow.
+    /// </summary>
+    [Fact]
+    public void TheRowsButtonsKeepTheFullTouchTargetOnACoarsePointer()
+    {
+        Declarations(Block(RowButtons, within: "pointer: coarse"), "min-width")
+            .Should().ContainSingle().Which.Should().Be("44px");
+
+        Declarations(Block(".coach-message-footer .coach-message-actions", within: "pointer: coarse"), "gap")
+            .Should().ContainSingle().Which.Should().Be("0", "a gap between two 44px boxes only adds distance");
+    }
+
     // ================================================================ focus is visible
 
     /// <summary>
