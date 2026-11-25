@@ -989,7 +989,9 @@ var cases = new (string Name, Action Test)[]
     // Issue 260 (Duotopia, 951 points wide): beside "I was correct", Submit was drawn narrower
     // than its label and checkmark need, so the label wrapped a letter or two to a line, and its
     // checkmark trailed while its neighbour's led. The tree cannot show a squeezed button, so
-    // the row is drawn in a real SwiftUI host.
+    // the row is drawn in a real SwiftUI host. The squeeze was the bridge's (an empty frame
+    // around every node, mended in 0.1.0-preview.67), so the row keeps the two widths by
+    // itself: neither button is fixed-size, and both can wrap again at very large text.
     ("Quiz correction: Submit keeps its own width beside I was correct, and both checkmarks lead (issue 260)", () =>
     {
         foreach (var width in new[] { 402d, 951d })
@@ -1020,6 +1022,9 @@ var cases = new (string Name, Action Test)[]
             using var pair = SubmitRow(QuizCorrection(), "native.quiz.correction",
                 QuizFeedbackView.Override(quizStyle, QuizEnglish, () => { }));
             Assert(Find(pair, "native.quiz.override") is { Kind: "button" });
+            foreach (var id in new[] { "native.quiz.correction", "native.quiz.override" })
+                if (Find(pair, id)!.FixedHorizontalSize)
+                    throw new Exception($"{id} is fixed-size, so it cannot wrap at very large text; the row keeps its width without that.");
             var apart = PaintedWidth(alone) + SourceUiLayout.ItemGap + PaintedWidth(wasCorrect);
             var together = PaintedWidth(pair);
             if (Math.Abs(together - apart) > 2)
