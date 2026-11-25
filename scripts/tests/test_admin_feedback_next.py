@@ -437,7 +437,7 @@ case "$1 $2 $*" in
   "pr ready "*) [ ! -f "$STUB/fail-ready" ] || exit 1; echo false > "$STUB/draft-$number" ;;
   "pr comment "*)
     [ ! -f "$STUB/fail-comment" ] || exit 1
-    cat "$7" > "$STUB/comment-$number"
+    if [ "$6" = --body-file ]; then cat "$7" > "$STUB/comment-$number"; else printf '%s\\n' "$7" > "$STUB/comment-$number"; fi
     echo "https://github.com/someone/app/pull/$number#issuecomment-555" ;;
   "api repos/"*"/issues/comments/555 "*)
     [ ! -f "$STUB/fail-read-back" ] || exit 1
@@ -576,7 +576,9 @@ stop_session_processes() {{ echo stopped >> "$OUT/calls"; }}
         (self.root / "state-267").write_text("MERGED\n", encoding="utf-8")
         self.record("session.json")
         self.assertIsNone(self.read("out/state/next/267.json"))
-        self.assertIsNone(self.read("comment-267"))
+        # Said on the pull request too, whose description promised that a merge starts them.
+        self.assertIn("could not be taken by the feedback check", self.read("comment-267"))
+        self.assertNotIn("Next, when you merge", self.read("comment-267"))
         self.assertIn("was not taken, and nothing is filed from its list when it is merged: pull request #267 is not the open pull request", self.read("out/run.md"))
 
     def test_a_pass_whose_list_could_not_be_taken_puts_the_earlier_list_out_of_count(self):
