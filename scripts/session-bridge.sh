@@ -42,8 +42,32 @@ PINS="$ROOT/src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj"
 VIEW_TESTS="$ROOT/tests/SentenceStudio.Native.SwiftUIViews.Tests"
 PACKAGES="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
 
+# No build server and no build nodes kept between commands. With them a pack in a session,
+# after two runs of the tests, stopped for good at the bridge's first `dotnet run` (2026-11-24,
+# the first session to use this); the runner's proof has built without them since it began.
+export MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0 DOTNET_NOLOGO=1 DOTNET_CLI_TELEMETRY_OPTOUT=1
+
 say() { printf '%s\n' "$*" >&2; }
 stop() { say "STOP: $*"; exit 1; }
+
+# Ends a command that runs over its time, with what it started, so a step that hangs costs
+# its limit and says so. (A watch by the clock: dotnet and xcodebuild do not end on an alarm.)
+# $1 seconds, rest: the command. 124 when it ran out of time.
+within() {
+  local limit=$1 waited=0 running; shift
+  # In a process group of its own, so that everything it started ends with it.
+  perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' "$@" & running=$!
+  while kill -0 "$running" 2>/dev/null; do
+    if [ "$waited" -ge "$limit" ]; then
+      kill -TERM -- "-$running" 2>/dev/null; sleep 2; kill -KILL -- "-$running" 2>/dev/null
+      wait "$running" 2>/dev/null; return 124
+    fi
+    sleep 2; waited=$((waited + 2))
+  done
+  wait "$running"
+}
+# What to say of a step that ended with $1, for a message. $2 its limit.
+ended() { if [ "$1" = 124 ]; then echo "did not finish in $2 seconds and was stopped"; else echo "failed"; fi; }
 
 have_bridge() {
   [ -f "$PROJECT" ] && git -C "$BRIDGE" rev-parse --git-dir >/dev/null 2>&1 \
@@ -91,7 +115,18 @@ branch_holding() {
 
 # Whether this login may push to the bridge's repository: the session's token covers it only
 # when the app is installed there and its main is protected (docs/admin-feedback-check.md).
+# An app's token is asked which repositories it is for: on a repository itself GitHub reports
+# every permission of an app's token as false, this repository's included (the first session
+# was told PUSH=no with a token that covered the bridge). A person's login is asked the usual
+# way.
 may_push() {
+  local covered
+  covered="$(gh api installation/repositories --paginate --jq '.repositories[].full_name' 2>/dev/null)"
+  case "
+$covered
+" in *"
+$BRIDGE_REPO
+"*) return 0 ;; esac
   [ "$(gh api "repos/$BRIDGE_REPO" --jq '.permissions.push' 2>/dev/null)" = true ]
 }
 
@@ -143,7 +178,7 @@ EOF
   # The copy of this version from an earlier pack goes aside first, or the restore keeps it.
   rm -rf "$kept.before"
   [ ! -e "$kept" ] || mv "$kept" "$kept.before" || { rm -rf "$probe"; return 1; }
-  ( cd "$probe" && dotnet restore probe.csproj --configfile "$probe/NuGet.config" -p:NuGetAudit=false ) >> "$log" 2>&1
+  ( cd "$probe" && within 180 dotnet restore probe.csproj --configfile "$probe/NuGet.config" -p:NuGetAudit=false ) >> "$log" 2>&1
   code=$?
   rm -rf "$probe"
   if [ "$code" = 0 ] && cmp -s "$kept/microsoft.swiftui.$version.nupkg" "$package"; then
@@ -167,8 +202,11 @@ pack() {
     || stop "the bridge clone has uncommitted changes. Commit them first: the package must be the source that is in your branch, or what is proved is not what is merged."
   log="${TMPDIR:-/tmp}/session-bridge-pack.log"
   say "building the native framework and packing $version (log: $log)"
-  ( cd "$BRIDGE" && bash scripts/build-xcframework.sh && bash scripts/pack-and-verify.sh ) > "$log" 2>&1 \
-    || { tail -15 "$log" >&2; stop "the bridge did not build, pack or verify. The whole log is $log."; }
+  local code
+  ( cd "$BRIDGE" && within 600 bash scripts/build-xcframework.sh ) > "$log" 2>&1; code=$?
+  [ "$code" = 0 ] || { tail -15 "$log" >&2; stop "the bridge's native framework $(ended "$code" 600). The whole log is $log."; }
+  ( cd "$BRIDGE" && within 420 bash scripts/pack-and-verify.sh ) >> "$log" 2>&1; code=$?
+  [ "$code" = 0 ] || { tail -15 "$log" >&2; stop "the bridge's pack and verify $(ended "$code" 420). The whole log is $log."; }
   package="$BRIDGE/artifacts/Microsoft.SwiftUI.$version.nupkg"
   [ -f "$package" ] || stop "no package at $package after the pack."
   [ -z "$(git -C "$BRIDGE" status --porcelain)" ] \
@@ -190,14 +228,17 @@ bridge_tests() {
   local log app
   log="${TMPDIR:-/tmp}/session-bridge-test.log"
   # The tests run the Swift side too, so it is built first, from what is there now.
-  ( cd "$BRIDGE" && bash scripts/build-xcframework.sh ) > "$log" 2>&1 \
-    || { tail -15 "$log" >&2; stop "the bridge's native framework did not build. The whole log is $log."; }
-  ( cd "$BRIDGE" && dotnet build tests/Microsoft.SwiftUI.Tests/Microsoft.SwiftUI.Tests.csproj -f net11.0-macos \
-      -p:ValidateXcodeVersion=false -p:NuGetAudit=false -v q -nologo ) >> "$log" 2>&1 \
-    || { grep -E ' error ' "$log" | head -10 >&2; stop "the bridge's tests did not build. The whole log is $log."; }
+  local code
+  ( cd "$BRIDGE" && within 600 bash scripts/build-xcframework.sh ) > "$log" 2>&1; code=$?
+  [ "$code" = 0 ] || { tail -15 "$log" >&2; stop "the bridge's native framework $(ended "$code" 600). The whole log is $log."; }
+  ( cd "$BRIDGE" && within 420 dotnet build tests/Microsoft.SwiftUI.Tests/Microsoft.SwiftUI.Tests.csproj -f net11.0-macos \
+      -p:ValidateXcodeVersion=false -p:NuGetAudit=false -v q -nologo ) >> "$log" 2>&1; code=$?
+  [ "$code" = 0 ] || { grep -E ' error ' "$log" | head -10 >&2; stop "the build of the bridge's tests $(ended "$code" 420). The whole log is $log."; }
   app="$(find "$BRIDGE/tests/Microsoft.SwiftUI.Tests/bin" -type f -path '*.app/Contents/MacOS/Microsoft.SwiftUI.Tests' 2>/dev/null | head -1)"
   [ -x "$app" ] || stop "the bridge's test program was not built. The log is $log."
-  "$app" 2>&1 | tee -a "$log" | grep -E 'Managed tests:|FAIL|failed' | tail -20
+  within 300 "$app" > "$log.run" 2>&1; code=$?
+  cat "$log.run" >> "$log"; grep -E 'Managed tests:|FAIL|failed' "$log.run" | tail -20; rm -f "$log.run"
+  [ "$code" != 124 ] || stop "the bridge's test program did not finish in 300 seconds and was stopped. Its output so far is $log."
   grep -Eq 'Managed tests: ([0-9]+)/\1 passed' "$log" || stop "the bridge's tests did not all pass. The whole output is $log."
 }
 

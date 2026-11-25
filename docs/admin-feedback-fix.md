@@ -342,7 +342,9 @@ a release or a package in anyone else's feed are, and stay his. The steps:
    its whole source.
 4. `scripts/session-bridge.sh test` runs the bridge's own tests (about a minute) and
    `scripts/session-bridge.sh pack` builds the native framework, packs, verifies and puts the
-   package where your builds find it (about a minute). `pack` packs what is committed and
+   package where your builds find it (one to four minutes; the native framework takes longest
+   after a change to the Swift side). Each step has a time limit and says so when it runs
+   out; run them in the foreground and give your own command at least ten minutes. `pack` packs what is committed and
    refuses a clone with uncommitted changes, so that what you prove is what is in your
    branch.
    - If `pack` stops at "NuGet dependency groups are missing or duplicate the net11.0-ios
