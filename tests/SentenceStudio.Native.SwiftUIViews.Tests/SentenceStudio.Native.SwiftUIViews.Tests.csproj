@@ -31,8 +31,7 @@
              Link="Features/RecentLookupsView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Sam/SamFloatingEntry.cs"
              Link="Features/SamFloatingEntry.cs" />
-    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Quiz/QuizKeyboardFooter.cs"
-             Link="Features/QuizKeyboardFooter.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Quiz/*.cs" LinkBase="Features/Quiz" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/GlobalUsings.SharedFeatures.cs"
              Link="GlobalUsings.SharedFeatures.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyWordEditView.cs"

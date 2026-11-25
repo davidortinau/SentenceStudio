@@ -185,9 +185,14 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
         SourceButton(label, action, role, fullWidth: fullWidth,
             horizontalPadding: horizontalPadding, groupPosition: groupPosition);
 
-    internal SwiftView QuizPrimaryButton(string title, string symbol, Action action)
+    internal SwiftView QuizPrimaryButton(string title, string symbol, Action action,
+        bool leadingSymbol = false)
     {
-        var label = Views.HStack(Views.Text(title), Views.Image(symbol));
+        // Source puts the symbol after the title. Issue 260: Submit's checkmark leads, like
+        // the checkmark of "I was correct", which shares its row during a correction.
+        var label = leadingSymbol
+            ? Views.HStack(Views.Image(symbol), Views.Text(title))
+            : Views.HStack(Views.Text(title), Views.Image(symbol));
         label.Spacing = 4;
         return SourceButton(label, action, SourceButtonRole.Primary,
             horizontalPadding: 48);

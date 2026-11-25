@@ -962,6 +962,53 @@ var cases = new (string Name, Action Test)[]
                 throw new Exception($"A row under the heading is off the center ({width / 2:0.#}). {drawn}");
         }
     }),
+    // Issue 260 (Duotopia, 951 points wide): beside "I was correct", Submit was drawn narrower
+    // than its label and checkmark need, so the label wrapped a letter or two to a line, and its
+    // checkmark trailed while its neighbour's led. The tree cannot show a squeezed button, so
+    // the row is drawn in a real SwiftUI host.
+    ("Quiz correction: Submit keeps its own width beside I was correct, and both checkmarks lead (issue 260)", () =>
+    {
+        foreach (var width in new[] { 402d, 951d })
+        {
+            var quizStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+            SwiftView SubmitRow(NativeQuizState state, string submitId, SwiftView? beside)
+            {
+                var items = new List<SwiftView>();
+                QuizQuestionView.Add(items, state, "", false, false, quizStyle, QuizEnglish,
+                    _ => { }, _ => { }, false, _ => { }, () => { }, _ => { }, () => { }, () => { },
+                    () => { }, () => { }, _ => { }, (_, _) => { }, () => { }, () => { }, null, beside);
+                return items.Single(item => Find(item, submitId) is not null);
+            }
+            double PaintedWidth(SwiftView view)
+            {
+                var rows = PaintedRows(view, width, 300);
+                if (rows.Count != 1)
+                    throw new Exception($"Expected one painted row, found {rows.Count}.");
+                return rows[0].Right - rows[0].Left;
+            }
+            // Submit as it is before an answer, with its row to itself.
+            using var alone = SubmitRow(QuizCorrection() with
+            {
+                Phase = NativePhase.Ready, RequiresCorrection = false, CanSubmit = true,
+                AnswerWasCorrect = null, SelectedAnswer = null, CorrectAnswerAfterGrading = null
+            }, "native.quiz.submit", null);
+            using var wasCorrect = QuizFeedbackView.Override(quizStyle, QuizEnglish, () => { });
+            using var pair = SubmitRow(QuizCorrection(), "native.quiz.correction",
+                QuizFeedbackView.Override(quizStyle, QuizEnglish, () => { }));
+            Assert(Find(pair, "native.quiz.override") is { Kind: "button" });
+            var apart = PaintedWidth(alone) + SourceUiLayout.ItemGap + PaintedWidth(wasCorrect);
+            var together = PaintedWidth(pair);
+            if (Math.Abs(together - apart) > 2)
+                throw new Exception($"At {width} points Submit and I was correct are painted {together:0.#} points wide together; each at its own width, with the gap, they take {apart:0.#}.");
+            foreach (var (view, id) in new[] { (alone, "native.quiz.submit"),
+                         (pair, "native.quiz.correction"), (pair, "native.quiz.override") })
+            {
+                var label = Find(view, id)!.Children[0];
+                if (label.Children.Count != 2 || label.Children[0].Kind != "image" || label.Children[1].Kind != "text")
+                    throw new Exception($"{id}: the checkmark does not lead the title ({string.Join(", ", label.Children.Select(child => child.Kind))}).");
+            }
+        }
+    }),
 };
 
 var failures = 0;
@@ -1188,3 +1235,22 @@ static SwiftView FloatingPage(out SwiftView scroll, out SwiftView entry)
     entry = Views.HStack(Views.Button("Ask", () => { }));
     return Views.BottomInset(scroll, entry);
 }
+
+static NativeQuizState QuizCorrection() =>
+    new(NativePhase.Feedback, NativeDestination.VocabularyQuiz,
+        new NativeQuizPrompt("w-1", "오른쪽 하고 비슷하게 들리네요", "Korean", null, null,
+            IsTargetLanguagePrompt: true, ShowWrittenPrompt: true, CanPlayPromptAudio: true,
+            ShowPhoto: false, TargetLanguageEngaged: true),
+        Mode: "Text", CorrectAnswerAfterGrading: "sounds similar to the right side",
+        RequiresCorrection: true, CurrentTurn: 3, TurnsInRound: 10, TotalTurns: 10,
+        TurnId: "t-1", SelectedAnswer: "sounds right", AnswerWasCorrect: false);
+
+static string QuizEnglish(string key) => key switch
+{
+    "VocabQuiz_SubmitAnswer" => "Submit",
+    NativeText.QuizOverride => "I was correct",
+    NativeText.CorrectionRequired => "Type the correct answer to continue",
+    "VocabQuiz_TypeTranslation" => "Type the translation",
+    "NativeVocabQuiz_IncorrectFeedback" => "The answer is: {0}",
+    _ => key
+};
