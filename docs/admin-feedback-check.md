@@ -133,6 +133,57 @@ reported` or `unknown` (GitHub did not answer). A red `main` shows a notificatio
 commit and set of failures: it makes every pull request red, and in November 2026 it stayed
 red for a day because nothing said so.
 
+## What a pull request leaves for later
+
+Captain, 2026-11-25: "I want to keep work moving and improve the whole codebase as a
+principle. I have a higher tolerance for instability today since we have no other users of the
+app ... Later with 1000s of users I can imagine being more conservative and only fixing the
+narrow thing asked for." Until then a pull request ended with "Left undone", a menu: he copied
+a `/revise` line for each item he wanted, waited a pass for each, and held the merge meanwhile
+(pull request 267 listed seven).
+
+- **The list.** A session writes what its pull request leaves for later as tasks, to a file
+  the runner names in its prompt (`issue-<n>-next.json`, a JSON list of title and body; the
+  session guide's "Next"). After the session the runner takes the list
+  (`scripts/admin-feedback-next.py record`), keeps it in `state/next/<pr>.json`, and shows it
+  in its comment on the pull request under "Next, when you merge", every task in full as it
+  will be filed. At most five for one pull request. A follow-up pass is handed the list and
+  brings it up to date.
+- **Merging starts them.** At the start of each pass (`next_on_merge`) the runner looks at the
+  pull requests that have a list. For one that was merged it files each task as an issue
+  under the Captain's login, labelled `feedback-follow-up`, says so on the pull request, and
+  writes a `NEXT:` line in the run's summary. The check then works them like any issue, one
+  pull request each, after everything he or a learner filed (`admin-feedback-pr.py issues`
+  puts follow-ups last). The list of a pull request closed without merging is dropped.
+- **What he can say on the pull request**, each a comment of his own:
+  - `/skip 2 4` or `/skip all`, before merging: those are not filed.
+  - `/revise all` or `/revise 2`: a follow-up pass does them in this pull request instead.
+  - `/next 1 3` or `/next all`: only under the narrow appetite, below.
+  The numbers are those of the runner's newest comment; a `/skip` or `/next` written before
+  the list last changed is not counted.
+- **The appetite** (`FEEDBACK_APPETITE`, default `wide`, in `scripts/admin-feedback-check.sh`).
+  `wide`: sessions also fix the same fault nearby, run the checks they would have listed, and
+  list what they notice on the way; every task starts on merge. `narrow`, for when the app
+  has other users: sessions fix the thing asked, and nothing is filed unless he asks with
+  `/next`, before or after merging; what he has not asked for in 30 days is dropped. To turn
+  it down, change the default in the script on `main`.
+- **Whose words these are.** The rule stands that nothing a session wrote becomes a later
+  run's task by itself: a session reads learners' reports and could be misled by one. A
+  follow-up is a session's text, so it runs only through him. He is shown exactly what will
+  be filed (HTML comments are taken out, and an `@name` notifies nobody), nothing is filed
+  before he merges, only the runner files (a session cannot open an issue), and a follow-up's
+  own pull request needs his merge before its list starts in turn. The session that works it
+  is told the text is an earlier session's reading, to be checked against the code.
+- **A draft while a pass runs.** The runner makes a pull request a draft when a follow-up
+  pass starts on it and ready again when the session ends (`draft_for_pass`, `ready_again`,
+  `state/drafted`), because GitHub does not merge a draft. He merged pull request 263 five
+  minutes into a pass; its commit reached the branch after the merge and had to go into a
+  new pull request. A run that dies leaves the record, and the next run makes the pull
+  request ready.
+- **The status issue** shows, beside each open pull request, how many tasks its list holds.
+  A list that could not be filed is tried again by the next pass; why is in `state/next.err`.
+  What became of each list is kept in `state/next/done/`.
+
 ## Where and when it runs
 
 - On Lilliput, **continuously while there is work** (Captain, 2026-11-19: issues were waiting
@@ -148,8 +199,9 @@ red for a day because nothing said so.
     about a minute, or as soon as the session before it ends.
   - The loop stops after two failed passes in a row and then waits an hour
     (`state/loop-paused-until`; delete it to start again sooner), and after 40 passes.
-  - At most 12 fix sessions start in a UTC day (`FEEDBACK_DAILY_CAP`), counted in `usage.jsonl`,
-    so a queue cannot use up the week's limit. Triage still runs when it is due.
+  - At most 36 fix sessions start in a UTC day (`FEEDBACK_DAILY_CAP`; 12 until 2026-11-25,
+    raised by the Captain when follow-ups began to be filed by themselves), counted in
+    `usage.jsonl`, so a queue cannot use up the week's limit. Triage still runs when it is due.
   - An issue is still worked once: one that ended diagnosed, stuck or failed waits for the
     Captain (remove `feedback-attempted` to have it worked again).
   - When a session starts, the app says so on the issue (or, for a follow-up pass, on the pull

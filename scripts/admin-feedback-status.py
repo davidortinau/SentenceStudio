@@ -46,6 +46,7 @@ def sibling(name):
 
 pr = sibling("admin-feedback-pr")
 verify = sibling("admin-feedback-verify")
+later = sibling("admin-feedback-next")
 
 OUT = Path(os.environ.get("FEEDBACK_CHECK_DIR") or os.path.expanduser("~/sstudio-feedback-check"))
 STATUS_LABEL = "feedback-status"
@@ -223,6 +224,14 @@ def fingerprint(body):
     return hashlib.sha256("\n".join(body.splitlines()[1:]).encode()).hexdigest()
 
 
+def next_note(number):
+    """What the pull request leaves for later (scripts/admin-feedback-next.py): how many tasks
+    its merge starts, or offers under the narrow appetite."""
+    later.OUT = OUT  # one folder for both, also when a test points this script at its own
+    count = later.left(number)
+    return f". Next list: {count}" if count else ""
+
+
 def gather(windows, handled):
     own = pr.own_pull_requests()
     queue = []
@@ -237,7 +246,7 @@ def gather(windows, handled):
     for item in own:
         lines, _ = pr.checks(item["pr"], 0)
         prs.append(f"- #{item['pr']} for #{item['issue']}: {lines[0].removeprefix('CHECKS: ')}"
-                   f"{checked(item['pr'], head_in(lines[0]))}")
+                   f"{checked(item['pr'], head_in(lines[0]))}{next_note(item['pr'])}")
     with_pr = {item["issue"] for item in own}
     attempted = pr.gh_lines(
         "issue", "list", "--repo", pr.REPO, "--state", "open", "--limit", "200",
@@ -381,7 +390,7 @@ def main(args):
             print(sessions_today(usage()))
             return 0
         if mode == "update":
-            cap = pr.option(args, "--cap") or "12"
+            cap = pr.option(args, "--cap") or "36"
             update(int(cap), pr.session_windows(pr.option(args, "--windows")),
                    pr.ids_in(pr.option(args, "--handled")), pr.option(args, "--note") or "", "--print" in args,
                    "--spare" in args)

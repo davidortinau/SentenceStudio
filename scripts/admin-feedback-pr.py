@@ -6,9 +6,11 @@ a pull request the Captain has asked to be changed, to hand a fix session his re
 report checks. A fix session uses `checks` after it pushes (docs/admin-feedback-fix.md).
 
   admin-feedback-pr.py issues [--windows FILE]
-      The open issues waiting for a fix session, oldest first, one line each: the number and
-      where it came from (triage, app or github). --windows names the runner's record of when
-      fix sessions ran. See "Which issues wait".
+      The open issues waiting for a fix session, one line each: the number and where it came
+      from (triage, app, github or follow-up). Oldest first, with the follow-ups after
+      everything else: what the Captain or a learner filed is worked before what a session
+      left for later. --windows names the runner's record of when fix sessions ran. See "Which
+      issues wait".
 
   admin-feedback-pr.py pending [--handled FILE] [--all]
       The oldest open pull request on a branch feedback/issue-<n> that has a request waiting,
@@ -49,6 +51,10 @@ of three places, and from nobody else, since anyone can open an issue on a publi
 - app: filed by the app's feedback button (the GitHub App), whenever it was filed.
 - github: filed by the owner on GitHub at or after GITHUB_FROM (UTC), so that the backlog
   written before the check took such issues is not swept in.
+- follow-up: one of those, labelled feedback-follow-up: the runner filed it through the owner's
+  login from the list a fix session left in a pull request, when the owner merged that pull
+  request (scripts/admin-feedback-next.py). Its text is a session's, and his merge is what made
+  it a task.
 
 An issue labelled with one of HOLD_LABELS, or any squad label, is not taken: it is a plan, a
 decision not to do it, or squad work. Labelling any issue feedback-attempted keeps it out.
@@ -75,6 +81,7 @@ MARKER = re.compile(r"<!-- feedback-check handled:([r0-9 ]*)-->")
 APP = "app/sentence-studio-feedback"
 QUEUED = "feedback-check"
 ATTEMPTED = "feedback-attempted"
+FOLLOW_UP = "feedback-follow-up"
 GITHUB_FROM = "2026-11-19T02:00:00Z"
 WINDOW_SLACK = 300
 HOLD_LABELS = ("go:no", "go:needs-research", "type:spike", "type:epic")
@@ -173,7 +180,7 @@ def issue_source(issue, windows=(), queued_ok=None):
     if author == APP:
         return "app"
     if author == REPO.split("/")[0] and created_at(issue) >= created_at({"createdAt": GITHUB_FROM}):
-        return "github"
+        return "follow-up" if FOLLOW_UP in labels else "github"
     return None
 
 
@@ -184,7 +191,8 @@ def waiting_issues(windows=()):
         "--json", "number,author,labels,createdAt", "--jq", ".[]")
     waiting = [(issue["number"], issue_source(issue, windows, lambda n: queued_by_owner(n, windows)))
                for issue in found]
-    return sorted((issue, source) for issue, source in waiting if source)
+    return sorted(((issue, source) for issue, source in waiting if source),
+                  key=lambda found: (found[1] == "follow-up", found[0]))
 
 
 def own_pull_requests():

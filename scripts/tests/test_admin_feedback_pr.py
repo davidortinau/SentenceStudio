@@ -223,6 +223,25 @@ class WaitingIssueTests(GitHubTestCase):
 
         self.assertEqual(pr_script.waiting_issues(), [(225, "app"), (227, "triage"), (240, "github")])
 
+    def test_what_a_session_left_for_later_waits_behind_what_the_owner_and_learners_filed(self):
+        self.github.issues = [
+            issue(270, labels=["feedback-follow-up"]),
+            issue(271, labels=["feedback-follow-up"]),
+            issue(272),
+            issue(273, author="app/sentence-studio-feedback"),
+        ]
+
+        self.assertEqual(pr_script.waiting_issues(), [(272, "github"), (273, "app"), (270, "follow-up"), (271, "follow-up")])
+
+    def test_the_follow_up_label_makes_nobody_elses_issue_wait(self):
+        self.github.issues = [
+            issue(270, author="someone-else", labels=["feedback-follow-up"]),
+            issue(271, labels=["feedback-follow-up", "feedback-attempted"]),
+            issue(272, labels=["feedback-follow-up"], at="2026-11-01T00:00:00Z"),
+        ]
+
+        self.assertEqual(pr_script.waiting_issues(), [])
+
     def test_nobody_elses_issue_waits_even_with_the_label(self):
         self.github.issues = [
             issue(241, author="someone-else"),
