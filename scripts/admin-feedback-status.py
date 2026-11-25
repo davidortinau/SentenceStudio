@@ -381,7 +381,7 @@ def main(args):
             print(sessions_today(usage()))
             return 0
         if mode == "update":
-            cap = pr.option(args, "--cap") or "12"
+            cap = pr.option(args, "--cap") or "36"
             update(int(cap), pr.session_windows(pr.option(args, "--windows")),
                    pr.ids_in(pr.option(args, "--handled")), pr.option(args, "--note") or "", "--print" in args,
                    "--spare" in args)

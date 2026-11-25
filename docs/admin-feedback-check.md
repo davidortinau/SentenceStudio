@@ -148,7 +148,8 @@ red for a day because nothing said so.
     about a minute, or as soon as the session before it ends.
   - The loop stops after two failed passes in a row and then waits an hour
     (`state/loop-paused-until`; delete it to start again sooner), and after 40 passes.
-  - At most 12 fix sessions start in a UTC day (`FEEDBACK_DAILY_CAP`), counted in `usage.jsonl`,
+  - At most 36 fix sessions start in a UTC day (`FEEDBACK_DAILY_CAP`; 12 until 2026-11-25),
+    counted in `usage.jsonl`,
     so a queue cannot use up the week's limit. Triage still runs when it is due.
   - An issue is still worked once: one that ended diagnosed, stuck or failed waits for the
     Captain (remove `feedback-attempted` to have it worked again).

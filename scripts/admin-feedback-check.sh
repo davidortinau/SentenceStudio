@@ -28,7 +28,7 @@
 # without a session, for work: a fix session to settle, a follow-up request, an issue waiting.
 # Triage runs when four hours have passed since the last one. With neither, it exits 10 and the
 # loop stops until launchd's next start. A pass does not wait for a pull request's checks; the
-# status issue shows them as they finish. At most FEEDBACK_DAILY_CAP (12) fix sessions start
+# status issue shows them as they finish. At most FEEDBACK_DAILY_CAP (36) fix sessions start
 # in a UTC day. scripts/admin-feedback-status.py keeps the status issue on GitHub up to date.
 #
 # Which issues wait for stage 2 (scripts/admin-feedback-pr.py issues): open issues not yet
@@ -199,7 +199,8 @@ command -v claude >/dev/null || fail "The claude command is not on PATH."
 
 # ------------------------------------------------------------------ the status issue and a pass
 
-DAILY_CAP="${FEEDBACK_DAILY_CAP:-12}"
+# Raised from 12 on 2026-11-25 at the Captain's word.
+DAILY_CAP="${FEEDBACK_DAILY_CAP:-36}"
 FIX_ALLOWED=yes
 TRIAGE_EVERY=14400
 LAST_TRIAGE="$OUT/state/last-triage"
