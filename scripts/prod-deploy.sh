@@ -7,7 +7,13 @@
 #                                   feedback key, then after
 #   scripts/prod-deploy.sh after    revisions healthy, sticky sessions re-applied (azd resets
 #                                   them), Sam and admin settings equal the previous
-#                                   revision's, and scripts/post-deploy-validate.sh --skip-wait
+#                                   revision's, scripts/post-deploy-validate.sh --skip-wait,
+#                                   and, when all of that passed, one line for this deploy in
+#                                   docs/deploy-log.md
+#
+# The deploy log (docs/deploy-log.md): the one record of what production ran and since when.
+# after appends the line and does not commit it: commit and push it, because a reader finds
+# it on main. check does not count that file as an uncommitted change (it does not ship).
 #
 # The admin list (Admin__Emails__N, docs/admin-portal-plan.md): azd rebuilds the API's settings
 # from this shell on every deploy, so the live list is read and carried forward, as Sam's
@@ -30,6 +36,7 @@ SERVER=db-rsn72awybem6s
 VAULT=dbkv-rsn72awybem6s
 COACH_QUERY="properties.template.containers[0].env[?starts_with(name,'Coach__')]"
 ADMIN_QUERY="properties.template.containers[0].env[?starts_with(name,'Admin__')]"
+LOG=docs/deploy-log.md
 
 check() {
   local fails=0
@@ -45,12 +52,14 @@ check() {
   else
     fail "no .azure here; cp -Rp /Users/davidortinau/work/SentenceStudio/.azure .azure"
   fi
-  if [ -z "$(git status --porcelain --untracked-files=no)" ] \
+  if [ -z "$(git status --porcelain --untracked-files=no -- . ":(exclude)$LOG")" ] \
      && [ -z "$(git status --porcelain -- src | grep '^??' || true)" ]; then
     ok "clean checkout at $(git rev-parse --short HEAD) ($(git rev-parse --abbrev-ref HEAD))"
   else
     fail "uncommitted changes would ship; commit them or deploy from a clean checkout"
   fi
+  [ -z "$(git status --porcelain -- "$LOG")" ] \
+    || echo "note: $LOG holds a deploy line that is not committed; commit and push it"
 
   local state lock
   state=$(az postgres flexible-server show -g "$RG" -n "$SERVER" --subscription "$S" --query state -o tsv)
@@ -138,6 +147,49 @@ wait_healthy() {
   echo "FAIL: $app $rev is '$health', '$running' after 5 minutes"; return 1
 }
 
+# One line in docs/deploy-log.md for the deploy that made the API revision $1: when that
+# revision was created (Azure's time, in UTC), this checkout's commit and its subject, and
+# the revision's name. A revision already in the log is not written twice, so after can be
+# rerun. Nothing is committed.
+record_deploy() {
+  local revision=$1 created when epoch commit committed line
+  [ -f "$LOG" ] || { echo "FAIL: $LOG is missing; this deploy is not recorded"; return 1; }
+  if grep -qF "\`$revision\`" "$LOG"; then
+    echo "ok:   $revision is already in $LOG"; return 0
+  fi
+  created=$(az containerapp revision show -g "$RG" -n api --revision "$revision" --subscription "$S" \
+    --query properties.createdTime -o tsv)
+  read -r epoch when < <(python3 -I -c 'import re, sys
+from datetime import datetime, timezone
+try:
+    t = datetime.fromisoformat(re.sub(r"\.\d+", "", sys.argv[1].strip()).replace("Z", "+00:00"))
+    if t.tzinfo is None: t = t.replace(tzinfo=timezone.utc)
+    print(int(t.timestamp()), t.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"))
+except ValueError:
+    print()' "$created") || true
+  commit=$(git rev-parse HEAD)
+  line="- $when \`$commit\` $(git log -1 --format=%s HEAD) (API revision \`$revision\`)"
+  if [ -z "${epoch:-}" ]; then
+    echo "FAIL: Azure gave no creation time for $revision ('$created'); this deploy is not recorded."
+    echo "      Add it to $LOG by hand, with the time: $line"
+    return 1
+  fi
+  # A commit made after the revision existed cannot be what it runs: the checkout has moved
+  # since the deploy (after rerun later, from another checkout or after a pull).
+  committed=$(git log -1 --format=%ct HEAD)
+  if [ "$committed" -gt "$epoch" ]; then
+    echo "FAIL: $revision was created $when, before this checkout's commit $(git rev-parse --short HEAD) was made,"
+    echo "      so that commit is not what was deployed; this deploy is not recorded."
+    echo "      Add it to $LOG by hand, with the commit that was deployed: $line"
+    return 1
+  fi
+  # The log may have lost its final newline to an editor; a line is never joined to the last.
+  [ -z "$(tail -c 1 "$LOG")" ] || echo >> "$LOG"
+  echo "$line" >> "$LOG"
+  echo "ok:   recorded in $LOG (not committed; commit and push it):"
+  echo "      $line"
+}
+
 after() {
   local fails=0 app
   for app in api webapp workers marketing; do wait_healthy "$app" || fails=$((fails + 1)); done
@@ -181,7 +233,8 @@ after() {
   fi
 
   ./scripts/post-deploy-validate.sh --skip-wait || fails=$((fails + 1))
-  if [ $fails -gt 0 ]; then echo "FAIL: $fails post-deploy check(s) failed"; return 1; fi
+  if [ $fails -gt 0 ]; then echo "FAIL: $fails post-deploy check(s) failed; this deploy is not recorded in $LOG (rerun after once they pass)"; return 1; fi
+  record_deploy "$latest" || { echo "post-deploy checks passed, but the deploy is not in $LOG (above)"; return 1; }
   echo "post-deploy checks passed; now do the change-specific checks (runbook Step 6)"
 }
 

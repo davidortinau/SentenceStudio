@@ -8,6 +8,8 @@
 > - Pre-checks, Option A deploy, sticky sessions, Sam settings comparison and Step 5:
 >   `scripts/prod-deploy.sh check`, then `scripts/prod-deploy.sh deploy`
 >   (`after` reruns the post-deploy checks).
+> - The record of the deploy: when those checks pass, `after` (and so `deploy`) adds one line
+>   to `docs/deploy-log.md`. Commit and push it. See "Step 5b" below.
 > - Native iOS on a phone: `scripts/ios-phone.sh Duotopia|DX24` builds and checks the
 >   Release app, then stops; rerun with `--yes --no-build` after the Captain approves the
 >   install. The MAUI DX24 steps in "Step 2" below are unchanged.
@@ -819,6 +821,27 @@ Then re-run `./scripts/post-deploy-validate.sh --skip-wait` and confirm 0 FAIL.
 > **Permanent fix (TODO):** declare `stickySessions.affinity = "sticky"` on the `webapp`
 > ingress in the AppHost/Bicep so `azd deploy` stops reverting it. Until then this is a
 > mandatory manual step on each deploy.
+
+### Step 5b: Record the deploy in `docs/deploy-log.md`
+
+`docs/deploy-log.md` is the one record of what production ran and since when: one line per
+deploy with the time the API's new revision was created (UTC), the commit deployed and its
+subject, and the revision's name. The feedback check's fix sessions read it to find which
+build answered a learner (`docs/admin-feedback-fix.md`, "The work", step 2), so a deploy
+without a line leaves them guessing.
+
+`scripts/prod-deploy.sh deploy` and `scripts/prod-deploy.sh after` add the line when every
+post-deploy check has passed. The script does not commit: **commit and push the line**, with
+your next push at the latest, because the sessions read the file on `main`.
+
+- Rerunning `after` does not add the same revision twice.
+- An uncommitted line does not stop the next `check` (the file does not ship); `check` prints
+  a note that it is waiting.
+- `after` records this checkout's `HEAD`. Run it from the checkout that deployed, before
+  pulling. If `HEAD` was committed after the revision was created, the script says so, writes
+  nothing and prints the line for you to add by hand with the right commit.
+- A deploy made another way (the manual steps below, or Option B) is added by hand in the
+  same form, at the end of the file.
 
 ### Step 6: Change-specific validation (manual)
 
