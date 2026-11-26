@@ -572,6 +572,33 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(empty, "native.vocabulary.edit.examples.generate")?.IsEnabled == false);
         Assert(Find(empty, "native.vocabulary.edit.examples.new.target")?.IsEnabled == false);
     }),
+    // Issue 287: the actions menu was fixed at 44 points because a menu's label filled the width
+    // it was offered. Since bridge 0.1.0-preview.68 the menu asks for its label's own width; the
+    // label is the symbol, and the padding around it is what makes the target.
+    ("Word editor: a sentence's actions menu keeps its label's own width, not a fixed one", () =>
+    {
+        var open = WordState(history: false);
+        var sentences = new[] { new NativeVocabularyExample("s1", "병을 열어요.", "I open the bottle.") };
+        var examples = new VocabularyExamplesState(sentences, [],
+            string.Empty, string.Empty, SpeechRegister.Unspecified, null, string.Empty, string.Empty,
+            SpeechRegister.Unspecified, false, false, null, false);
+        using var page = VocabularyWordEditView.Page(
+            open with { Detail = open.Detail! with { Examples = sentences }, Examples = examples },
+            style, key => key, WordActions());
+        var menu = Find(page, "native.vocabulary.edit.example.s1.actions")!;
+        Assert(menu.Kind == "menu" && menu.AccessibilityLabel == "RefSentences_Actions");
+        Assert(menu.MenuLabelFitsContent);
+        Assert(menu.FixedWidth is null);
+        var label = menu.Children[0];
+        Assert(label.Kind == "image" && label.SystemImageName == "ellipsis.circle");
+        // The label sets no width of its own either: it is as wide as the symbol and its padding.
+        Assert(label.FixedWidth is null);
+        // The menu's actions are still there after the label, the destructive one last.
+        Assert(menu.Children.Skip(1).Where(action => action.Kind == "button")
+            .Select(action => action.AccessibilityIdentifier).SequenceEqual([
+                "native.vocabulary.edit.example.s1.core", "native.vocabulary.edit.example.s1.edit",
+                "native.vocabulary.edit.example.s1.flag", "native.vocabulary.edit.example.s1.delete"]));
+    }),
     // Captain 2026-11-09 (Duotopia, wide): the filters sit in a fixed left column, the counts in
     // one row, the results in their own scroll; Filters and the grid/list switch are toolbar
     // buttons, and sorting is one of the filter options.

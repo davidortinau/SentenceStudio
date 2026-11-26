@@ -169,10 +169,14 @@ internal static partial class VocabularyWordEditView
         var delete = Views.Button(text("RefSentences_Delete"), () => actions.Delete(sentence.Id))
             .WithButtonRole(SwiftButtonRole.Destructive)
             .WithAccessibilityIdentifier($"{id}.delete");
-        // A Menu's label fills its width (bridge); fixed at a 44-point target, the text keeps the rest.
-        var menu = NativeForm.Action(style, Views.Menu(Views.Image("ellipsis.circle"), core, edit,
+        // A menu's label fills its width by default; this one keeps its own (bridge
+        // 0.1.0-preview.68, in place of a fixed width), so the text keeps the rest. The padding
+        // makes the target about 44 points wide around the symbol (about 20 at the default text
+        // size) and adds no height, so the row is as high as its text.
+        var menuLabel = Views.Image("ellipsis.circle").WithPadding(0, 12, 0, 12);
+        var menu = NativeForm.Action(style, Views.Menu(menuLabel, core, edit,
                     flag, Views.Divider(), delete)
-                .WithFixedWidth(44)
+                .WithMenuLabelFittingContent()
                 .WithAccessibilityLabel(text("RefSentences_Actions"))
                 .WithAccessibilityIdentifier($"{id}.actions"));
         menu.IsEnabled = !busy;
