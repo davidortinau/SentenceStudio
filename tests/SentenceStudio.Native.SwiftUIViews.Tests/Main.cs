@@ -572,6 +572,33 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(empty, "native.vocabulary.edit.examples.generate")?.IsEnabled == false);
         Assert(Find(empty, "native.vocabulary.edit.examples.new.target")?.IsEnabled == false);
     }),
+    // Issue 287: the actions menu was fixed at 44 points because a menu's label filled the width
+    // it was offered. Since bridge 0.1.0-preview.68 the menu asks for its label's own width; the
+    // label is the symbol, and the padding around it is what makes the target.
+    ("Word editor: a sentence's actions menu keeps its label's own width, not a fixed one", () =>
+    {
+        var open = WordState(history: false);
+        var sentences = new[] { new NativeVocabularyExample("s1", "병을 열어요.", "I open the bottle.") };
+        var examples = new VocabularyExamplesState(sentences, [],
+            string.Empty, string.Empty, SpeechRegister.Unspecified, null, string.Empty, string.Empty,
+            SpeechRegister.Unspecified, false, false, null, false);
+        using var page = VocabularyWordEditView.Page(
+            open with { Detail = open.Detail! with { Examples = sentences }, Examples = examples },
+            style, key => key, WordActions());
+        var menu = Find(page, "native.vocabulary.edit.example.s1.actions")!;
+        Assert(menu.Kind == "menu" && menu.AccessibilityLabel == "RefSentences_Actions");
+        Assert(menu.MenuLabelFitsContent);
+        Assert(menu.FixedWidth is null);
+        var label = menu.Children[0];
+        Assert(label.Kind == "image" && label.SystemImageName == "ellipsis.circle");
+        // The label sets no width of its own either: it is as wide as the symbol and its padding.
+        Assert(label.FixedWidth is null);
+        // The menu's actions are still there after the label, the destructive one last.
+        Assert(menu.Children.Skip(1).Where(action => action.Kind == "button")
+            .Select(action => action.AccessibilityIdentifier).SequenceEqual([
+                "native.vocabulary.edit.example.s1.core", "native.vocabulary.edit.example.s1.edit",
+                "native.vocabulary.edit.example.s1.flag", "native.vocabulary.edit.example.s1.delete"]));
+    }),
     // Captain 2026-11-09 (Duotopia, wide): the filters sit in a fixed left column, the counts in
     // one row, the results in their own scroll; Filters and the grid/list switch are toolbar
     // buttons, and sorting is one of the filter options.
@@ -1263,6 +1290,72 @@ var cases = new (string Name, Action Test)[]
         if (wrapped.Count > 0)
             throw new Exception($"Something beside the title wrapped in {wrapped.Count} drawings: {string.Join("; ", wrapped)}.");
     }),
+    // Issue 292: since issue 277 the import row's badge, date and Retry keep their own width, and
+    // an item that keeps its width cannot give way. The cases above measure height only. This
+    // one draws the pages' own import rows at the width of an iPhone's Form row (the page less
+    // its 16-point margins and the row's 20-point insets: 303 of 375, 330 of 402, 368 of 440),
+    // in English and Korean, at the default and the largest app text size, inside a frame of
+    // that width in a host with 100 points to spare on each side: paint outside the frame is a
+    // row running past its edges. Each row is drawn a second time with a blank title, and the
+    // columns that differ are the title's: it has to show.
+    ("YouTube import row: on an iPhone at the largest app text size nothing is painted past the row and the title shows (issue 292)", () =>
+    {
+        const double margin = 100;
+        const string title = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var created = new DateTime(2026, 11, 25, 12, 0, 0, DateTimeKind.Utc);
+        using var import = new YouTubeImportCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeImportCoordinator>.Instance);
+        var opens = new YouTubeImportActions(_ => { }, null, null);
+        YouTubeImportState History(string name) => new(true, false, YouTubeImportTab.History, "",
+            false, false, false, false, [], 0, "", null, null, false, [], false,
+            [
+                new("1", name, true, null, VideoImportStatus.Failed, null, created, null, false),
+                new("2", name, false, name, VideoImportStatus.Completed, null, created, "res-1", false),
+                new("3", name, false, null, VideoImportStatus.GeneratingVocabulary, null, created, null, true),
+            ], 3, null, []);
+        var (titled, blank) = (History(title), History(" "));
+        var faults = new List<string>();
+        var drawn = new List<string>();
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var page in new[] { 375d, 402d, 440d })
+        {
+            var width = page - 72;
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
+                AppearanceSelection.Default.WithFontScale(scale)), page);
+            bool[][] Draw(YouTubeImportState state, int index)
+            {
+                var row = (SwiftView)typeof(YouTubeImportView).GetMethod("ImportRow", flags)!
+                    .Invoke(null, [import, state, state.DisplayedImports[index], look, (Func<string, string>)Words, opens])!;
+                using var framed = Views.VStack(row).WithFixedWidth(width);
+                return PaintedMask(framed, width + 2 * margin, 160);
+            }
+            for (var index = 0; index < titled.DisplayedImports.Length; index++)
+            {
+                var (with, without) = (Draw(titled, index), Draw(blank, index));
+                var perPoint = with[0].Length / (width + 2 * margin);
+                var columns = Enumerable.Range(0, with[0].Length).ToArray();
+                var painted = columns.Where(x => with.Any(line => line[x])).ToArray();
+                var (left, right) = (painted[0] / perPoint - margin, (painted[^1] + 1) / perPoint - margin);
+                var titleWidth = columns.Count(x => Enumerable.Range(0, with.Length).Any(y => with[y][x] != without[y][x])) / perPoint;
+                var lines = with.Count(line => line.Any(pixel => pixel)) / perPoint;
+                var what = $"The import row {titled.DisplayedImports[index].Status} ({language}, text size {scale:0.##}, a {page}-point page, a {width}-point row)";
+                drawn.Add($"{what}: paint {left:0.#} to {right:0.#}, title {titleWidth:0.#}, {lines:0.#} high");
+                if (left < -1 || right > width + 1)
+                    faults.Add($"{what} is painted from {left:0.#} to {right:0.#}, past its {width} points");
+                // Three letters and the ellipsis of the title at this text size.
+                else if (titleWidth < 40 * scale)
+                    faults.Add($"{what} shows {titleWidth:0.#} points of its title, under {40 * scale:0.#}");
+            }
+        }
+        if (Environment.GetEnvironmentVariable("ISSUE_292_DRAWN") is not null)
+            Console.WriteLine(string.Join(Environment.NewLine, drawn));
+        if (faults.Count > 0)
+            throw new Exception($"{faults.Count} of {drawn.Count} rows: {string.Join("; ", faults)}.");
+    }),
 };
 
 var failures = 0;
@@ -1453,6 +1546,41 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
         if (rows.Count == 0)
             throw new Exception("The host painted nothing: this is the drawing, not the layout.");
         return rows;
+    }
+    finally
+    {
+        SwiftUIHost.DetachView(root, host);
+    }
+}
+
+// Draws a view in a real SwiftUI host and returns, for each pixel row, which of its pixels
+// are painted (not transparent: the host has no background of its own).
+static bool[][] PaintedMask(SwiftView root, double width, double height)
+{
+    var host = SwiftUIHost.CreateView(root);
+    try
+    {
+        host.Frame = new CGRect(0, 0, width, height);
+        host.LayoutSubtreeIfNeeded();
+        var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
+            ?? throw new Exception("The host has no bitmap to draw in.");
+        host.CacheDisplay(host.Bounds, bitmap);
+        if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
+            throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
+        var samples = (int)bitmap.BitsPerPixel / 8;
+        var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
+        // Read once: each of these is a call into the bitmap, and there is one read per pixel.
+        var (data, stride, wide) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide);
+        var mask = new bool[(int)bitmap.PixelsHigh][];
+        for (var y = 0; y < mask.Length; y++)
+        {
+            mask[y] = new bool[wide];
+            for (var x = 0; x < wide; x++)
+                mask[y][x] = Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0;
+        }
+        if (!mask.Any(line => line.Any(pixel => pixel)))
+            throw new Exception("The host painted nothing: this is the drawing, not the layout.");
+        return mask;
     }
     finally
     {

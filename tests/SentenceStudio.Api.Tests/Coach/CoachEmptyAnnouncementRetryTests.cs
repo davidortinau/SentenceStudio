@@ -1,0 +1,166 @@
+using FluentAssertions;
+using SentenceStudio.Api.Coach.Agents;
+using SentenceStudio.Api.Coach.Runtime;
+using SentenceStudio.Api.Tests.Coach.History;
+using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Contracts.Coach.Intent;
+
+namespace SentenceStudio.Api.Tests.Coach;
+
+/// <summary>
+/// Issue 289. A plain reply was shown exactly as the model wrote it, so a reply that said example
+/// sentences were being given and then ended reached the learner with nothing in it (issues 268
+/// and 281). The reply on issue 268 ended with a full stop, not a colon. These go through the
+/// real conversation and session services with a scripted coach, and every test builds against
+/// the code before the fix.
+/// </summary>
+public class CoachEmptyAnnouncementRetryTests
+{
+    private const string Answer = "1. 공을 차요. 2. 문을 발로 찼어요. 3. 축구공을 세게 찼어요.";
+
+    private static CoachAgentTurnResult Reply(string text, long inputTokens = 0, long outputTokens = 0) =>
+        CoachDurableTurnTests.Reply(text) with { Usage = new CoachRunUsage(inputTokens, outputTokens, 0m) };
+
+    private static async Task<(CoachConversationHarness Harness, IReadOnlyList<string> Shown)> TurnAsync(
+        params CoachAgentTurnResult[] script)
+    {
+        var harness = new CoachConversationHarness();
+        var conversationId = await harness.CreateConversationAsync();
+        foreach (var result in script)
+        {
+            harness.Coach.Script.Enqueue(result);
+        }
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        return (harness, turn.Value!.Result!.Messages.Select(message => message.Text).ToList());
+    }
+
+    [Theory]
+    [InlineData("Here are three Korean-only example sentences:")]
+    [InlineData("차다를 쓴 예문 세 개입니다：")]
+    // The reply on issue 268, in the session's own words: it ends with a full stop.
+    [InlineData("You mean the word on screen. I will not give the answer away; here are three Korean-only "
+        + "example sentences that use it without giving away the quiz choice.")]
+    [InlineData("Sure! Here's a set of example sentences for you.")]
+    [InlineData("다음은 예문 세 개입니다.")]
+    public async Task An_announcement_with_nothing_after_it_is_asked_for_once_more_and_the_answer_is_shown(
+        string announcement)
+    {
+        var (harness, shown) = await TurnAsync(Reply(announcement), Reply(Answer));
+        using var _ = harness;
+
+        shown.Should().Equal(Answer);
+        harness.Coach.RunCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task The_second_call_is_for_the_same_message_and_says_what_was_wrong_with_the_first_reply()
+    {
+        var (harness, _) = await TurnAsync(Reply("Here are three example sentences:"), Reply(Answer));
+        using var __ = harness;
+
+        harness.Coach.Requests.Should().HaveCount(2);
+        var first = harness.Coach.Requests[0];
+        var second = harness.Coach.Requests[1];
+
+        second.LearnerText.Should().Be(first.LearnerText);
+        second.AgentSessionJson.Should().Be(first.AgentSessionJson,
+            "the second call starts from the conversation as it was before the first reply");
+        CoachInstructions.BuildTurnMessage(first).Should().NotContain("was not shown to the learner");
+        CoachInstructions.BuildTurnMessage(second).Should().Contain(
+            "Your first reply to this message was not shown to the learner: it said content was coming");
+    }
+
+    [Theory]
+    [InlineData("차다 means to kick.")]
+    [InlineData("Here are three: 공을 차요. 문을 찼어요. 세게 찼어요.")]
+    [InlineData("Here's a tip: say it with 공.")]
+    [InlineData("There are two readings of that word.")]
+    [InlineData("I can show the following if you like. Want them?")]
+    public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(string reply)
+    {
+        var (harness, shown) = await TurnAsync(Reply(reply), Reply("This second reply must never be asked for."));
+        using var _ = harness;
+
+        shown.Should().Equal(reply);
+        harness.Coach.RunCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Two_announcements_in_a_row_end_the_turn_with_the_second_shown()
+    {
+        var (harness, shown) = await TurnAsync(
+            Reply("Here are three example sentences:"),
+            Reply("Here are the three sentences you asked for:"),
+            Reply("A third reply must never be asked for."));
+        using var _ = harness;
+
+        shown.Should().Equal("Here are the three sentences you asked for:");
+        harness.Coach.RunCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_second_call_that_fails_leaves_the_first_reply_shown()
+    {
+        var (harness, shown) = await TurnAsync(
+            Reply("Here are three example sentences:"),
+            new CoachAgentTurnResult { Outcome = CoachAgentOutcome.Timeout });
+        using var _ = harness;
+
+        shown.Should().Equal("Here are three example sentences:");
+        harness.Coach.RunCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task An_announcement_that_leads_answer_parts_costs_one_call()
+    {
+        var withParts = new CoachAgentTurnResult
+        {
+            Outcome = CoachAgentOutcome.Completed,
+            Intent = new CoachTurnIntent
+            {
+                Kind = CoachIntentKind.GeneralAnswer,
+                CoachMessage = "Here are three example sentences:",
+                PedagogicalAnswer = new CoachPedagogicalAnswerIntent
+                {
+                    Topic = CoachAnswerTopic.Other,
+                    Blocks =
+                    [
+                        new CoachAnswerBlockIntent
+                        {
+                            Kind = CoachAnswerBlockKind.Example,
+                            Spans = [new CoachAnswerSpanIntent { Text = "공을 차요.", Language = CoachLanguageRole.Target }]
+                        }
+                    ]
+                }
+            }
+        };
+
+        using var harness = new CoachConversationHarness();
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(withParts);
+        harness.Coach.Script.Enqueue(Reply("This second reply must never be asked for."));
+
+        await harness.TurnAsync(conversationId, "give me three sentences for this word");
+
+        harness.Coach.RunCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Both_calls_are_charged_to_the_turns_one_run()
+    {
+        var (harness, _) = await TurnAsync(
+            Reply("Here are three example sentences:", inputTokens: 100, outputTokens: 10),
+            Reply(Answer, inputTokens: 120, outputTokens: 40));
+        using var __ = harness;
+
+        var totals = await harness.App.Usage.GetDailyTotalsAsync(
+            CoachConversationHarness.OwnerUserId, harness.App.DateContext.UserLocalDate);
+
+        totals.RunCount.Should().Be(1, "the second call is part of the same run, not a second one");
+        totals.InputTokens.Should().Be(220);
+        totals.OutputTokens.Should().Be(50);
+    }
+}

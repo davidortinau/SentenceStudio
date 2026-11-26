@@ -865,7 +865,6 @@ public sealed class CoachSessionService : ICoachSessionService
         var stopwatch = Stopwatch.StartNew();
         var agentResult = await RunAgentAsync(session, load.AgentSessionJson, request, context, registration.Token)
             .ConfigureAwait(false);
-        stopwatch.Stop();
 
         // A malformed AgentSession signals back before any model call. Propagate to the
         // conversation layer which owns the ledger rebuild.
@@ -873,6 +872,19 @@ public sealed class CoachSessionService : ICoachSessionService
         {
             return CoachOperationResult<CoachTurnResponse>.NeedsRebuild();
         }
+
+        // A reply that says content is coming and holds none is asked for once more (issue 289).
+        // Before usage is recorded, so both calls are charged to this turn's one run.
+        var modelCalls = 1;
+        if (await AnnouncesContentAndHoldsNoneAsync(session, agentResult, registration.Token).ConfigureAwait(false))
+        {
+            modelCalls = 2;
+            agentResult = await RetryAnEmptyAnnouncementAsync(
+                session, load.AgentSessionJson, request, context, agentResult, registration.Token)
+                .ConfigureAwait(false);
+        }
+
+        stopwatch.Stop();
 
         await runLease.RecordUsageAsync(agentResult.Usage, CancellationToken.None).ConfigureAwait(false);
         if (agentResult.Usage.InputTokens > 0 || agentResult.Usage.OutputTokens > 0)
@@ -943,7 +955,7 @@ public sealed class CoachSessionService : ICoachSessionService
             result.Value?.Status ?? CoachTurnStatus.Failed,
             result.Value?.StopReason ?? CoachStopReason.Failed,
             stopwatch.Elapsed,
-            modelIterations: 1,
+            modelIterations: modelCalls,
             toolCalls: 0,
             agentResult.Usage);
 
@@ -1773,12 +1785,81 @@ public sealed class CoachSessionService : ICoachSessionService
 
     // ---------------------------------------------------------------- reduction
 
+    /// <summary>
+    /// True when the model's reply is a plain message that announces content ("Here are three
+    /// sentences that use it.") and the turn carries nothing the announcement could mean: no
+    /// answer parts, no words a list tool read, no proposal a tool recorded (issue 289).
+    /// </summary>
+    private async Task<bool> AnnouncesContentAndHoldsNoneAsync(
+        CoachSession session,
+        CoachAgentTurnResult agentResult,
+        CancellationToken cancellationToken)
+    {
+        if (agentResult.Outcome != CoachAgentOutcome.Completed
+            || agentResult.Intent is not { } intent
+            || !CoachEmptyAnnouncement.IsOne(intent))
+        {
+            return false;
+        }
+
+        // Rows or a card the server shows under the reply are the announced content.
+        return _writeTurn?.ListedWords is not { Words.Count: > 0 }
+            && !await HasProposalThisTurnAsync(session, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Asks the model once more for the same message, from the conversation as it was before the
+    /// first reply, with one application line saying what was wrong with that reply. The second
+    /// reply is the turn's reply whatever it holds; if the second call does not complete, the
+    /// first reply is kept. Either way the result carries the usage of both calls.
+    /// </summary>
+    private async Task<CoachAgentTurnResult> RetryAnEmptyAnnouncementAsync(
+        CoachSession session,
+        string? agentSessionJson,
+        CoachTurnRequest request,
+        CoachTurnExecutionContext context,
+        CoachAgentTurnResult first,
+        CancellationToken cancellationToken)
+    {
+        var second = await RunAgentAsync(
+                session, agentSessionJson, request, context, cancellationToken, retriesAnEmptyAnnouncement: true)
+            .ConfigureAwait(false);
+        var usage = first.Usage.Add(second.Usage);
+
+        if (second.Outcome != CoachAgentOutcome.Completed || second.Intent is not { } retried || second.RequiresRebuild)
+        {
+            _logger.LogWarning(
+                "[Coach] Session {SessionId}: the reply announced content and held none; the second call "
+                + "ended {Outcome}, so the first reply is shown.",
+                session.Id, second.Outcome);
+            return first with { Usage = usage };
+        }
+
+        if (CoachEmptyAnnouncement.IsOne(retried))
+        {
+            _logger.LogWarning(
+                "[Coach] Session {SessionId}: the reply announced content and held none, and so did the "
+                + "second one. Kind={IntentKind}. The second reply is shown as it is.",
+                session.Id, retried.Kind);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "[Coach] Session {SessionId}: the reply announced content and held none; the model was asked "
+                + "once more and the second reply is shown. Kind={IntentKind}",
+                session.Id, retried.Kind);
+        }
+
+        return second with { Usage = usage };
+    }
+
     private async Task<CoachAgentTurnResult> RunAgentAsync(
         CoachSession session,
         string? agentSessionJson,
         CoachTurnRequest request,
         CoachTurnExecutionContext context,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool retriesAnEmptyAnnouncement = false)
     {
         var constraints = CoachActiveStateEnvelope.TryRead(session.ActiveConstraintsJson)?.Constraints
             ?? CoachConstraintMapper.Default(15);
@@ -1860,6 +1941,7 @@ public sealed class CoachSessionService : ICoachSessionService
                 AnswersAQuestionWhileTheScreenHidesAnAnswer =
                     session.Status == CoachSessionStatus.AwaitingClarification
                     && request.ClientScreen is { AnswerHidden: true },
+                RetriesAnEmptyAnnouncement = retriesAnEmptyAnnouncement,
                 ClarificationsRemaining =
                     Math.Max(0, options.MaxClarificationsPerSession - session.ClarificationCount),
                 UserLocalDate = _dateContext.UserLocalDate,
