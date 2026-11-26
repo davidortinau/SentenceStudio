@@ -91,6 +91,24 @@ public static class CoachOpportunityCapabilityCodes
     /// </summary>
     public const string AnswerLeakRefusal = "answer_leak_refusal";
 
+    // ---------------------------------------------------------------- empty announcement
+
+    /// <summary>
+    /// A reply announced content and held none; the second reply held content and was shown.
+    /// </summary>
+    public const string EmptyAnnouncementSecondReplyHeldContent = "empty_announcement_second_reply_held_content";
+
+    /// <summary>
+    /// A reply announced content and held none, and so did the second one, which was shown as it is.
+    /// </summary>
+    public const string EmptyAnnouncementSecondReplyEmpty = "empty_announcement_second_reply_empty";
+
+    /// <summary>
+    /// A reply announced content and held none; the second call did not complete, so the first
+    /// reply was shown.
+    /// </summary>
+    public const string EmptyAnnouncementSecondCallFailed = "empty_announcement_second_call_failed";
+
     // ---------------------------------------------------------------- tool execution
 
     /// <summary>The planner could produce no feasible plan for the constraints given.</summary>
@@ -220,6 +238,9 @@ public static class CoachOpportunityCapabilityCodes
         EvidenceReferenceInvalid,
         WriteArgumentsInvalid,
         AnswerLeakRefusal,
+        EmptyAnnouncementSecondReplyHeldContent,
+        EmptyAnnouncementSecondReplyEmpty,
+        EmptyAnnouncementSecondCallFailed,
         NoFeasiblePlan,
         ToolDataAccess,
         TurnToolFailureFallback,
