@@ -320,6 +320,14 @@ internal static class YouTubeImportView
             open.WithAccessibilityLabel($"{title}. {text("YouTubeImport_StuckHint")}");
 
         var cells = new List<SwiftView> { StatusBadge(row.Status, style, text, $"{id}.status"), open };
+        // The badge, the date and Retry keep their own width, so only the title can give way.
+        // On an iPhone a row with Retry has no room for all four: drawn at 330 points (a
+        // 402-point page's row), a stuck import's title had 4 points at the default text size,
+        // and at the largest the row was 356 points wide, past its edges (issue 292). There the
+        // date and Retry go on a second line, at the trailing edge, and the title has the first
+        // line beside the badge.
+        var second = row.CanRetry && style.ViewportWidth < 768 ? new List<SwiftView>() : null;
+        var trailing = second ?? cells;
         // Source: the channel column shows from the md breakpoint up (d-none d-md-inline).
         if (style.ViewportWidth >= 768)
             cells.Add(Caption(style, row.IsManual ? text("Import_ManualImport")
@@ -329,7 +337,7 @@ internal static class YouTubeImportView
         if (row.CreatedAt is { } created)
             // Its own width, like the badge (StatusBadge): at the largest app text size the date
             // is wider than its share of an iPhone's row and broke after the month.
-            cells.Add(Caption(style, created.ToLocalTime().ToString("d", CultureInfo.CurrentCulture))
+            trailing.Add(Caption(style, created.ToLocalTime().ToString("d", CultureInfo.CurrentCulture))
                 .WithFixedSize()
                 .WithAccessibilityIdentifier($"{id}.date"));
         if (row.CanRetry)
@@ -345,11 +353,18 @@ internal static class YouTubeImportView
                 .WithAccessibilityLabel(text("Import_Retry"))
                 .WithAccessibilityIdentifier($"{id}.retry");
             retry.IsEnabled = state.RetryingImportId is null;
-            cells.Add(retry);
+            trailing.Add(retry);
         }
         var line = Views.HStack(cells.ToArray()).WithFlexibleWidth();
         line.Spacing = SourceUiLayout.ItemGap + 4;
-        return line.WithAccessibilityIdentifier(id);
+        if (second is null)
+            return line.WithAccessibilityIdentifier(id);
+        var under = Views.HStack(second.ToArray())
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Trailing);
+        under.Spacing = SourceUiLayout.ItemGap + 4;
+        var lines = Views.VStack(line, under).WithFlexibleWidth();
+        lines.Spacing = SourceUiLayout.ItemGap;
+        return lines.WithAccessibilityIdentifier(id);
     }
 
     /// <summary>
