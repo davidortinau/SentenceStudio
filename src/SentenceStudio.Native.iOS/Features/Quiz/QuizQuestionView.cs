@@ -280,8 +280,13 @@ internal static class QuizQuestionView
             items.Add(field);
             if (submit is not null)
             {
+                // Issue 279: at the largest text sizes on a phone the two buttons do not fit
+                // one row. The row is measured (bridge 0.1.0-preview.69): while both fit they
+                // share it, and when they do not "I was correct" goes under Submit, so
+                // neither label is squeezed until it wraps.
                 var submitRow = besideSubmit is null
-                    ? Views.HStack(submit) : Views.HStack(submit, besideSubmit);
+                    ? Views.HStack(submit)
+                    : Views.HStack(submit, besideSubmit).WithStackingWhenTooWide();
                 submitRow.Spacing = SourceUiLayout.ItemGap;
                 items.Add(submitRow
                     .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
