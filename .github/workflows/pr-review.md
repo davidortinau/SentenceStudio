@@ -48,9 +48,9 @@ permissions:
 
 # A model from a different maker than the fix sessions' (they run on Claude), so the read is
 # not anchored on theirs. Left to "auto", Copilot chose a quick model that read only the diff
-# (2026-11-26, pull request 311). An exact name fails when Copilot stops offering it: the
-# fallbacks are then tried in order. The review's footer names the model set here; which one
-# answered is in the run's usage records.
+# (2026-11-26, pull request 311). When Copilot does not offer the model, or a request to it
+# fails or times out, the fallbacks are tried in order. The review's footer carries a short
+# label for the model set here; which one answered is in the run's usage records.
 engine:
   id: copilot
   model: gpt-6.1-sol
@@ -207,9 +207,10 @@ safe-outputs:
     engine:
       id: copilot
       model: detection
-  # Under each review: the run, the model set above and what the review cost. The tool's own
-  # footer adds symbols for two more figures; it appends the "/review to run again" hint to
-  # this one as well.
+  # Under each review: the run, a short label for the model set above and an estimate of what
+  # the review cost (nothing but the run when the cost is not known). The tool's own footer
+  # adds symbols for two more figures; it appends the "/review to run again" hint to this one
+  # as well.
   messages:
     footer: "> Review by [{workflow_name}]({run_url}){agent_ai_credits_suffix}"
   create-pull-request-review-comment:
@@ -315,7 +316,7 @@ Give each finding one level:
   - a rule from the list above that the change breaks;
   - a claim in the description that the diff contradicts;
   - a bug fix with no test that fails without it, or an existing test weakened to pass.
-- **Should fix**: a real weakness in what the change added, with a concrete case, that is none of the above. At most three: the ones most worth a fix session's time. A new test that asserts only something internal for a case whose outcome is wrong (step 3) belongs here even when the fault behind that outcome is older: the test is new, and it passes over the fault.
+- **Should fix**: a real weakness in what the change added, with a concrete case, that is none of the above. At most three: the ones most worth a fix session's time. A new test that asserts only something internal for a case whose outcome is wrong (step 3) belongs here even when the fault behind that outcome is older: the test is new, and it passes over the fault. (If that case is the one the issue describes, it is the first `Must fix` instead.) What a correct fix achieves: the test asserts what the learner gets. Where that needs the older fault mended, say that mending it in this pull request is welcome when it is small, and that it otherwise belongs on the pull request's "Next" list. Do not repeat the same fault under Notes.
 - **Decision for the Captain**: something from "The Captain's decision is required". State the choice and what each answer leads to. Do not tell Lemuel to settle it.
 - **Note**: anything else worth one line. Notes never change the verdict.
 
@@ -372,7 +373,7 @@ Reviewed commit <first 8 characters of head-sha>.
 **To act.** <one of the three lines below>
 ```
 
-Leave out a section that has nothing in it. Keep to this shape: no greeting, no closing `Verified:` line (that rule in `AGENTS.md` is for a session's report, not for this review), at most five notes of one or two sentences each. The last line is one of:
+Leave out a section that has nothing in it. Keep to this shape: no greeting, no closing `Verified:` line (that rule in `AGENTS.md` is for a session's report, not for this review), and at most five short notes. With more than five things to note, keep the ones he has to know (an older fault a learner would meet, what you could not read or follow) and join the rest into one. The last line is one of:
 
 - Merge: `Merge when the checks are green. Nothing here needs a fix session.`
 - Fix first: ``Comment `/revise review` and a fix session works every Must fix and Should fix item above, then this review runs again.``

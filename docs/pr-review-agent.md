@@ -169,7 +169,7 @@ that read, with the files read named in the review.
 - **A different model**: `model:` under `engine:` in the front matter, then compile. It is
   pinned to `gpt-6.1-sol`, a model from a different maker than the fix sessions', so the read
   is not anchored on theirs; `fallback-models` are tried in order when Copilot does not offer
-  it. Left to `auto`, Copilot chose a quick model that read only the diff (see "The first
+  it or a request to it fails. Left to `auto`, Copilot chose a quick model that read only the diff (see "The first
   live reviews"). The check on the reviewer's output before posting keeps the tool's small
   model (`safe-outputs.threat-detection.engine`).
 - **Stop the runner asking**: `FEEDBACK_REVIEW=off` for the check. `/review` still works.
