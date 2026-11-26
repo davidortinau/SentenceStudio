@@ -433,6 +433,17 @@ public static class CoachInstructions
         + "already waiting for their approval, say it is still waiting; do not prepare it again.";
 
     /// <summary>
+    /// Told to the model when it is asked a second time for the same message, because its first
+    /// reply announced content and held none (issue 289). The first reply was not shown and is
+    /// not in the conversation, so the line says what was wrong with it.
+    /// </summary>
+    internal const string EmptyAnnouncementRetryContext =
+        "Your first reply to this message was not shown to the learner: it said content was coming (sentences, "
+        + "examples, words, a list or an explanation) and held none. Answer the message again, and put that content "
+        + "itself in this reply, as parts of PedagogicalAnswer.Blocks when it is a language answer. Do not announce "
+        + "it, and do not mention this note or the first reply.";
+
+    /// <summary>
     /// Told to the model when the learner's message points at the screen and the screen has a focus
     /// item (issue 268). The standing instructions already said not to ask; asked "for this word"
     /// over a quiz word, the model still asked whether the word on screen was meant.
@@ -514,6 +525,12 @@ public static class CoachInstructions
         {
             // Application text only; nothing here comes from the learner.
             builder.AppendLine(HintOrAnswerReplyContext);
+        }
+
+        if (request.RetriesAnEmptyAnnouncement)
+        {
+            // Application text only; nothing here comes from the learner or the first reply.
+            builder.AppendLine(EmptyAnnouncementRetryContext);
         }
 
         if (request.Screen is { } pointedAt
