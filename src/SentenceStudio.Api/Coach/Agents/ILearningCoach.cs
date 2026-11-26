@@ -113,6 +113,12 @@ public sealed record CoachAgentTurnRequest
     /// </summary>
     public bool AnswersAQuestionWhileTheScreenHidesAnAnswer { get; init; }
 
+    /// <summary>
+    /// True when the model is asked again for the same message because its first reply announced
+    /// content and held none (issue 289). The first reply is not in the conversation it resumes.
+    /// </summary>
+    public bool RetriesAnEmptyAnnouncement { get; init; }
+
     /// <summary>How many clarifying questions the coach may still ask in this session.</summary>
     public required int ClarificationsRemaining { get; init; }
 
