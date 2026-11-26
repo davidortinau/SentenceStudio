@@ -414,7 +414,8 @@ look in the bridge before you call the cause unknown:
 
 - `src/Microsoft.SwiftUI/` is the C# side: the views and modifiers the app calls.
 - `native/MicrosoftSwiftUIShim/Sources/` is the Swift that draws them.
-- `tests/Microsoft.SwiftUI.Tests/` shows how each one is meant to behave.
+- `tests/Microsoft.SwiftUI.Tests/` shows how each one is meant to behave, and
+  `native/MicrosoftSwiftUIShim/Tests/` how the Swift side draws and measures it.
 
 The app runs the pinned version, so read that version's source
 (`git -C ~/sstudio/bridge show v<PINNED>:<path>`), not what a newer branch has.
@@ -429,12 +430,20 @@ a release or a package in anyone else's feed are, and stay his. The steps:
 1. `git -C ~/sstudio/bridge switch -c feedback/issue-<n>`. In a follow-up pass the branch is
    already there: `switch feedback/issue-<n>`.
 2. Make the change. Keep the defaults for existing callers, read Apple's documentation for the
-   SwiftUI API and the bridge code around it, and add a test to `tests/Microsoft.SwiftUI.Tests`.
+   SwiftUI API and the bridge code around it, and add a test to `tests/Microsoft.SwiftUI.Tests`;
+   for a change to what the Swift side draws or measures, one to
+   `native/MicrosoftSwiftUIShim/Tests/MicrosoftSwiftUIShimTests` as well.
 3. Give it the next version: `<Version>` in `src/Microsoft.SwiftUI/Microsoft.SwiftUI.csproj`
    becomes `NEXT`. Commit, the subject ending with the version in brackets, as the bridge's
    history does: `feat: <what it adds> (0.1.0-preview.67)`. One version, one commit that holds
    its whole source.
-4. `scripts/session-bridge.sh test` runs the bridge's own tests (about a minute) and
+4. `scripts/session-bridge.sh test` runs the bridge's own tests: it builds the native
+   framework, runs the managed test program and then the Swift side's tests (`swift test` in
+   `native/MicrosoftSwiftUIShim`), says each count ("Managed tests: 82/82 passed", "Swift
+   tests: 91/91 passed") with the failures, and stops when a test of either fails. Allow five
+   minutes: the native framework takes most of it, the Swift tests half a minute to a minute.
+   To run one Swift suite alone while you work on it:
+   `swift test --package-path ~/sstudio/bridge/native/MicrosoftSwiftUIShim --filter <its class>`.
    `scripts/session-bridge.sh pack` builds the native framework, packs, verifies and puts the
    package where your builds find it (one to four minutes; the native framework takes longest
    after a change to the Swift side). Each step has a time limit and says so when it runs

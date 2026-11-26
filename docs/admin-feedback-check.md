@@ -380,7 +380,9 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
       - It reads where the bridge's `main` is (one `git ls-remote`) and does nothing more
         while `main` is where it last looked.
       - When the version `main` names has no tag, it makes a clean copy of that commit under
-        `~/sstudio-feedback-check/bridge-release`, runs the bridge's own tests and its build,
+        `~/sstudio-feedback-check/bridge-release`, runs the bridge's own tests (the managed
+        ones, then the Swift side's: a version with a failing test of either is not packed)
+        and its build,
         pack and verify (`scripts/session-bridge.sh test` and `package`, the steps a session
         proved the change with), copies the package into `~/work/Microsoft.SwiftUI/artifacts`
         and makes the release `v<version>` on the bridge's repository at that commit, with
