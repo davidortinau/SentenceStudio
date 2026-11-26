@@ -1,10 +1,12 @@
+using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Contracts.Coach.Intent;
 
 namespace SentenceStudio.Api.Coach.Application;
 
 /// <summary>
-/// Recognises a plain reply that says content is coming and holds none (issue 289): "Here are
-/// three example sentences that use the word." and then nothing.
+/// Recognises a reply that says content is coming and holds none (issue 289): "Here are
+/// three example sentences that use the word." and then nothing. The reply is a plain message,
+/// or an answer whose only part is that announcement (issue 305).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -39,8 +41,8 @@ public static class CoachEmptyAnnouncement
     private static readonly char[] Closers = ['"', '\'', '”', '’', ')', ']', '*', '_', '`'];
 
     /// <summary>
-    /// True when <paramref name="intent"/> is a reply that carries nothing but its message, and
-    /// the message announces content it does not hold.
+    /// True when <paramref name="intent"/> is a reply that carries nothing but its message, or
+    /// nothing but one direct-answer part, and that text announces content it does not hold.
     /// </summary>
     public static bool IsOne(CoachTurnIntent intent)
     {
@@ -54,10 +56,9 @@ public static class CoachEmptyAnnouncement
             return false;
         }
 
-        // Anything else the reply carries may be what the message announces: answer parts, a
-        // vocabulary set to save, an activity to open, something to remember, a follow-up question.
-        if (HasAnswerText(intent.PedagogicalAnswer)
-            || intent.VocabularySet is not null
+        // Anything else the reply carries may be what the message announces: a vocabulary set to
+        // save, an activity to open, something to remember, a follow-up question.
+        if (intent.VocabularySet is not null
             || intent.ActivityLaunch is not null
             || intent.MemoryProposal is not null
             || !string.IsNullOrWhiteSpace(intent.ClarifyingQuestion))
@@ -65,7 +66,38 @@ public static class CoachEmptyAnnouncement
             return false;
         }
 
-        return Announces(intent.CoachMessage);
+        var parts = PartsWithText(intent.PedagogicalAnswer);
+        if (parts.Count == 0)
+        {
+            return Announces(intent.CoachMessage);
+        }
+
+        // Answer parts are what a message announces, with one exception (issue 305): an answer
+        // whose only part is the direct answer, and that part is the announcement. The answer
+        // path shows the parts and not the message, so nothing else reaches the learner. A
+        // general answer's message is put in front of its parts as a part of its own (the shape
+        // repair), so with a message it has two, and two or more are left alone.
+        if (parts.Count > 1
+            || parts[0].Kind != CoachAnswerBlockKind.Answer
+            || (intent.Kind != CoachIntentKind.PedagogicalAnswer
+                && !(intent.Kind == CoachIntentKind.GeneralAnswer && string.IsNullOrWhiteSpace(intent.CoachMessage))))
+        {
+            return false;
+        }
+
+        var pieces = parts[0].Spans
+            .Where(span => span is not null && !string.IsNullOrWhiteSpace(span.Text))
+            .ToList();
+
+        // A part that ends in the language being studied ends with content: "Here is your coffee."
+        // is the sentence the learner asked for, not an announcement of one.
+        if (pieces[^1].Language == CoachLanguageRole.Target)
+        {
+            return false;
+        }
+
+        // Joined as the answer's plain text joins them.
+        return Announces(string.Join(' ', pieces.Select(span => span.Text.Trim())));
     }
 
     /// <summary>True when <paramref name="message"/> ends by announcing content and stops there.</summary>
@@ -110,8 +142,10 @@ public static class CoachEmptyAnnouncement
         return false;
     }
 
-    private static bool HasAnswerText(CoachPedagogicalAnswerIntent? answer) =>
-        answer?.Blocks is { } blocks
-        && blocks.Any(block => block?.Spans is { } spans
-            && spans.Any(span => span is not null && !string.IsNullOrWhiteSpace(span.Text)));
+    /// <summary>The answer's parts that hold text: the ones the shape repair keeps.</summary>
+    private static List<CoachAnswerBlockIntent> PartsWithText(CoachPedagogicalAnswerIntent? answer) =>
+        (answer?.Blocks ?? [])
+            .Where(block => block?.Spans is { } spans
+                && spans.Any(span => span is not null && !string.IsNullOrWhiteSpace(span.Text)))
+            .ToList();
 }
