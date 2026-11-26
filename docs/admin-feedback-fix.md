@@ -65,9 +65,15 @@ result and stop; the Captain will read them.
 
 1. **Restate the problem** in one or two sentences at the top of your activity log.
 2. **Diagnose before changing anything.** First find out which build answered the learner.
-   The reports' codes give the time of each flag, and a flag can only follow its turn. The deploy
-   records under `docs/` say what production ran then
-   (`git log -i --grep=deploy --date=short --format='%ad %h %s' -- docs` lists them). A flag
+   The reports' codes give the time of each flag, and a flag can only follow its turn.
+   `docs/deploy-log.md` says what production ran then: one line per deploy, with its time in
+   UTC and the commit deployed, and production runs a line's commit until the next line's
+   time. Read it on `origin/main` (`git fetch origin main`, then
+   `git show origin/main:docs/deploy-log.md`): the Captain commits a deploy's line after the
+   deploy, so your branch may not have the newest. `git merge-base --is-ancestor <fix> <commit>`
+   says whether that build had a fix. A flag older than the log's first line is dated against
+   the older records the log names; a flag newer than its last line was answered by that
+   line's build only if no deploy has gone unrecorded, so say that you are assuming it. A flag
    can be older than the deploy that fixed what it reports: both reports behind issue 226
    were, and `main` already had the fix. Read the code as it was in the build that answered
    (`git show <commit>:<path>`), then as it is now, and find the cause. Prefer a failing
