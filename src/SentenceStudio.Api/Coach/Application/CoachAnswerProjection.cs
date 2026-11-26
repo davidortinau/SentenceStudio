@@ -113,6 +113,14 @@ public sealed class CoachAnswerProjection
                     continue;
                 }
 
+                text = WithoutFieldNames(text, block.Kind);
+                if (text.Length == 0)
+                {
+                    // The piece was only a field name ("Target:"). It says nothing, so it is
+                    // left out; refusing the whole answer over it would cost the learner the rest.
+                    continue;
+                }
+
                 if (text.Length > CoachAnswerLimits.MaxSpanCharacters)
                 {
                     errors.Add($"A piece of text is longer than {CoachAnswerLimits.MaxSpanCharacters} characters.");
@@ -233,6 +241,62 @@ public sealed class CoachAnswerProjection
         }
 
         return builder.ToString();
+    }
+
+    private static readonly string[] LanguageRoleNames = Enum.GetNames<CoachLanguageRole>();
+
+    /// <summary>
+    /// Removes the names the model sometimes writes at the start of a piece of text: the value of
+    /// its language field ("Target:", "Display:", "Native:") and the kind of its part ("Note:").
+    /// </summary>
+    /// <remarks>
+    /// Those names belong to the fields beside the text. A learner reads the text as Sam's own
+    /// words, and every client already shows the part's heading, so "Target: 밥 먹었어?" and
+    /// "Display: Note: ..." read as debris (issue 272). Only a name followed by a colon at the
+    /// very start is removed; the same word inside a sentence, or without the colon, is kept.
+    /// </remarks>
+    private static string WithoutFieldNames(string text, CoachAnswerBlockKind kind)
+    {
+        var kindName = kind.ToString();
+        var rest = text.AsSpan();
+
+        while (true)
+        {
+            var after = AfterName(rest, kindName);
+            foreach (var role in LanguageRoleNames)
+            {
+                if (after >= 0)
+                {
+                    break;
+                }
+
+                after = AfterName(rest, role);
+            }
+
+            if (after < 0)
+            {
+                break;
+            }
+
+            rest = rest[after..].TrimStart();
+        }
+
+        return rest.Length == text.Length ? text : rest.ToString();
+    }
+
+    /// <summary>The index just past "<paramref name="name"/>:" at the start of the text, or -1.</summary>
+    private static int AfterName(ReadOnlySpan<char> text, string name)
+    {
+        if (!text.StartsWith(name, StringComparison.OrdinalIgnoreCase))
+        {
+            return -1;
+        }
+
+        var rest = text[name.Length..];
+        var colon = rest.TrimStart();
+        return colon.Length > 0 && colon[0] is ':' or '\uFF1A'
+            ? text.Length - colon.Length + 1
+            : -1;
     }
 
     /// <summary>

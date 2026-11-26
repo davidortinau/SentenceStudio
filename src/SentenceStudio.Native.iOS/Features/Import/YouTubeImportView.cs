@@ -320,6 +320,14 @@ internal static class YouTubeImportView
             open.WithAccessibilityLabel($"{title}. {text("YouTubeImport_StuckHint")}");
 
         var cells = new List<SwiftView> { StatusBadge(row.Status, style, text, $"{id}.status"), open };
+        // The badge, the date and Retry keep their own width, so only the title can give way.
+        // On an iPhone a row with Retry has no room for all four: drawn at 330 points (a
+        // 402-point page's row), a stuck import's title had 4 points at the default text size,
+        // and at the largest the row was 356 points wide, past its edges (issue 292). There the
+        // date and Retry go on a second line, at the trailing edge, and the title has the first
+        // line beside the badge.
+        var second = row.CanRetry && style.ViewportWidth < 768 ? new List<SwiftView>() : null;
+        var trailing = second ?? cells;
         // Source: the channel column shows from the md breakpoint up (d-none d-md-inline).
         if (style.ViewportWidth >= 768)
             cells.Add(Caption(style, row.IsManual ? text("Import_ManualImport")
@@ -327,7 +335,10 @@ internal static class YouTubeImportView
                 .WithLineLimit(1)
                 .WithAccessibilityIdentifier($"{id}.channel"));
         if (row.CreatedAt is { } created)
-            cells.Add(Caption(style, created.ToLocalTime().ToString("d", CultureInfo.CurrentCulture))
+            // Its own width, like the badge (StatusBadge): at the largest app text size the date
+            // is wider than its share of an iPhone's row and broke after the month.
+            trailing.Add(Caption(style, created.ToLocalTime().ToString("d", CultureInfo.CurrentCulture))
+                .WithFixedSize()
                 .WithAccessibilityIdentifier($"{id}.date"));
         if (row.CanRetry)
         {
@@ -342,16 +353,24 @@ internal static class YouTubeImportView
                 .WithAccessibilityLabel(text("Import_Retry"))
                 .WithAccessibilityIdentifier($"{id}.retry");
             retry.IsEnabled = state.RetryingImportId is null;
-            cells.Add(retry);
+            trailing.Add(retry);
         }
         var line = Views.HStack(cells.ToArray()).WithFlexibleWidth();
         line.Spacing = SourceUiLayout.ItemGap + 4;
-        return line.WithAccessibilityIdentifier(id);
+        if (second is null)
+            return line.WithAccessibilityIdentifier(id);
+        var under = Views.HStack(second.ToArray())
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Trailing);
+        under.Spacing = SourceUiLayout.ItemGap + 4;
+        var lines = Views.VStack(line, under).WithFlexibleWidth();
+        lines.Spacing = SourceUiLayout.ItemGap;
+        return lines.WithAccessibilityIdentifier(id);
     }
 
     /// <summary>
     /// Source btn btn-sm btn-outline-warning: no fill, a warning border and text. The fill stays
-    /// unset (the bridge's surface colors are opaque #RRGGBB only).
+    /// unset (the bridge's surface colors are opaque #RRGGBB only). Fixed-size, like the badge
+    /// beside it (StatusBadge says why).
     /// </summary>
     internal static SwiftView OutlineWarningButton(SwiftView label, Action action, SourceUiStyle style)
     {
@@ -360,7 +379,8 @@ internal static class YouTubeImportView
         return Views.Button(label, action)
             .WithButtonStyle(SwiftButtonStyle.Plain)
             .WithButtonAppearance(null, null,
-                style.Appearance.Warning.Light, style.Appearance.Warning.Dark, 6);
+                style.Appearance.Warning.Light, style.Appearance.Warning.Dark, 6)
+            .WithFixedSize();
     }
 
     /// <summary>Source RenderStatusBadge: the status's color, icon and text, with a spinner while it runs.</summary>
@@ -382,12 +402,16 @@ internal static class YouTubeImportView
         content.Spacing = 3;
         if (status >= VideoImportStatus.FetchingTranscript && status < VideoImportStatus.Completed)
             content.Add(Views.IndeterminateProgress(label).WithTintColor(foreground.Light, foreground.Dark));
-        // Source .badge is white-space: nowrap: the row gives the badge its own width (it is the
-        // least flexible item) and the title, limited to one line, truncates.
+        // Source .badge is white-space: nowrap, so the badge is fixed-size and the title, limited
+        // to one line, truncates. A row offers each item an equal share of its width first (73
+        // points of an iPhone's row of four), and an item that can wrap takes no more: "Failed"
+        // fits in that, "Generating..." with its spinner does not and broke at every letter
+        // (issue 277, drawn in the native view tests).
         return content
             .WithPadding(4, 8, 4, 8)
             .WithRoundedSurface(fill.Light, fill.Dark, 6)
             .WithForegroundColor(foreground.Light, foreground.Dark)
+            .WithFixedSize()
             .WithAccessibilityLabel(label)
             .WithAccessibilityIdentifier(id);
     }

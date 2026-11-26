@@ -96,14 +96,16 @@ public sealed class NativeYouTubeImportContractTests
     [Fact]
     public void BadgesAndShortButtonsKeepTheirWidthBesideATruncatedTitle()
     {
-        // Source badges are nowrap and the title truncates. Until bridge 0.1.0-preview.67 the
-        // badges, Retry and Select All New were fixed-size to keep "Failed" and "Retry" from
-        // wrapping mid-word on iPhone; the rows keep those widths without it now (issue 260, drawn
-        // and measured in tests/SentenceStudio.Native.SwiftUIViews.Tests), so it is not to come back.
+        // Source badges are nowrap and the title truncates. A row offers each item an equal share
+        // of its width first, so an item wider than that share wraps unless it is fixed-size: the
+        // import's status badge, its date and Retry, and the video's badge are (issue 277, drawn
+        // and measured in tests/SentenceStudio.Native.SwiftUIViews.Tests). Issue 260 had taken
+        // the call off them after drawing only "Failed" and "Retry", which fit in the share.
+        // Select All New shares its row with one caption and is not fixed-size.
         var import = Source("Features/Import/YouTubeImportView.cs");
         var channel = Source("Features/Import/YouTubeChannelView.cs");
-        Assert.DoesNotContain("WithFixedSize", import);
-        Assert.DoesNotContain("WithFixedSize", channel);
+        Assert.Equal(3, import.Split(".WithFixedSize()").Length - 1);
+        Assert.Equal(1, channel.Split(".WithFixedSize()").Length - 1);
         Assert.Contains("SourceTextRole.Body2).WithLineLimit(1).WithFlexibleWidth()", channel);
     }
 

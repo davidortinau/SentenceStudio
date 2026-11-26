@@ -346,8 +346,9 @@ internal sealed class ConversationScreen : IActivityScreen
             .WithAccessibilityLabel(
                 $"{text(NativeConversationText.VoicePace)}, {Speed(state.VoiceSpeedPercent)}, {Pause(state.VoicePauseMilliseconds)}")
             .WithAccessibilityIdentifier(NativeConversationAccess.VoicePace)
-            // The menu label fills its width by default; keep it icon-sized so the status keeps the room.
-            .WithFixedSize();
+            // A menu's label fills its width by default; this one stays icon-sized so the status
+            // keeps the room (bridge 0.1.0-preview.68, in place of fixed size).
+            .WithMenuLabelFittingContent();
     }
 
     private IEnumerable<SwiftView> VoiceStatusRows(NativeConversationState state, SourceUiStyle style,
