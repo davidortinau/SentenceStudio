@@ -321,11 +321,9 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
 
         recorder.Executions.Should().Be(1, "a one-use secret authorises one execution");
 
-        // Exactly one caller may be told it worked. Unlike the soft route, a loser here presented
-        // confirmation material, and answering it with the winner's receipt would mean a spent
-        // secret still bought a successful-looking reply.
-        outcomes.OfType<CoachWriteReceipt>().Should().ContainSingle();
-        outcomes.OfType<CoachToolException>().Should().ContainSingle();
+        // One caller executed. What the other is told depends on when it looked, and both
+        // answers are honest: see AssertLoserWasRefusedOrReplayedAsync.
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId);
 
         await using var check = NewAppContext();
         var skill = await check.SkillProfiles.AsNoTracking().SingleAsync(s => s.Id == skillId);
@@ -678,8 +676,9 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         recorder.ExternalEffects.Should().Be(1, "one confirmation, one outbound effect");
         recorder.Executions.Should().Be(1);
 
-        outcomes.OfType<CoachWriteReceipt>().Should().ContainSingle();
-        outcomes.OfType<CoachToolException>().Should().ContainSingle();
+        // The handler does not dwell here, so the caller that lost the claim may re-read the row
+        // before or after the winner settled it. Counting receipts would be counting that timing.
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId);
 
         await using var check = NewAppContext();
         (await check.SkillProfiles.AsNoTracking().SingleAsync(s => s.Id == skillId))
@@ -924,6 +923,60 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default).Unwrap()).ToList();
+
+    /// <summary>
+    /// Asserts that of two confirmations one executed, and the other was either refused or
+    /// answered with the winner's own receipt.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A confirmation that loses the claim re-reads the row and answers from what the winner left
+    /// behind. While the winner is still in the handler that is a refusal. Once the winner has
+    /// settled it is the stored receipt, replayed: the ledger does this on purpose, whatever
+    /// secret the request carries, so that a retried confirmation is told the change happened
+    /// (<c>CoachWriteLedgerPostgresTests</c> pins the same answer for a spent confirmation).
+    /// Which of the two the loser meets is a matter of milliseconds, so neither may be assumed.
+    /// </para>
+    /// <para>
+    /// A replayed receipt is told from a second write by the audit, not by counting receipts: the
+    /// ledger writes one <c>Replayed</c> row for each receipt it hands out again, and
+    /// <see cref="AssertSettledExactlyOnceAsync"/> holds the <c>Executed</c> rows at one. Two
+    /// receipts with no replay behind the second would be two executions.
+    /// </para>
+    /// </remarks>
+    private async Task AssertLoserWasRefusedOrReplayedAsync(
+        IReadOnlyList<object> outcomes, string operationId)
+    {
+        outcomes.Should().HaveCount(2);
+
+        var receipts = outcomes.OfType<CoachWriteReceipt>().ToArray();
+        var refusals = outcomes.OfType<CoachToolException>().ToArray();
+
+        receipts.Should().NotBeEmpty("the caller that executed is answered with its receipt");
+        (receipts.Length + refusals.Length).Should().Be(2, "every caller gets a receipt or a refusal");
+
+        receipts.Should().AllSatisfy(r =>
+        {
+            r.OperationId.Should().Be(operationId);
+            r.Status.Should().Be(CoachWriteOperationStatus.Executed);
+        });
+        receipts.Select(r => (r.EntityId, r.Summary, Lines: string.Join('\n', r.Lines)))
+            .Distinct()
+            .Should().ContainSingle("a replay says what the winner's receipt says");
+
+        foreach (var refusal in refusals)
+        {
+            refusal.Reason.Should().Contain("already being carried out");
+        }
+
+        await using var db = _harness.NewContext();
+        var replays = await db.CoachWriteAudits.AsNoTracking()
+            .CountAsync(a => a.OperationId == operationId && a.Event == CoachWriteAuditEvent.Replayed);
+
+        replays.Should().Be(
+            receipts.Length - 1,
+            "every receipt beyond the winner's is one the audit recorded as a replay");
+    }
 
     /// <summary>
     /// Asserts the ledger recorded one execution and left the row settled.
