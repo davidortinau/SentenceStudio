@@ -46,8 +46,14 @@ permissions:
   issues: read
   actions: read
 
+# A model from a different maker than the fix sessions' (they run on Claude), so the read is
+# not anchored on theirs. Left to "auto", Copilot chose a quick model that read only the diff
+# (2026-11-26, pull request 311). An exact name fails when Copilot stops offering it: the
+# fallbacks are tried in order, and the review's footer names the model that answered.
 engine:
   id: copilot
+  model: gpt-6.1-sol
+  fallback-models: [gpt-6-sol, gpt-5.6-sol]
 
 network:
   allowed:
@@ -194,6 +200,15 @@ steps:
       ls -l "$out"
 
 safe-outputs:
+  # The check on the reviewer's output before it is posted keeps the tool's own small model;
+  # without this it would inherit the review's.
+  threat-detection:
+    engine:
+      id: copilot
+      model: detection
+  # Plain words under each review: the tool's own footer carries symbols.
+  messages:
+    footer: "> Review by [{workflow_name}]({run_url}){ai_credits_suffix}. Comment `/review` to run it again."
   create-pull-request-review-comment:
     max: 20
     target: "${{ github.event.issue.number || inputs.pr_number }}"
@@ -252,13 +267,14 @@ Use `git show`, `git grep <head-sha>`, `git log` and `git diff` to read more. No
 
 1. **Read the change before the story.** Read `pr.stat` and `pr.diff` and form your own account of what the change does. Only then read the description and the issue.
 2. **Read the whole of every changed file**, at the head commit, not only the hunks. Follow the callers and the callees of what changed. A fault is usually in how the change meets the code around it.
-3. **Check the description against the diff.** Each claim in it ("fixes X", "no view code changes", "tested at Y") is something to verify, not something to believe. A claim the diff contradicts is a finding.
-4. **Check the change against the issue.** Does it fix what was asked? Does it do more than was asked, and is that extra work named and reasonable? The Captain prefers a wider fix (the same fault mended nearby) to a narrow one while he is the app's only user, so breadth alone is not a finding. Unrequested redesign of behaviour is.
-5. **Read what the runner checked** in `owner-comments.json`. If it says the proof was not verified, or names parts of the diff to look at (tests changed, build or app configuration, many files), look there first and say what you found.
-6. **Read the checks.** For a failed check, read `failed-checks.txt` to see which test or step failed, and `base-checks.json` to see whether the base branch fails the same check. A failure in something this diff changed or calls is a `Must fix` finding that names the failing test. A check that fails on the base branch too, or a failing test the diff cannot have reached, is a note, not a finding (fix sessions are told not to patch unrelated flaky tests). If you cannot tell which, say what you could and could not see and make it a `Should fix` ("find out why <check> failed"), not a `Must fix`. Checks still running are a note. GitHub's checks do not build the iOS, macOS or Android apps.
-7. **If you reviewed this pull request before** (`earlier-reviews.json`), go through your earlier `Must fix` and `Should fix` findings one by one: fixed, answered in the description under "The review" with a reason that holds, or still open. A finding that is still open stays a finding. Do not raise as new something you passed over before unless the new commits made it wrong.
-8. **Apply the project's rules**, below.
-9. **Try to refute each finding before you keep it.** Find the concrete input or state that goes wrong. If you cannot name one, it is a note at most.
+3. **Follow each case to what the user gets.** For every case the change handles, and every case it leaves alone on purpose (each branch, each exception it makes, each row of a new test), read the code that takes the result next, and the code after that, until you reach what the learner sees or what is stored. Name the outcome there. A change can be right where it stands and still end in a refusal, an empty screen or a lost value two steps on. A new test that asserts something internal (a call count, a flag) for a case whose outcome you could not confirm is right is a finding: say what the outcome is and what the test should assert.
+4. **Check the description against the diff.** Each claim in it ("fixes X", "no view code changes", "tested at Y") is something to verify, not something to believe. A claim the diff contradicts is a finding.
+5. **Check the change against the issue.** Does it fix what was asked? Does it do more than was asked, and is that extra work named and reasonable? The Captain prefers a wider fix (the same fault mended nearby) to a narrow one while he is the app's only user, so breadth alone is not a finding. Unrequested redesign of behaviour is.
+6. **Read what the runner checked** in `owner-comments.json`. If it says the proof was not verified, or names parts of the diff to look at (tests changed, build or app configuration, many files), look there first and say what you found.
+7. **Read the checks.** For a failed check, read `failed-checks.txt` to see which test or step failed, and `base-checks.json` to see whether the base branch fails the same check. A failure in something this diff changed or calls is a `Must fix` finding that names the failing test. A check that fails on the base branch too, or a failing test the diff cannot have reached, is a note, not a finding (fix sessions are told not to patch unrelated flaky tests). If you cannot tell which, say what you could and could not see and make it a `Should fix` ("find out why <check> failed"), not a `Must fix`. Checks still running are a note. GitHub's checks do not build the iOS, macOS or Android apps.
+8. **If you reviewed this pull request before** (`earlier-reviews.json`), go through your earlier `Must fix` and `Should fix` findings one by one: fixed, answered in the description under "The review" with a reason that holds, or still open. A finding that is still open stays a finding. Do not raise as new something you passed over before unless the new commits made it wrong.
+9. **Apply the project's rules**, below.
+10. **Try to refute each finding before you keep it.** Find the concrete input or state that goes wrong. If you cannot name one, it is a note at most.
 
 ## The project's rules to hold the change to
 
@@ -300,7 +316,7 @@ Give each finding one level:
 - **Decision for the Captain**: something from "The Captain's decision is required". State the choice and what each answer leads to. Do not tell Lemuel to settle it.
 - **Note**: anything else worth one line. Notes never change the verdict.
 
-**A finding is about what this pull request changed.** A weakness that was already there, in code the change did not touch or did not make worse, is not a finding against it: one line under Notes at most. So is a case the issue did not ask about that behaved the same way before. Most changes here are small fixes to one reported case; hold them to fixing that case without breaking others, not to solving the whole area.
+**A finding is about what this pull request changed.** A weakness that was already there, in code the change did not touch or did not make worse, is not a finding against it: one line under Notes at most. When that older weakness is a fault a learner would meet (found while following a case to its outcome), the note says so plainly, with the file and the case, so that the Captain hears of it: it does not block this pull request. So is a case the issue did not ask about that behaved the same way before. Most changes here are small fixes to one reported case; hold them to fixing that case without breaking others, not to solving the whole area.
 
 Write every `Must fix` and `Should fix` finding so a fix session can do it without asking anyone:
 the file and line, what goes wrong and with which input or state, and what a correct fix would have to achieve (not the code). One finding per fault; a fault repeated in several places is one finding that lists the places.
@@ -316,6 +332,8 @@ Choose the first that applies:
 3. **Merge**: neither. `Should fix` findings and notes do not block; say that they are optional. Check conclusion `success`.
 
 Be willing to say Merge. A change that does what was asked, holds the rules and has its test is ready, and a reviewer who always finds something is no use to him. Be equally willing to say Fix first when you have a concrete failing case.
+
+**A Merge has to be earned by reading.** Before you say Merge you have read every changed file whole and followed each case to its outcome (steps 2 and 3). If you read only the diff, you have not reviewed it yet: go and read. "What I checked" names the files you read beyond the changed ones, so he can see how far the read went.
 
 ## How to end
 
@@ -334,7 +352,7 @@ Reviewed commit <first 8 characters of head-sha>.
 
 **What it changes.** <At most three sentences, your own reading of the diff.>
 
-**What I checked.** <At most three sentences: what you read beyond the diff, what the runner's check said, the state of the checks.>
+**What I checked.** <At most four sentences: the files you read beyond the changed ones, by name, and how far you followed the change's cases; what the runner's check said; the state of the checks.>
 
 ### Decisions for you (<n>)
 1. **<the choice in a few words>.** <what each answer leads to>
