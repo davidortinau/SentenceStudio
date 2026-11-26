@@ -1166,9 +1166,14 @@ internal static class SamView
                         () => manage.Begin(NativeSamConversationDialogKind.Delete, id))
                     .WithAccessibilityIdentifier($"native.sam.conversation.{index}.delete"),
             };
-            var menu = Views.Menu(Views.Image("ellipsis.circle").WithFixedSymbolSize(20), menuActions.ToArray())
+            // A 44-point target around the 20-point symbol.
+            var menuLabel = Views.Image("ellipsis.circle").WithFixedSymbolSize(20).WithPadding(12);
+            var menu = Views.Menu(menuLabel, menuActions.ToArray())
                 .WithAccessibilityLabel($"{text("Coach_ConversationActions")}, {title}")
-                .WithAccessibilityIdentifier($"native.sam.conversation.{index}.actions");
+                .WithAccessibilityIdentifier($"native.sam.conversation.{index}.actions")
+                // A menu's label fills its width by default; this one stays icon-sized so the
+                // title keeps the room (bridge 0.1.0-preview.68, issue #286).
+                .WithMenuLabelFittingContent();
             menu.IsEnabled = !state.ConversationActionBusy;
             var line = Views.HStack(button.WithFlexibleWidth(), menu);
             line.Spacing = 8;
