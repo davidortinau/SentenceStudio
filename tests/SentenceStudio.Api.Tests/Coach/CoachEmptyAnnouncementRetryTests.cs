@@ -45,6 +45,16 @@ public class CoachEmptyAnnouncementRetryTests
         + "example sentences that use it without giving away the quiz choice.")]
     [InlineData("Sure! Here's a set of example sentences for you.")]
     [InlineData("다음은 예문 세 개입니다.")]
+    // Issue 326: quotation marks near an announcement do not hide it. The phrase is outside them,
+    // an apostrophe is not a quotation mark, and a quoted phrase does not cover an unquoted one.
+    [InlineData("\"차다\" means to kick. Here are three example sentences that use it.")]
+    [InlineData("For \"차다\", here are three example sentences.")]
+    [InlineData("Don't worry, here's a set of example sentences for you.")]
+    [InlineData("That is the learners' favourite, so here are three example sentences.")]
+    [InlineData("Here are three example sentences that use \"here are\".")]
+    [InlineData("\"차다\"는 이렇게 써요.\nHere are three example sentences.")]
+    [InlineData("'차다'를 쓴 예문은 다음과 같습니다.")]
+    [InlineData("‘차다’를 쓴 예문은 다음과 같습니다.")]
     public async Task An_announcement_with_nothing_after_it_is_asked_for_once_more_and_the_answer_is_shown(
         string announcement)
     {
@@ -79,6 +89,17 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("Here's a tip: say it with 공.")]
     [InlineData("There are two readings of that word.")]
     [InlineData("I can show the following if you like. Want them?")]
+    // Issue 326: a quoted sentence that itself begins with an announcing phrase is the content.
+    [InlineData("In English you say \"Here is your coffee.\"")]
+    [InlineData("In English you say \"Here is your coffee\".")]
+    [InlineData("In English you say “Here is your coffee.”")]
+    [InlineData("In English you say 'Here's your coffee.'")]
+    [InlineData("In English you say ‘Here’s your coffee.’")]
+    [InlineData("In English you say 'Don't worry, here is your coffee.'")]
+    [InlineData("A waiter might say \"Thank you for waiting. Here is your coffee.\"")]
+    [InlineData("한국어로는 \"다음은 제 차례예요\"라고 해요.")]
+    [InlineData("한국어로는 「다음은 제 차례예요」라고 해요.")]
+    [InlineData("한국어로는 『다음은 제 차례예요』라고 해요.")]
     public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(string reply)
     {
         var (harness, shown) = await TurnAsync(Reply(reply), Reply("This second reply must never be asked for."));
@@ -243,6 +264,12 @@ public class CoachEmptyAnnouncementRetryTests
                 Part(CoachAnswerBlockKind.Answer,
                     ("You can say it like this.", CoachLanguageRole.Display),
                     ("다음은 제 차례예요.", CoachLanguageRole.Target)))
+        },
+        {
+            // Issue 326: the sentence is quoted inside one piece in the display language.
+            "one answer part that quotes a sentence beginning with an announcing phrase",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer, ("In English you say \"Here is your coffee.\"", CoachLanguageRole.Display)))
         },
         {
             "an announcing answer part and an example part",

@@ -121,26 +121,91 @@ public static class CoachEmptyAnnouncement
         }
 
         var body = text.TrimEnd(SentenceEnds).TrimEnd();
-        var lastSentence = body[(body.LastIndexOfAny(SentenceEnds) + 1)..];
+        var sentenceStart = body.LastIndexOfAny(SentenceEnds) + 1;
+        var lineStart = body.LastIndexOf('\n') + 1;
 
         foreach (var phrase in AnnouncingPhrases)
         {
-            var at = lastSentence.LastIndexOf(phrase, StringComparison.OrdinalIgnoreCase);
-            if (at < 0 || (at > 0 && char.IsLetter(lastSentence[at - 1])))
+            // Every place the phrase stands in the last sentence, last first: one that does not
+            // count must not hide an earlier one that does.
+            for (var at = body.LastIndexOf(phrase, StringComparison.OrdinalIgnoreCase);
+                at >= sentenceStart;
+                at = at == 0 ? -1 : body.LastIndexOf(phrase, at - 1, StringComparison.OrdinalIgnoreCase))
             {
-                // Not there, or the tail of another word ("where is", "there are").
-                continue;
-            }
+                if (at > sentenceStart && char.IsLetter(body[at - 1]))
+                {
+                    // The tail of another word ("where is", "there are").
+                    continue;
+                }
 
-            // "Here's a tip: say it with 공." holds what it announces, after the colon.
-            if (lastSentence.IndexOfAny(ContentLeads, at + phrase.Length) < 0)
-            {
-                return true;
+                // In English you say "Here is your coffee." gives the sentence, it does not
+                // announce one (issue 326).
+                if (InsideQuotation(body, lineStart, at))
+                {
+                    continue;
+                }
+
+                // "Here's a tip: say it with 공." holds what it announces, after the colon.
+                if (body.IndexOfAny(ContentLeads, at + phrase.Length) < 0)
+                {
+                    return true;
+                }
             }
         }
 
         return false;
     }
+
+    /// <summary>
+    /// True when a quotation that opens at or after <paramref name="from"/> is still open at
+    /// <paramref name="at"/>. Read from the start of the line and not of the sentence, so the
+    /// second sentence of a quotation is inside it too; a quotation is not followed across lines,
+    /// so a stray mark higher up cannot hide an announcement.
+    /// </summary>
+    private static bool InsideQuotation(string text, int from, int at)
+    {
+        // The mark that closes the open quotation, or none.
+        var closer = '\0';
+        for (var i = from; i < at; i++)
+        {
+            var mark = text[i];
+            var afterWord = i > from && char.IsLetterOrDigit(text[i - 1]);
+            var beforeWord = i + 1 < text.Length && char.IsLetter(text[i + 1]);
+
+            if (closer != '\0')
+            {
+                // A single mark between two Latin letters is an apostrophe ("Don't"), not the
+                // end. A Korean particle joins the closing mark directly ('차다'를), so only
+                // Latin letters make one.
+                var apostrophe = mark is '\'' or '’'
+                    && i > from && IsLatinLetter(text[i - 1])
+                    && i + 1 < text.Length && IsLatinLetter(text[i + 1]);
+                if (mark == closer && !apostrophe)
+                {
+                    closer = '\0';
+                }
+
+                continue;
+            }
+
+            closer = mark switch
+            {
+                '"' => '"',
+                '“' => '”',
+                '「' => '」',
+                '『' => '』',
+                '‘' => '’',
+                // A straight single mark opens only in front of a word and not after one
+                // ("don't", "learners'").
+                '\'' when beforeWord && !afterWord => '\'',
+                _ => '\0'
+            };
+        }
+
+        return closer != '\0';
+    }
+
+    private static bool IsLatinLetter(char letter) => letter < '\u0250' && char.IsLetter(letter);
 
     /// <summary>The answer's parts that hold text: the ones the shape repair keeps.</summary>
     private static List<CoachAnswerBlockIntent> PartsWithText(CoachPedagogicalAnswerIntent? answer) =>
