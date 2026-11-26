@@ -207,9 +207,11 @@ safe-outputs:
     engine:
       id: copilot
       model: detection
-  # Plain words under each review: the tool's own footer carries symbols.
+  # Under each review: the run, the model set above and what the review cost. The tool's own
+  # footer adds symbols for two more figures; it appends the "/review to run again" hint to
+  # this one as well.
   messages:
-    footer: "> Review by [{workflow_name}]({run_url}){ai_credits_suffix}. Comment `/review` to run it again."
+    footer: "> Review by [{workflow_name}]({run_url}){agent_ai_credits_suffix}"
   create-pull-request-review-comment:
     max: 20
     target: "${{ github.event.issue.number || inputs.pr_number }}"
@@ -313,7 +315,7 @@ Give each finding one level:
   - a rule from the list above that the change breaks;
   - a claim in the description that the diff contradicts;
   - a bug fix with no test that fails without it, or an existing test weakened to pass.
-- **Should fix**: a real weakness in what the change added, with a concrete case, that is none of the above. At most three: the ones most worth a fix session's time.
+- **Should fix**: a real weakness in what the change added, with a concrete case, that is none of the above. At most three: the ones most worth a fix session's time. A new test that asserts only something internal for a case whose outcome is wrong (step 3) belongs here even when the fault behind that outcome is older: the test is new, and it passes over the fault.
 - **Decision for the Captain**: something from "The Captain's decision is required". State the choice and what each answer leads to. Do not tell Lemuel to settle it.
 - **Note**: anything else worth one line. Notes never change the verdict.
 
@@ -370,7 +372,7 @@ Reviewed commit <first 8 characters of head-sha>.
 **To act.** <one of the three lines below>
 ```
 
-Leave out a section that has nothing in it. The last line is one of:
+Leave out a section that has nothing in it. Keep to this shape: no greeting, no closing `Verified:` line (that rule in `AGENTS.md` is for a session's report, not for this review), at most five notes of one or two sentences each. The last line is one of:
 
 - Merge: `Merge when the checks are green. Nothing here needs a fix session.`
 - Fix first: ``Comment `/revise review` and a fix session works every Must fix and Should fix item above, then this review runs again.``

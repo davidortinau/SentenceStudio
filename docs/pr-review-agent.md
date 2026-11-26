@@ -76,7 +76,7 @@ as merged. Changing that text needs no compile; changing the front matter does
 | A verdict in the summary: LGTM, needs changes, reject (macios, android); a recommendation and labels (maui) | A verdict in the summary and as a check. A check, not a label: the sessions' App can set labels, it cannot write checks. |
 | Read whole files, verify the description's claims, read CI (macios, android) | Same, and the gather step hands over the failed tests by name. |
 | `@copilot` at the start of the summary so the authoring agent picks it up (macios, android) | `/revise review` by the Captain hands the review to a fix session. Nothing starts from the review by itself. |
-| Three models and a vote (maui-labs); frozen inputs and four passes (maui) | One model, one pass. A second opinion can be added if single reviews prove unreliable. |
+| Three models and a vote (maui-labs); frozen inputs and four passes (maui) | One pinned model, one pass. A second opinion can be added if single reviews prove unreliable. |
 | Methodology in a skill file read at run time (macios, android) | In the workflow's own text, which is always read from `main`. |
 | Emoji severity marks | None; this project uses no emoji. |
 
@@ -101,7 +101,7 @@ as merged. Changing that text needs no compile; changing the front matter does
 - **Can the recommendation be forged, or be about the wrong commit?** Two ways are known,
   and the status issue guards against both; GitHub's own pages do not.
   - GitHub hangs a check on whatever the pull request's head is when the check is posted. A
-    commit pushed to the branch while a review runs (about four minutes) gets the check of
+    commit pushed to the branch while a review runs (about six minutes) gets the check of
     the commit before it. The reviewer writes the commit it read into the check's title and
     into its review ("Reviewed commit 16ce7bba"); the runner reads both and says so when they
     do not name the head. That rests on the model's own word for which commit it read: a
@@ -133,23 +133,45 @@ For the Captain, once:
    - Store it: `gh secret set COPILOT_GITHUB_TOKEN --repo davidortinau/SentenceStudio`, and
      paste the token when asked. It is never shown again and belongs nowhere else.
 2. **Merge** the pull request to `main`. A workflow can only be started from `main`.
-3. **Try it**: comment `/review` on an open pull request. A run takes about four minutes.
+3. **Try it**: comment `/review` on an open pull request. A run takes about six minutes.
 
 Nothing else: no label, no branch rule, no repository setting.
 
 ## Cost
 
-A trial of the same instructions through the Copilot CLI on pull request 311 (2 files, +176
--13) took 4 minutes and 66 of Copilot's AI credits. One review per fix session and one per
-`/revise` pass.
+About 37 of Copilot's AI credits and six and a half minutes a review, measured on pull
+request 311 (2 files, +176 -13) with the pinned model: 35 for the review, 2 for the check on
+its output. One review per fix session and one per `/revise` pass.
+
+## The first live reviews (2026-11-26)
+
+Both of pull request 311 at the same commit, and both said Merge.
+
+| | Model | The model's part | Credits | What it read |
+| --- | --- | --- | --- | --- |
+| First | Copilot's own choice (`auto`, which took Claude Sonnet 5.5) | under 2 minutes | 25 | the diff and one function's callers |
+| After tuning | `gpt-6.1-sol`, pinned | under 4 minutes | 37 | both changed files whole and twelve more, to the reply the learner sees and the stored history |
+
+The first did not mention that two cases the change leaves alone on purpose end in a refused
+answer (a general answer with a message plus a direct-answer part gets two direct answers
+from the shape repair, and the projection rejects that), while the new tests for them assert
+only the number of model calls. The second named both, as older faults that do not block the
+change. Two local trials before the merge had found the first of them too.
+
+What changed between the two: the model was pinned, and the instructions gained a step
+("follow each case to what the user gets") and the rule that a Merge has to be earned by
+that read, with the files read named in the review.
 
 ## Tuning it
 
 - **It finds too much or too little**: edit "The project's rules" and "Findings" in
   `pr-review.md`. No compile needed.
-- **A different model**: add `model:` under `engine:` in the front matter and compile. Left
-  unset, Copilot's default is used. A model from a different maker than the fix sessions'
-  gives a read that is not anchored on theirs.
+- **A different model**: `model:` under `engine:` in the front matter, then compile. It is
+  pinned to `gpt-6.1-sol`, a model from a different maker than the fix sessions', so the read
+  is not anchored on theirs; `fallback-models` are tried in order when Copilot does not offer
+  it. Left to `auto`, Copilot chose a quick model that read only the diff (see "The first
+  live reviews"). The check on the reviewer's output before posting keeps the tool's small
+  model (`safe-outputs.threat-detection.engine`).
 - **Stop the runner asking**: `FEEDBACK_REVIEW=off` for the check. `/review` still works.
 - **`gh aw` on Lilliput**: `gh extension install github/gh-aw` fails there twice over: the
   signed-in token is refused by the `github` organization until single sign-on is authorized
