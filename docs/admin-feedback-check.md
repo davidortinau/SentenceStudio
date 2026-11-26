@@ -218,6 +218,49 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
   A list that could not be filed is tried again by the next pass; why is in `state/next.err`.
   What became of each list is kept in `state/next/done/`.
 
+## The review
+
+A review agent on GitHub reads each pull request and recommends what to do with it:
+`docs/pr-review-agent.md` has the whole of it. The check's part:
+
+- **Asking.** When a fix session or a follow-up pass ends with its pull request brought up to
+  date, the runner starts the reviewer for that pull request as the last thing it does, after
+  its own comments on it (`request_review`: `gh workflow run pr-review.lock.yml -f
+  pr_number=<n>`, under the Captain's login, because GitHub does not let the sessions' App
+  start it). The commits no longer change by then, and what the runner checked is there for it
+  to read. It asks only for the open pull request of the pass's own branch: in a first pass
+  the number comes from the session's reply. A request that fails is said in the summary and
+  not tried again; `/review` on the pull request asks by hand. `FEEDBACK_REVIEW=off` stops the
+  asking.
+- **Reading.** The recommendation is the check named `Merge recommendation` on the pull
+  request's head commit, read by name and only when GitHub Actions posted it. The status
+  issue leads each pull request's line with it: "Review: merge", "Review: fix first (2 to
+  fix)", "Review: your call (1 to decide)" or "Review: not reviewed". The check alone is not
+  taken at its word, because GitHub hangs a check on whatever the head is when it is posted
+  and CI's token is able to write checks:
+  - its title has to name this commit, or the line says "for a commit it did not name" or
+    "but it read an earlier commit";
+  - the reviewer's own newest review of the pull request has to be of this commit, say in its
+    text that it read this commit, and say the same, or the line says "but no review of this
+    commit says so". (A yes is remembered for ten minutes in
+    `state/reviews-borne-out.json`, so the rewrite each minute does not ask each time.)
+  GitHub's own pages show the check without these tests; the status issue is the place to
+  trust.
+- **Not CI.** That check is left out of the count of passed and failed checks, and so are the
+  jobs of the reviewer's own workflow, which GitHub hangs on `main`'s newest commit whichever
+  pull request they read. A review that fails to run does not turn `MAIN CI` red. GitHub starts
+  that workflow for every comment in the repository (most runs end at once, skipped), so a
+  commit's workflow runs are read page by page.
+- **Fixing what it found.** The Captain comments `/revise review`. A request of his that
+  names the review (`NAMES_REVIEW` in `scripts/admin-feedback-pr.py` lists the forms: "review"
+  as its first word, "decision 1: yes", "the review", "the reviewer", "review comments") is
+  handed to the fix session together with the reviewer's newest review and its comments on
+  the diff, as literal text marked as the reviewer's, not his (`review_text`), and with a
+  warning when that review read an earlier commit. Only a review posted by
+  `github-actions[bot]` that starts with "## Merge recommendation:" is taken. When the pass
+  ends, the runner asks for a review again. Nothing starts a pass from a review by itself: it
+  takes his comment.
+
 ## Where and when it runs
 
 - On Lilliput, **continuously while there is work** (Captain, 2026-11-19: issues were waiting

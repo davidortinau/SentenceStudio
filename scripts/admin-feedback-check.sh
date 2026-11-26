@@ -339,6 +339,30 @@ record_next() {
   rm -f "$copy" "$said" "$why"
 }
 
+# The reviewer on GitHub (.github/workflows/pr-review.md, docs/pr-review-agent.md) is asked to
+# read a pull request once its session has ended and the runner has posted what it checked: the
+# commits no longer change, and the runner's findings are there to be read with them. It is
+# asked last of all, after the runner's own comments on the pull request. It is asked under the
+# Captain's login, because GitHub does not let the sessions' App start it, and so only for the
+# open pull request of the pass's own branch: in a first pass the number comes from the
+# session's reply. A request that fails is said in the summary and not retried; `/review` on
+# the pull request asks again. FEEDBACK_REVIEW=off stops the asking.
+# $1 the pull request's number, $2 the branch the pass worked on.
+REVIEW_ASKED="${FEEDBACK_REVIEW:-on}"
+request_review() {
+  local why is
+  [ "$REVIEW_ASKED" = on ] || return 0
+  case "$1" in ""|*[!0-9]*) return 0 ;; esac
+  is="$(run_here 60 gh pr view "$1" --repo "$REPO" --json state,isCrossRepository,headRefName \
+        --jq '"\(.state) \(.isCrossRepository) \(.headRefName)"' 2>/dev/null)"
+  if [ -z "$2" ] || [ "$is" != "OPEN false $2" ]; then
+    { echo "The reviewer on GitHub was not asked to read pull request #$1: it is not the open pull request of the branch $2 (or GitHub could not be read). Comment \`/review\` on a pull request to ask."; echo; } >> "$RUN"
+    return 0
+  fi
+  why="$(run_here 60 gh workflow run pr-review.lock.yml --repo "$REPO" --ref main -f pr_number="$1" 2>&1)" && return 0
+  { echo "The reviewer on GitHub could not be asked to read pull request #$1 ($(printf '%s' "$why" | head -c 200 | tr '\n' ' ')). Comment \`/review\` on it to ask."; echo; } >> "$RUN"
+}
+
 # A pull request is a draft while a follow-up pass works on it: GitHub does not merge a draft,
 # so it cannot be merged from under the pass. (The Captain merged pull request 263 five
 # minutes into a pass on it; the pass's commit reached the branch after the merge and had to
@@ -1250,6 +1274,10 @@ follow_up_stage() {
   answer_requests "$pr" "$ids" "$closing"
   rm -f "$closing" "$checked" "$verdicts" "$INFLIGHT"
   report_checks "$pr" "$(git -C "$ROOT" rev-parse --verify -q "origin/$branch" 2>/dev/null)"
+  # Last, after the runner's own comments: the reviewer reads them.
+  case "$finished $result_line" in
+    "yes RESULT: pr"*) request_review "$pr" "$branch" ;;
+  esac
   return 0
 }
 
@@ -1403,6 +1431,8 @@ fix_stage() {
         || echo "What the runner checked and the usage could not be posted on $pr; they are in this summary and in usage.jsonl." >> "$RUN"
     fi
     report_checks "${pr##*/}" "$(git -C "$ROOT" rev-parse --verify -q "origin/$branch" 2>/dev/null)"
+    # Last, after the runner's own comment: the reviewer reads it.
+    [ $code -eq 0 ] && request_review "${pr##*/}" "$branch"
   fi
   rm -f "$checked" "$verdicts"
 }

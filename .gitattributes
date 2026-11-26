@@ -9,3 +9,5 @@
 .squad/routing.md whitespace=cr-at-eol
 .squad/templates/casting-reference.md whitespace=cr-at-eol
 .squad/templates/ralph-triage.js whitespace=cr-at-eol
+
+.github/workflows/*.lock.yml linguist-generated=true

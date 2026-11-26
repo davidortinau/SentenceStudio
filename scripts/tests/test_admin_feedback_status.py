@@ -206,5 +206,27 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(status.checked(257, "965e0043"), "")
 
 
+class ReviewNoteTests(unittest.TestCase):
+    """The reviewer's recommendation leads a pull request's line on the status issue."""
+
+    def test_the_recommendation_comes_first_and_stands_out(self):
+        with mock.patch.object(status.pr, "review_of", return_value="fix first (2 to fix)") as asked:
+            self.assertEqual(status.review_note("16ce7bba", 280), "**Review: fix first (2 to fix).** ")
+        asked.assert_called_once_with("16ce7bba", 280, status.OUT / "state" / "reviews-borne-out.json")
+
+    def test_no_recommendation_adds_nothing(self):
+        with mock.patch.object(status.pr, "review_of", return_value=""):
+            self.assertEqual(status.review_note("16ce7bba", 280), "")
+
+    def test_a_head_that_is_not_known_is_not_asked_about(self):
+        with mock.patch.object(status.pr, "review_of") as asked:
+            self.assertEqual(status.review_note("", 280), "")
+        asked.assert_not_called()
+
+    def test_github_not_answering_leaves_the_line_as_it_was(self):
+        with mock.patch.object(status.pr, "review_of", side_effect=status.pr.GitHubError("HTTP 502")):
+            self.assertEqual(status.review_note("16ce7bba", 280), "")
+
+
 if __name__ == "__main__":
     unittest.main()

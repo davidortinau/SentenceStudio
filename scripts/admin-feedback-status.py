@@ -219,6 +219,18 @@ def head_in(line):
     return found.group(1) if found else ""
 
 
+def review_note(head, number):
+    """What the reviewer on GitHub recommends for the pull request's head commit
+    (docs/pr-review-agent.md), put first on its line because it is what he acts on."""
+    if not head:
+        return ""
+    try:
+        words = pr.review_of(head, number, OUT / "state" / "reviews-borne-out.json")
+    except pr.GitHubError:
+        return ""
+    return f"**Review: {words}.** " if words else ""
+
+
 def fingerprint(body):
     """The body without its timestamp line, so an unchanged status is not rewritten."""
     return hashlib.sha256("\n".join(body.splitlines()[1:]).encode()).hexdigest()
@@ -245,7 +257,8 @@ def gather(windows, handled):
     prs = []
     for item in own:
         lines, _ = pr.checks(item["pr"], 0)
-        prs.append(f"- #{item['pr']} for #{item['issue']}: {lines[0].removeprefix('CHECKS: ')}"
+        prs.append(f"- #{item['pr']} for #{item['issue']}: {review_note(head_in(lines[0]), item['pr'])}"
+                   f"{lines[0].removeprefix('CHECKS: ')}"
                    f"{checked(item['pr'], head_in(lines[0]))}{next_note(item['pr'])}")
     with_pr = {item["issue"] for item in own}
     attempted = pr.gh_lines(
