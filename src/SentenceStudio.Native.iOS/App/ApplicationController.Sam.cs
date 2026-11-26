@@ -191,7 +191,7 @@ internal sealed partial class ApplicationController
         _sam.ActivityRequested += OnSamActivityRequested;
         // An activity opens by itself only from the Study tab, with nothing else open, and never
         // under VoiceOver: the reply has to be read before anything moves.
-        _sam.CanAutoOpenActivity = () => !UIKit.UIAccessibility.IsVoiceOverRunning
+        _sam.CanAutoOpenActivity = () => !NativeSystemState.IsVoiceOverRunning
             && _destination == NativeDestination.Dashboard && !IsActivityOpen && !NavigationBlocked;
         return _sam;
     }
@@ -228,21 +228,24 @@ internal sealed partial class ApplicationController
         var shown = SamScreenSnapshot(screen);
 
         // The app's own choice first; the system style only when the app follows it, and only on the
-        // main thread, where UIKit may be read.
+        // main thread, where the system may be asked (NativeSystemState answers null elsewhere).
         var theme = Appearance.Selection.Mode switch
         {
             SentenceStudio.Contracts.Theme.ThemeMode.Light => "light",
             SentenceStudio.Contracts.Theme.ThemeMode.Dark => "dark",
-            _ when Foundation.NSThread.IsMain => UIKit.UITraitCollection.CurrentTraitCollection.UserInterfaceStyle
-                == UIKit.UIUserInterfaceStyle.Dark ? "dark" : "light",
-            _ => "system"
+            _ => NativeSystemState.IsSystemStyleDark switch
+            {
+                true => "dark",
+                false => "light",
+                null => "system"
+            }
         };
         return NativeSamScreenContext.Build(
             "ios",
             screen,
             typeof(ApplicationController).Assembly,
-            "iOS " + UIKit.UIDevice.CurrentDevice.SystemVersion,
-            UIKit.UIDevice.CurrentDevice.Model,
+            "iOS " + NativeSystemState.SystemVersion,
+            NativeSystemState.Model,
             theme,
 #if DEBUG
             debugBuild: true,

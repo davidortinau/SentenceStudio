@@ -56,6 +56,36 @@ public sealed class NativeSamContractTests
     }
 
     /// <summary>
+    /// Issue 316: what Sam's presentation needs from the system (whether VoiceOver is running,
+    /// the system style, the device's version and model) is asked through the platform service,
+    /// which draws nothing, and the rule it serves stays: Sam never opens an activity by itself
+    /// while VoiceOver is running.
+    /// </summary>
+    [Fact]
+    public void SamAsksTheSystemThroughThePlatformServiceAndNeverAutoOpensUnderVoiceOver()
+    {
+        var controller = Source("App/ApplicationController.Sam.cs");
+        Assert.Matches(
+            @"_sam\.CanAutoOpenActivity = \(\) => !NativeSystemState\.IsVoiceOverRunning\s+&& _destination == NativeDestination\.Dashboard && !IsActivityOpen && !NavigationBlocked;",
+            controller);
+        Assert.Contains("NativeSystemState.IsSystemStyleDark switch", controller);
+        Assert.Contains("\"iOS \" + NativeSystemState.SystemVersion", controller);
+        Assert.Contains("NativeSystemState.Model,", controller);
+
+        var service = Source("Platform/NativeSystemState.cs");
+        // Read on each call (a property, not a value kept from startup): VoiceOver is turned
+        // on and off while the app runs.
+        Assert.Contains(
+            "internal static bool IsVoiceOverRunning => UIKit.UIAccessibility.IsVoiceOverRunning;", service);
+        // The trait collection is read on the main thread only, as before.
+        Assert.Matches(@"IsSystemStyleDark => Foundation\.NSThread\.IsMain\s+\? UIKit\.UITraitCollection", service);
+        // A service, not UI: it authors no view, controller or control.
+        Assert.DoesNotMatch(
+            @"\bUIView\b|\bUIViewController\b|\bUIWindow\b|\bUIControl\b|\bUILabel\b|\bUIApplication\b|Microsoft\.SwiftUI",
+            service);
+    }
+
+    /// <summary>
     /// Decision 6 (2026-11-03): Sam on every signed-in screen, as the source MainLayout
     /// mounts it. Where the tab bar shows, Sam's tab slot is the one entry (never a second
     /// toolbar button, Captain 2026-11-06); every pushed screen that hides the tab bar gets
