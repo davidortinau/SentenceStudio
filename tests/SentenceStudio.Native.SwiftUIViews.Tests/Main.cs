@@ -1520,7 +1520,10 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
         host.CacheDisplay(host.Bounds, bitmap);
         if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
             throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
-        var scale = bitmap.PixelsWide / width;
+        // Read once: each of these is a call into the bitmap, and there is one read per pixel
+        // (asked for again at every pixel, a 1200 by 400 canvas took minutes: issue 279).
+        var (data, stride, wide, high) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide, (int)bitmap.PixelsHigh);
+        var scale = wide / width;
         var samples = (int)bitmap.BitsPerPixel / 8;
         var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
         var rows = new List<(double Left, double Right)>();
@@ -1531,11 +1534,11 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
                 rows.Add((ended.Left / scale, (ended.Right + 1) / scale));
             run = null;
         }
-        for (var y = 0; y < bitmap.PixelsHigh; y++)
+        for (var y = 0; y < high; y++)
         {
             (int Left, int Right)? painted = null;
-            for (var x = 0; x < bitmap.PixelsWide; x++)
-                if (Marshal.ReadByte(bitmap.BitmapData, y * (int)bitmap.BytesPerRow + x * samples + alpha) != 0)
+            for (var x = 0; x < wide; x++)
+                if (Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0)
                     painted = (painted?.Left ?? x, x);
             if (painted is { } row)
                 run = (Math.Min(run?.Left ?? row.Left, row.Left), Math.Max(run?.Right ?? row.Right, row.Right));
