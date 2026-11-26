@@ -1,7 +1,9 @@
 using FluentAssertions;
 using SentenceStudio.Api.Coach.Agents;
+using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Runtime;
 using SentenceStudio.Api.Tests.Coach.History;
+using SentenceStudio.Api.Tests.Coach.Opportunities;
 using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Contracts.Coach.Intent;
 
@@ -162,5 +164,108 @@ public class CoachEmptyAnnouncementRetryTests
         totals.RunCount.Should().Be(1, "the second call is part of the same run, not a second one");
         totals.InputTokens.Should().Be(220);
         totals.OutputTokens.Should().Be(50);
+    }
+
+    // ------------------------------------------------------------------ issue 306: the ledger
+    //
+    // The second call was only a log line, which nobody but the Captain can read and nothing
+    // counts. These name the new kind and codes by their stored values, so they build against
+    // the code before the change and fail there.
+
+    private const int EmptyAnnouncementRetriedKind = 11;
+
+    private static async Task<(IReadOnlyList<string> Shown, List<CoachOpportunitySignal> Signals)> ObservedTurnAsync(
+        params CoachAgentTurnResult[] script)
+    {
+        var recorder = new RecordingCoachOpportunityRecorder();
+        using var harness = new CoachConversationHarness(opportunities: recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        foreach (var result in script)
+        {
+            harness.Coach.Script.Enqueue(result);
+        }
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        return (turn.Value!.Result!.Messages.Select(message => message.Text).ToList(), recorder.Signals);
+    }
+
+    [Fact]
+    public async Task A_turn_asked_for_twice_leaves_one_counted_ledger_row_saying_the_second_reply_held_content()
+    {
+        // The production recorder over a real database: the row has to pass its closed-set
+        // checks and be written, not only be handed to it.
+        using var ledger = new CoachOpportunityHarness(userProfileId: CoachConversationHarness.OwnerUserId);
+        using var harness = new CoachConversationHarness(opportunities: ledger.Recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(Reply("Here are three example sentences:"));
+        harness.Coach.Script.Enqueue(Reply(Answer));
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        var row = (await ledger.RowsAsync()).Should().ContainSingle().Subject;
+        ((int)row.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        row.CapabilityCode.Should().Be("empty_announcement_second_reply_held_content");
+        row.Disposition.Should().Be(CoachOpportunityDisposition.AggregateOnly);
+        row.Surface.Should().Be(CoachOpportunitySurface.TurnOutcome);
+        row.UserProfileId.Should().Be(CoachConversationHarness.OwnerUserId);
+        row.OccurrenceCount.Should().Be(1);
+        row.ConversationId.Should().BeNull("a counted row never names a conversation");
+        row.TurnId.Should().BeNull();
+        row.EvidenceMessageId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_second_reply_that_announces_again_is_counted_under_its_own_code()
+    {
+        var (_, signals) = await ObservedTurnAsync(
+            Reply("Here are three example sentences:"),
+            Reply("Here are the three sentences you asked for:"));
+
+        var signal = signals.Should().ContainSingle().Subject;
+        ((int)signal.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        signal.CapabilityCode.Should().Be("empty_announcement_second_reply_empty");
+        signal.Disposition.Should().Be(CoachOpportunityDisposition.AggregateOnly);
+    }
+
+    [Fact]
+    public async Task A_second_call_that_fails_is_counted_under_its_own_code()
+    {
+        var (_, signals) = await ObservedTurnAsync(
+            Reply("Here are three example sentences:"),
+            new CoachAgentTurnResult { Outcome = CoachAgentOutcome.Timeout });
+
+        var signal = signals.Should().ContainSingle().Subject;
+        ((int)signal.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        signal.CapabilityCode.Should().Be("empty_announcement_second_call_failed");
+        signal.Disposition.Should().Be(CoachOpportunityDisposition.AggregateOnly);
+    }
+
+    [Fact]
+    public async Task A_turn_with_one_call_writes_no_ledger_row()
+    {
+        var (shown, signals) = await ObservedTurnAsync(
+            Reply("차다 means to kick."), Reply("This second reply must never be asked for."));
+
+        shown.Should().Equal("차다 means to kick.");
+        signals.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_ledger_that_cannot_be_written_does_not_change_the_reply_of_a_turn_asked_for_twice()
+    {
+        var recorder = new ThrowingCoachOpportunityRecorder();
+        using var harness = new CoachConversationHarness(opportunities: recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(Reply("Here are three example sentences:"));
+        harness.Coach.Script.Enqueue(Reply(Answer));
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        turn.Value!.Result!.Messages.Select(message => message.Text).Should().Equal(Answer);
+        recorder.Calls.Should().Be(1, "the second call was offered to the ledger, and its failure stayed there");
     }
 }
