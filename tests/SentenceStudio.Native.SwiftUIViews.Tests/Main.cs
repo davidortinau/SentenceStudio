@@ -1040,6 +1040,120 @@ var cases = new (string Name, Action Test)[]
             }
         }
     }),
+    // Issue 294: the YouTube cases below draw the rows at the app's own text sizes (up to 1.5).
+    // This one draws the pages' own rows at the system's largest Dynamic Type size, accessibility
+    // 5, where Body is 53 points against 17. SwiftUI on macOS, where these tests run, scales
+    // nothing for dynamicTypeSize, so the bridge's WithDynamicTypeSize (0.1.0-preview.70) does it
+    // there: the text below is multiplied by Body's ratio, which is what the app's fonts (named,
+    // relative to Body) get on an iPhone. Switches and spinners keep the size macOS draws them
+    // at. Each row is drawn alone, in English and in Korean, at an iPhone's two widths and an
+    // iPad's, held at that width in a wider host so that what does not fit is painted past it.
+    // What it found on main is the list below: on an iPhone no row with a badge and Retry fits,
+    // and nothing is cut at an iPad's width. The list is what is known, not what is wanted: a
+    // row that leaves it is said on the console, a row that joins it fails.
+    ("YouTube rows: drawn at the system's largest text size in English and Korean; only the rows known not to fit an iPhone run past their width (issue 294)", () =>
+    {
+        const string title = "한국어 브이로그 아이폰 한 줄에는 도저히 들어가지 않는 아주 긴 영상 제목이라서 끝까지 가기 전에 어딘가에서 잘려야 합니다 and it goes on in English as well, far past the end of the row";
+        const SwiftDynamicTypeSize largest = SwiftDynamicTypeSize.Accessibility5;
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var created = new DateTime(2026, 11, 25, 12, 0, 0, DateTimeKind.Utc);
+        using var import = new YouTubeImportCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeImportCoordinator>.Instance);
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        var opens = new YouTubeImportActions(_ => { }, null, null);
+        var history = new YouTubeImportState(true, false, YouTubeImportTab.History, "",
+            false, false, false, false, [], 0, "", null, null, false, [], false,
+            [
+                new("1", title, true, null, VideoImportStatus.Failed, null, created, null, false),
+                new("2", title, false, title, VideoImportStatus.Completed, null, created, "res-1", false),
+                new("3", title, false, null, VideoImportStatus.GeneratingVocabulary, null, created, null, true),
+            ], 3, null, []);
+        var videos = new YouTubeChannelState(true, false, false, false, false, false, null,
+            "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+            [
+                new("a", title, "https://youtu.be/a", VideoImportStatus.Failed),
+                new("b", title, "https://youtu.be/b", VideoImportStatus.Completed),
+                new("c", title, "https://youtu.be/c", VideoImportStatus.CleaningTranscript),
+                new("d", title, "https://youtu.be/d", null),
+            ], System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null, false, null, []);
+        // What main's rows do at this size (2026-11-25): row, then the widths it runs past.
+        var known = new Dictionary<string, double[]>
+        {
+            ["The import row Failed"] = [330, 402],
+            ["The import row Completed"] = [330, 402],
+            ["The import row GeneratingVocabulary"] = [330, 402],
+            ["The channel's video row Failed"] = [330, 402],
+            ["The channel's video row Completed"] = [330],
+            ["The channel's video row CleaningTranscript"] = [330],
+        };
+        var drawings = Environment.GetEnvironmentVariable("SS_VIEW_TEST_DRAWINGS");
+        var (unknown, whole, drawn) = (new List<string>(), new List<string>(), 0);
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var width in new[] { 330d, 402d, 951d })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            if (Words("Import_Retry") == "Import_Retry" || (language == "ko") != Words("Import_Retry").Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: Retry is \"{Words("Import_Retry")}\".");
+            SourceUiStyle Look(SwiftDynamicTypeSize size) =>
+                new(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width) { DynamicType = size };
+            SwiftView ImportRow(int index, SwiftDynamicTypeSize size) =>
+                ((SwiftView)typeof(YouTubeImportView).GetMethod("ImportRow", flags)!
+                    .Invoke(null, [import, history, history.DisplayedImports[index], Look(size), (Func<string, string>)Words, opens])!)
+                .WithDynamicTypeSize(size);
+            SwiftView VideoRow(int index, SwiftDynamicTypeSize size) =>
+                ((SwiftView)typeof(YouTubeChannelView).GetMethod("VideoRow", flags)!
+                    .Invoke(null, [channel, videos, videos.Videos[index], index, Look(size), (Func<string, string>)Words])!)
+                .WithDynamicTypeSize(size);
+            var rows = new List<(string What, Func<SwiftDynamicTypeSize, SwiftView> Build)>();
+            for (var index = 0; index < history.DisplayedImports.Length; index++)
+            {
+                var at = index;
+                rows.Add(($"The import row {history.DisplayedImports[at].Status}", size => ImportRow(at, size)));
+            }
+            for (var index = 0; index < videos.Videos.Length; index++)
+            {
+                var at = index;
+                rows.Add(($"The channel's video row {videos.Videos[at].ImportStatus?.ToString() ?? "New"}", size => VideoRow(at, size)));
+            }
+            foreach (var (what, build) in rows)
+            {
+                var where = $"{what} ({language}, {width} points)";
+                // At the default size the row keeps its width (the issue 277 case): the measure
+                // itself says nothing is past it.
+                using (var usual = build(SwiftDynamicTypeSize.Large))
+                    if (PaintedPast(usual, width, 500) is > 1 and var over)
+                        throw new Exception($"{where} is painted {over:0.#} points past its width at the default text size, where it fits: the measure is wrong.");
+                // It is the larger size that is drawn: with room for one line, the row's text is
+                // about three times as high as at the default size (padding does not grow).
+                using (var usual = build(SwiftDynamicTypeSize.Large))
+                using (var large = build(largest))
+                {
+                    var (small, big) = (PaintedHeight(usual, 4000, 500), PaintedHeight(large, 4000, 500));
+                    if (big < small * 2 || big > small * SourceUiLayout.DynamicTypeScale((int)largest) + 2)
+                        throw new Exception($"{where} is {big:0.#} points high at the largest text size and {small:0.#} at the default: that is not Body's 53 points against 17.");
+                }
+                using var row = build(largest);
+                var past = PaintedPast(row, width, 500);
+                drawn++;
+                if (drawings is { Length: > 0 })
+                {
+                    using var picture = build(largest);
+                    SaveDrawing(picture, width, 500, Path.Combine(drawings, $"{what} {language} {width:0}.png".Replace(' ', '-').Replace("'", "")));
+                }
+                var expected = known.TryGetValue(what, out var widths) && widths.Contains(width);
+                if (past > 1 && !expected)
+                    unknown.Add($"{where} is painted {past:0.#} points past its width");
+                else if (past <= 1 && expected)
+                    whole.Add(where);
+            }
+        }
+        if (whole.Count > 0)
+            Console.WriteLine($"NOTE issue 294: {whole.Count} rows known to run past their width at the largest text size now keep it; take them off the list: {string.Join("; ", whole)}.");
+        if (unknown.Count > 0)
+            throw new Exception($"At the system's largest text size {unknown.Count} of {drawn} rows not on the known list run past their width: {string.Join("; ", unknown)}.");
+    }),
     // Issue 260, the Captain's follow-up: the YouTube pages' badges, Retry and Select All New
     // keep one line beside a title that truncates. The rows are put together here as ImportRow,
     // VideoRow and the count row put them together, from the views' own badges and buttons, and
@@ -1378,6 +1492,40 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
         if (rows.Count == 0)
             throw new Exception("The host painted nothing: this is the drawing, not the layout.");
         return rows;
+    }
+    finally
+    {
+        SwiftUIHost.DetachView(root, host);
+    }
+}
+
+// How far, in points, a view paints past the width it is given. The view is held at that width
+// inside a host that is much wider: a frame does not clip, so a row whose fixed-size children
+// need more than the width is painted wider than it. 0 when everything is inside.
+static double PaintedPast(SwiftView root, double width, double height)
+{
+    using var held = Views.VStack(root).WithFixedWidth(width);
+    var rows = PaintedRows(held, width + 2400, height);
+    return Math.Max(0, rows.Max(row => row.Right) - rows.Min(row => row.Left) - width);
+}
+
+// Writes what a view draws at the given size to a PNG, for a person to look at
+// (SS_VIEW_TEST_DRAWINGS names the folder; nothing is written without it).
+static void SaveDrawing(SwiftView root, double width, double height, string path)
+{
+    var host = SwiftUIHost.CreateView(root);
+    try
+    {
+        host.Frame = new CGRect(0, 0, width, height);
+        host.LayoutSubtreeIfNeeded();
+        var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
+            ?? throw new Exception("The host has no bitmap to draw in.");
+        host.CacheDisplay(host.Bounds, bitmap);
+        using var png = bitmap.RepresentationUsingTypeProperties(NSBitmapImageFileType.Png, new Foundation.NSDictionary())
+            ?? throw new Exception("The drawing could not be written as a PNG.");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        if (!png.Save(path, true))
+            throw new Exception($"The drawing could not be saved to {path}.");
     }
     finally
     {
