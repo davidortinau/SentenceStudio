@@ -11,7 +11,7 @@ namespace SentenceStudio.UnitTests.Resources;
 /// The resource compiler keeps the first declaration of a name and drops every later one with
 /// warning MSB3568, so a second declaration never reaches a screen: an edit to it changes
 /// nothing, and a reader of the file cannot tell which wording ships. Nine keys were declared
-/// twice in both files until issue 296, four of them with two different Korean values.
+/// twice in both files until issue 296, seven of them with two different Korean values.
 /// These read the .resx files on disk, not the compiled resources, because the compiled set has
 /// already lost the duplicate.
 /// </remarks>
