@@ -1254,6 +1254,92 @@ var cases = new (string Name, Action Test)[]
         if (faults.Count > 0)
             throw new Exception($"{faults.Count} of {drawn.Count} rows: {string.Join("; ", faults)}.");
     }),
+    // Issue 308: the channel page's video row has the same build as the import row of issue 292
+    // (a checkbox, a title that truncates, then a badge and Retry that keep their own width),
+    // and only its height was ever measured (the issue 277 case). This draws the page's own
+    // video rows the way the case above draws the import rows: a failed video, a failed one
+    // whose retry is running (Retry has a spinner too), one being imported, an imported one and
+    // a new one. ISSUE_308_DRAWN prints every row's measurements.
+    // The row's toggle is not what an iPhone draws: this host is macOS, where a Toggle is a
+    // checkbox (measured below), and on an iPhone it is a switch, 51 points wide or more. So
+    // the row is drawn in its width less the difference: the room an iPhone's switch leaves.
+    // (At the full width every one-line row passed. With an iPhone's room, a failed video's
+    // row whose retry was running showed 28 to 30.5 points of its title on a 375-point page.
+    // This host's spinner is 32 points and an iPhone's 20, so a phone has 12 points more there.)
+    ("YouTube channel video row: on an iPhone at the largest app text size nothing is painted past the row and the title shows (issue 308)", () =>
+    {
+        const double margin = 100;
+        const string title = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        (string What, VideoImportStatus? Status, bool Retrying)[] kinds =
+        [
+            ("Failed", VideoImportStatus.Failed, false),
+            ("Failed, its retry running", VideoImportStatus.Failed, true),
+            ("being imported", VideoImportStatus.CleaningTranscript, false),
+            ("Completed", VideoImportStatus.Completed, false),
+            ("New", null, false),
+        ];
+        YouTubeChannelState Videos(string name, bool retrying) => new(true, false, false, false, false, false, null,
+            "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+            [.. kinds.Select((kind, index) => new YouTubeDiscoveredVideo($"v{index}", name, $"https://youtu.be/v{index}", kind.Status))],
+            System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null,
+            retrying, retrying ? "v1" : null, []);
+        const double phoneSwitch = 51;
+        double hostToggle;
+        using (var alone = Views.HStack(Views.Toggle("Select", false, _ => { }).WithLabelsHidden()))
+        {
+            var mask = PaintedMask(alone, 200, 80);
+            var painted = Enumerable.Range(0, mask[0].Length).Where(x => mask.Any(line => line[x])).ToArray();
+            hostToggle = (painted[^1] + 1 - painted[0]) / (mask[0].Length / 200d);
+        }
+        if (hostToggle is < 8 or > phoneSwitch)
+            throw new Exception($"This host's toggle is {hostToggle:0.#} points wide: not the checkbox this case allows for.");
+        var faults = new List<string>();
+        var drawn = new List<string> { $"This host's toggle is {hostToggle:0.#} points wide; an iPhone's switch is taken as {phoneSwitch}." };
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var page in new[] { 375d, 402d, 440d })
+        {
+            var width = Math.Floor(page - 72 - (phoneSwitch - hostToggle));
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            if (Words("Import_Retry") == "Import_Retry" || (language == "ko") != Words("Import_Retry").Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: Retry is \"{Words("Import_Retry")}\".");
+            var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
+                AppearanceSelection.Default.WithFontScale(scale)), page);
+            bool[][] Draw(string name, int index)
+            {
+                var state = Videos(name, kinds[index].Retrying);
+                var row = (SwiftView)typeof(YouTubeChannelView).GetMethod("VideoRow", flags)!
+                    .Invoke(null, [channel, state, state.Videos[index], index, look, (Func<string, string>)Words])!;
+                using var framed = Views.VStack(row).WithFixedWidth(width);
+                return PaintedMask(framed, width + 2 * margin, 160);
+            }
+            for (var index = 0; index < kinds.Length; index++)
+            {
+                var (with, without) = (Draw(title, index), Draw(" ", index));
+                var perPoint = with[0].Length / (width + 2 * margin);
+                var columns = Enumerable.Range(0, with[0].Length).ToArray();
+                var painted = columns.Where(x => with.Any(line => line[x])).ToArray();
+                var (left, right) = (painted[0] / perPoint - margin, (painted[^1] + 1) / perPoint - margin);
+                var titleWidth = columns.Count(x => Enumerable.Range(0, with.Length).Any(y => with[y][x] != without[y][x])) / perPoint;
+                var lines = with.Count(line => line.Any(pixel => pixel)) / perPoint;
+                var what = $"The channel's video row {kinds[index].What} ({language}, text size {scale:0.##}, a {page}-point page, {width} points beside an iPhone's switch)";
+                drawn.Add($"{what}: paint {left:0.#} to {right:0.#}, title {titleWidth:0.#}, {lines:0.#} high");
+                if (left < -1 || right > width + 1)
+                    faults.Add($"{what} is painted from {left:0.#} to {right:0.#}, past its {width} points");
+                // Three letters and the ellipsis of the title at this text size.
+                else if (titleWidth < 40 * scale)
+                    faults.Add($"{what} shows {titleWidth:0.#} points of its title, under {40 * scale:0.#}");
+            }
+        }
+        if (Environment.GetEnvironmentVariable("ISSUE_308_DRAWN") is not null)
+            Console.WriteLine(string.Join(Environment.NewLine, drawn));
+        if (faults.Count > 0)
+            throw new Exception($"{faults.Count} of {drawn.Count - 1} rows: {string.Join("; ", faults)}.");
+    }),
 };
 
 var failures = 0;

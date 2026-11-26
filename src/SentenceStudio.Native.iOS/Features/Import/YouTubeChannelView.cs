@@ -209,12 +209,21 @@ internal static class YouTubeChannelView
             select,
             style.Text(Views.Text(video.Title), SourceTextRole.Body2).WithLineLimit(1).WithFlexibleWidth(),
         };
+        // The switch, the badge and Retry keep their own width, so only the title can give way.
+        // On an iPhone a failed video's row has no room for all four: an iPhone's switch is 51
+        // points wide or more, and drawn with the room that leaves, a 375-point page's row left
+        // the title 61.5 points at the largest app text size, and 28 while the retry ran and
+        // Retry had its spinner (issue 308). There the badge and Retry go on a second line, at
+        // the trailing edge, and the title has the first line beside the switch (as
+        // YouTubeImportView.ImportRow does since issue 292).
+        var second = video.IsFailed && style.ViewportWidth < 768 ? new List<SwiftView>() : null;
+        var trailing = second ?? cells;
         if (video.IsCompleted)
             cells.Add(Badge(style, "checkmark.circle", text("ChannelDetail_Imported"), style.Appearance.Success,
                 LightBadgeText, $"{id}.imported"));
         else if (video.IsFailed)
         {
-            cells.Add(Badge(style, "xmark.circle", text("Import_Failed"), style.Appearance.Danger,
+            trailing.Add(Badge(style, "xmark.circle", text("Import_Failed"), style.Appearance.Danger,
                 LightBadgeText, $"{id}.failed"));
             var label = Views.HStack();
             if (state.RetryingVideoId == video.VideoId)
@@ -227,13 +236,22 @@ internal static class YouTubeChannelView
                 .WithAccessibilityLabel(text("Import_Retry"))
                 .WithAccessibilityIdentifier($"{id}.retry");
             retry.IsEnabled = !state.IsRetryingImport;
-            cells.Add(retry);
+            trailing.Add(retry);
         }
         else if (video.IsInProgress)
             cells.Add(Badge(style, "hourglass", text("ChannelDetail_Importing"), InfoBadge, DarkBadgeText,
                 $"{id}.importing"));
         var row = Views.HStack(cells.ToArray()).WithFlexibleWidth();
         row.Spacing = SourceUiLayout.ItemGap + 4;
+        if (second is not null)
+        {
+            var under = Views.HStack(second.ToArray())
+                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Trailing);
+            under.Spacing = SourceUiLayout.ItemGap + 4;
+            var lines = Views.VStack(row, under).WithFlexibleWidth();
+            lines.Spacing = SourceUiLayout.ItemGap;
+            return lines.WithAccessibilityIdentifier(id);
+        }
         var padded = row;
         // Source: an imported video's row is dimmed (opacity-50).
         if (video.IsCompleted)
