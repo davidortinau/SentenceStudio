@@ -148,6 +148,135 @@ public class CoachEmptyAnnouncementRetryTests
         harness.Coach.RunCount.Should().Be(1);
     }
 
+    // Issue 305: the same fault through the answer path. The answer path shows the parts and not
+    // the message, so an answer whose one part is the announcement is an empty announcement too.
+
+    private static CoachAnswerBlockIntent Part(CoachAnswerBlockKind kind, params (string Text, CoachLanguageRole Language)[] pieces) =>
+        new()
+        {
+            Kind = kind,
+            Spans = pieces.Select(piece => new CoachAnswerSpanIntent { Text = piece.Text, Language = piece.Language }).ToList()
+        };
+
+    private static CoachAgentTurnResult AnswerReply(
+        CoachIntentKind kind, string message, params CoachAnswerBlockIntent[] parts) => new()
+        {
+            Outcome = CoachAgentOutcome.Completed,
+            Intent = new CoachTurnIntent
+            {
+                Kind = kind,
+                CoachMessage = message,
+                PedagogicalAnswer = new CoachPedagogicalAnswerIntent { Topic = CoachAnswerTopic.Other, Blocks = [.. parts] }
+            }
+        };
+
+    [Theory]
+    [InlineData("Here are three example sentences:", "")]
+    // The message is not shown on the answer path, so what it holds does not fill the announcement.
+    [InlineData("Here are three example sentences:", "Here are three example sentences:")]
+    [InlineData("Here are three Korean-only example sentences that use it without giving away the quiz choice.", "")]
+    [InlineData("다음은 예문 세 개입니다.", "")]
+    public async Task An_answer_whose_only_part_is_an_announcement_is_asked_for_once_more_and_the_answer_is_shown(
+        string announcement, string message)
+    {
+        var (harness, shown) = await TurnAsync(
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, message,
+                Part(CoachAnswerBlockKind.Answer, (announcement, CoachLanguageRole.Display))),
+            Reply(Answer));
+        using var _ = harness;
+
+        shown.Should().Equal(Answer);
+        harness.Coach.RunCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_general_answer_with_no_message_whose_only_part_is_an_announcement_is_asked_for_once_more()
+    {
+        var (harness, shown) = await TurnAsync(
+            AnswerReply(CoachIntentKind.GeneralAnswer, "",
+                Part(CoachAnswerBlockKind.Answer, ("Here are three example sentences:", CoachLanguageRole.Display))),
+            Reply(Answer));
+        using var _ = harness;
+
+        shown.Should().Equal(Answer);
+        harness.Coach.RunCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task An_answer_part_that_announces_and_empty_parts_after_it_are_asked_for_once_more()
+    {
+        var (harness, shown) = await TurnAsync(
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer, ("Here are three example sentences:", CoachLanguageRole.Display)),
+                Part(CoachAnswerBlockKind.Example, ("  ", CoachLanguageRole.Target)),
+                Part(CoachAnswerBlockKind.Example)),
+            Reply(Answer));
+        using var _ = harness;
+
+        shown.Should().Equal(Answer);
+        harness.Coach.RunCount.Should().Be(2);
+    }
+
+    public static TheoryData<string, CoachAgentTurnResult> AnswersThatHoldWhatTheySay => new()
+    {
+        {
+            "one answer part that answers",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer, ("차다 means to kick.", CoachLanguageRole.Display)))
+        },
+        {
+            "one answer part whose later pieces are the content",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer,
+                    ("Here are three example sentences:", CoachLanguageRole.Display),
+                    ("공을 차요. 문을 찼어요. 세게 찼어요.", CoachLanguageRole.Target)))
+        },
+        {
+            // The sentence the learner asked for, in the language studied, reads like an announcement.
+            "one answer part that is a sentence in the language studied",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer, ("Here is your coffee.", CoachLanguageRole.Target)))
+        },
+        {
+            "one answer part that ends in the language studied",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer,
+                    ("You can say it like this.", CoachLanguageRole.Display),
+                    ("다음은 제 차례예요.", CoachLanguageRole.Target)))
+        },
+        {
+            "an announcing answer part and an example part",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer, ("Here are three example sentences:", CoachLanguageRole.Display)),
+                Part(CoachAnswerBlockKind.Example, ("공을 차요.", CoachLanguageRole.Target)))
+        },
+        {
+            "one part that is not the direct answer",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Example, ("공을 차요:", CoachLanguageRole.Target)))
+        },
+        {
+            // The shape repair puts a general answer's message in front as a part of its own.
+            "a general answer with a message and one announcing part",
+            AnswerReply(CoachIntentKind.GeneralAnswer, "차다 means to kick.",
+                Part(CoachAnswerBlockKind.Answer, ("Here are three example sentences:", CoachLanguageRole.Display)))
+        }
+    };
+
+    [Theory]
+    [MemberData(nameof(AnswersThatHoldWhatTheySay))]
+    public async Task An_answer_with_content_or_more_than_one_part_costs_one_call(string because, CoachAgentTurnResult answer)
+    {
+        using var harness = new CoachConversationHarness();
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(answer);
+        harness.Coach.Script.Enqueue(Reply("This second reply must never be asked for."));
+
+        await harness.TurnAsync(conversationId, "give me three sentences for this word");
+
+        harness.Coach.RunCount.Should().Be(1, because);
+    }
+
     [Fact]
     public async Task Both_calls_are_charged_to_the_turns_one_run()
     {
