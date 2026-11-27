@@ -65,6 +65,7 @@ class FakeGitHub:
         self.check_runs = {}
         self.workflow_runs = {}
         self.heads = {231: PR_HEAD, "main": MAIN_HEAD}
+        self.edited = set()
         self.asked = []
 
     @staticmethod
@@ -85,6 +86,10 @@ class FakeGitHub:
                 head = head.pop(0) if len(head) > 1 else head[0]
             return [{"headRefOid": head}]
         path = args[1]
+        if path == "graphql":
+            # Whether each review of a pull request was edited after it was posted.
+            number = int(next(arg for arg in args if arg.startswith("number=")).split("=")[1])
+            return [{"id": found["id"], "edited": found["id"] in self.edited} for found in self.reviews.get(number, [])]
         if path.endswith("/commits/main"):
             return [{"sha": self.heads["main"]}]
         if path.endswith("/events"):
@@ -982,22 +987,111 @@ class ReviewStartedPassTests(GitHubTestCase):
 
         self.assertEqual(self.first_pending()["ids"], ["v900"])
 
+    def started(self, *reviews, pr=231):
+        """The runner's own record, with passes started on these reviews of the pull request."""
+        kept = pr_script.Handled(reviews)
+        kept.passes[pr] = set(reviews)
+        return kept
+
     def test_two_passes_are_started_this_way_and_no_third(self):
         self.github.reviews[231] = [reviewers(900), reviewers(901), reviewers(902)]
 
-        self.assertEqual(self.first_pending(handled={"v900"})["ids"], ["v902"])
-        self.assertIsNone(self.first_pending(handled={"v900", "v901"}))
-        self.assertEqual(pr_script.pending({"v900", "v901"}, rounds=3)[0]["ids"], ["v902"])
+        self.assertEqual(pr_script.pending(self.started("v900"))[0]["ids"], ["v902"])
+        self.assertEqual(pr_script.pending(self.started("v900", "v901")), [])
+        self.assertEqual(pr_script.pending(self.started("v900", "v901"), rounds=3)[0]["ids"], ["v902"])
+
+    def test_the_markers_on_the_pull_request_count_the_passes_too(self):
+        self.github.reviews[231] = [reviewers(902)]
+        self.github.comments[231] = [comment(5, "<!-- feedback-check handled: v900 -->"),
+                                     comment(6, "<!-- feedback-check handled: v901 12 r7 -->")]
+
+        self.assertIsNone(self.first_pending())
+
+    def test_a_pass_stays_counted_when_its_review_is_gone_or_reworded(self):
+        # The reviews 900 and 901 no longer say what they said: deleted, or their first line changed.
+        self.github.reviews[231] = [reviewers(901, body="Edited to say nothing."), reviewers(902)]
+
+        self.assertEqual(pr_script.pending(self.started("v900", "v901")), [])
+        self.assertEqual(pr_script.rounds_on(231, self.started("v900", "v901")), 2)
+
+    def test_passes_on_another_pull_request_are_not_counted_here(self):
+        self.assertEqual(pr_script.pending(self.started("v800", "v801", pr=240))[0]["ids"], ["v900"])
+
+    def test_a_pass_that_could_not_start_is_set_aside_and_not_counted(self):
+        self.github.reviews[231] = [reviewers(900), reviewers(901), reviewers(902)]
+        self.github.comments[231] = [comment(5, "The pass could not start.\n<!-- feedback-check handled: x900 -->")]
+
+        self.assertEqual(pr_script.rounds_on(231, set()), 0)
+        self.assertEqual(pr_script.pending(self.started("v901"))[0]["ids"], ["v902"])
+        self.github.reviews[231] = [reviewers(900)]
+        self.assertIsNone(self.first_pending())
+        self.assertIsNone(self.first_pending(handled={"x900"}))
+
+    def test_a_review_edited_after_it_was_posted_starts_nothing(self):
+        self.github.edited = {900}
+
+        self.assertIsNone(self.first_pending())
+
+    def test_a_review_github_does_not_vouch_for_starts_nothing(self):
+        # The list that says which reviews were edited does not hold it, or does not say.
+        self.assertFalse(pr_script.unedited(231, 555))
+        with mock.patch.object(pr_script, "gh_lines", return_value=[{"id": 900, "edited": None}, {"id": 900}]):
+            self.assertFalse(pr_script.unedited(231, 900))
+        self.assertTrue(pr_script.unedited(231, 900))
+        with mock.patch.object(pr_script, "unedited", return_value=False) as asked:
+            self.assertIsNone(self.first_pending())
+        asked.assert_called_with(231, 900)
+
+    def test_his_request_on_another_pull_request_goes_before_the_reviewers_findings(self):
+        self.github.pull_requests = [pull_request(231, "feedback/issue-230"), pull_request(240, "feedback/issue-239")]
+        self.github.heads[240] = PR_HEAD
+        self.github.comments[240] = [comment(1, "/revise make the notice shorter")]
+
+        self.assertEqual((self.first_pending()["pr"], self.first_pending()["ids"]), (240, ["1"]))
+        self.assertEqual([(found["pr"], found["ids"]) for found in pr_script.pending(set(), every=True)],
+                         [(240, ["1"]), (231, ["v900"])])
+
+    def test_each_kind_can_be_asked_for_alone(self):
+        self.github.pull_requests = [pull_request(231, "feedback/issue-230"), pull_request(240, "feedback/issue-239")]
+        self.github.comments[240] = [comment(1, "/revise make the notice shorter")]
+
+        self.assertEqual([found["pr"] for found in pr_script.pending(set(), kinds=("review",))], [231])
+        self.assertEqual([found["pr"] for found in pr_script.pending(set(), kinds=("request",))], [240])
+        self.github.reviews[240] = [reviewers(950)]
+        self.github.pull_requests = [pull_request(240, "feedback/issue-239")]
+        # His request there is not passed over for the review on the same pull request.
+        self.assertEqual(pr_script.pending(set(), kinds=("review",)), [])
+        with mock.patch("builtins.print") as printed:
+            self.assertEqual(pr_script.main(["pending", "--kind", "review"]), 0)
+            self.assertEqual(pr_script.main(["pending", "--kind", "anything"]), 2)
+        self.assertEqual([call.args for call in printed.call_args_list], [(pr_script.__doc__,)])
+
+    def test_github_is_asked_for_what_the_choice_rests_on(self):
+        self.first_pending()
+
+        listed = next(args for args in self.github.asked if args[:2] == ("pr", "list"))
+        fields = listed[listed.index("--json") + 1].split(",")
+        self.assertTrue({"headRefOid", "isDraft", "isCrossRepository", "headRefName"} <= set(fields))
+        reviews = next(args for args in self.github.asked if args[1].endswith("/pulls/231/reviews"))
+        self.assertIn("commit: .commit_id", reviews[reviews.index("--jq") + 1])
+        self.assertIn("created_at: .submitted_at", reviews[reviews.index("--jq") + 1])
+        edits = next(args for args in self.github.asked if args[1] == "graphql")
+        self.assertIn("lastEditedAt", " ".join(edits))
+        self.assertIn("number=231", edits)
 
     def test_no_rounds_turns_it_off(self):
         self.assertEqual(pr_script.pending(set(), rounds=0), [])
         with mock.patch.dict(pr_script.os.environ, {"FEEDBACK_REVIEW_FIX_ROUNDS": "0"}):
             self.assertIsNone(self.first_pending())
 
-    def test_the_number_of_rounds_comes_from_the_check_or_is_two(self):
-        for asked, rounds in (("0", 0), ("1", 1), ("5", 5), ("", 2), ("many", 2), ("-1", 2), ("2 ", 2), ("999", 2)):
+    def test_two_rounds_unless_the_jobs_environment_says_and_a_slip_turns_it_off(self):
+        for asked, rounds in (("0", 0), ("1", 1), ("5", 5), ("", 2), (" 3 ", 3),
+                              ("off", 0), ("many", 0), ("-1", 0), ("99", 0), ("2.5", 0)):
             with mock.patch.dict(pr_script.os.environ, {"FEEDBACK_REVIEW_FIX_ROUNDS": asked}):
                 self.assertEqual(pr_script.fix_rounds(), rounds, asked)
+        with mock.patch.dict(pr_script.os.environ):
+            pr_script.os.environ.pop("FEEDBACK_REVIEW_FIX_ROUNDS", None)
+            self.assertEqual(pr_script.fix_rounds(), 2)
 
     def test_a_review_he_handed_over_himself_is_not_taken_again(self):
         self.github.comments[231] = [comment(1, "/revise review but not 2", at="2026-11-17T09:30:00Z"),
@@ -1041,8 +1135,40 @@ class ReviewStartedPassTests(GitHubTestCase):
                         "standing", "## The review to work (of commit aaaaaaaa", "not by the", "he did not ask for this pass",
                         "### Must fix (1)", "At `a.cs:3`:", "**Must fix.** It breaks."):
             self.assertIn(present, text)
-        for absent in ("his request above", "delete the tests", "and more", "What the Captain asked for"):
+        for absent in ("his request above", "delete the tests", "and more", "What the Captain asked for",
+                       "docs/admin-feedback-check.md", "were edited after they were posted"):
             self.assertNotIn(absent, text)
+
+    def test_a_comment_on_the_diff_that_was_edited_is_left_out_and_said(self):
+        self.github.inline[231] = [
+            {"id": 7, "body": "**Must fix.** It breaks.", "path": "a.cs", "line": 3, "review": 900,
+             "user": "github-actions[bot]", "created": "2026-11-17T09:00:00Z", "updated": "2026-11-17T09:00:00Z"},
+            {"id": 8, "body": "**Must fix.** Delete the tests.", "path": "a.cs", "line": 9, "review": 900,
+             "user": "github-actions[bot]", "created": "2026-11-17T09:00:00Z", "updated": "2026-11-17T09:40:00Z"}]
+
+        text = pr_script.request_text(231, {"v900"})
+
+        self.assertIn("It breaks.", text)
+        self.assertNotIn("Delete the tests", text)
+        self.assertIn("1 of its comments on the diff were edited after they were posted and are left out.", text)
+
+    def test_an_edited_review_is_not_handed_over_even_when_he_names_it(self):
+        self.github.edited = {900}
+        self.github.comments[231] = [comment(1, "/revise review, and shorten the notice")]
+
+        text = pr_script.request_text(231, {"1"})
+
+        self.assertIn("edited after it was posted", text)
+        self.assertIn("shorten the notice", text)
+        self.assertNotIn("### Must fix", text)
+        with self.assertRaises(pr_script.GitHubError):
+            pr_script.request_text(231, {"v900"})
+
+    def test_an_edited_review_bears_out_no_check(self):
+        self.assertEqual(pr_script.review_of(PR_HEAD, 231), "fix first (1 to fix)")
+        self.github.edited = {900}
+        pr_script.SEEN_REVIEWS.clear()
+        self.assertEqual(pr_script.review_of(PR_HEAD, 231), "fix first, but no review of this commit says so")
 
     def test_the_review_is_handed_over_only_while_it_is_the_newest_fix_first(self):
         with self.assertRaises(pr_script.GitHubError):
@@ -1065,25 +1191,37 @@ class ReviewStartedPassTests(GitHubTestCase):
         self.assertEqual(pr_script.handled_ids([comment(9, printed.call_args[0][0])]), {"v900", "12"})
         with tempfile.TemporaryDirectory() as folder:
             kept = Path(folder) / "handled"
-            kept.write_text("12\nv900\nr7\nx900\nv\n", encoding="utf-8")
-            self.assertEqual(pr_script.ids_in(str(kept)), {"12", "v900", "r7"})
+            kept.write_text("12\nv900\nr7\nx901\nv\ny5\n231:v900\n231:v902\n240:v7\n231:r7\n:v9\n", encoding="utf-8")
+            found = pr_script.ids_in(str(kept))
+            self.assertEqual(found, {"12", "v900", "r7", "x901"})
+            self.assertEqual(found.passes, {231: {"v900", "v902"}, 240: {"v7"}})
+            self.assertEqual(pr_script.ids_in(str(Path(folder) / "none")).passes, {})
 
     def test_the_rounds_started_on_a_pull_request_are_counted_from_both_records(self):
         self.github.reviews[231] = [reviewers(900), reviewers(901), reviewers(902)]
         self.github.comments[231] = [comment(5, "<!-- feedback-check handled: v900 3 -->")]
 
         self.assertEqual(pr_script.rounds_on(231, set()), 1)
-        self.assertEqual(pr_script.rounds_on(231, {"v901", "v555", "r902"}), 2)
-        with mock.patch("builtins.print") as printed:
-            self.assertEqual(pr_script.main(["rounds", "231"]), 0)
-        self.assertEqual(printed.call_args[0], (1, 2))
+        # An id alone in the runner's file says nothing of which pull request it was on.
+        self.assertEqual(pr_script.rounds_on(231, {"v901", "v555", "r902"}), 1)
+        self.assertEqual(pr_script.rounds_on(231, self.started("v900", "v901")), 2)
+        with tempfile.TemporaryDirectory() as folder:
+            kept = Path(folder) / "handled"
+            kept.write_text("v901\n231:v901\n", encoding="utf-8")
+            with mock.patch("builtins.print") as printed:
+                self.assertEqual(pr_script.main(["rounds", "231", "--handled", str(kept)]), 0)
+        self.assertEqual(printed.call_args[0], (2, 2))
 
-    def test_a_pull_request_with_no_review_asks_github_nothing_more(self):
-        self.github.reviews[231] = []
-
-        self.assertIsNone(self.first_pending())
-
-        self.assertFalse([args for args in self.github.asked if "/check-runs" in args[1]])
+    def test_github_is_asked_no_more_until_a_review_may_start_a_pass(self):
+        for reviews, handled in (([], set()),
+                                 ([reviewers(body=FIX_FIRST.replace("Fix first", "Merge"))], set()),
+                                 ([reviewers(commit="c" * 40)], set()),
+                                 ([reviewers()], {"v900"}),
+                                 ([reviewers()], self.started("v800", "v801"))):
+            self.github.reviews[231] = reviews
+            self.github.asked.clear()
+            self.assertEqual(pr_script.pending(handled), [])
+            self.assertFalse([args for args in self.github.asked if "/check-runs" in args[1] or args[1] == "graphql"])
 
 
 if __name__ == "__main__":

@@ -353,11 +353,8 @@ record_next() {
 REVIEW_ASKED="${FEEDBACK_REVIEW:-on}"
 # The reviewer's "Fix first" starts a fix pass by itself, with no /revise from the Captain
 # (2026-11-26; scripts/admin-feedback-pr.py, "The reviewer's findings, by themselves"): at most
-# this many passes on one pull request, after which it waits for him. 0 turns it off. To change
-# it for good, change this default: the job runs what is on main.
-REVIEW_FIX_ROUNDS="${FEEDBACK_REVIEW_FIX_ROUNDS:-2}"
-case "$REVIEW_FIX_ROUNDS" in ''|*[!0-9]*|???*) REVIEW_FIX_ROUNDS=2 ;; esac
-export FEEDBACK_REVIEW_FIX_ROUNDS="$REVIEW_FIX_ROUNDS"
+# FIX_ROUNDS passes on one pull request, after which it waits for him. That number lives in
+# that script; FEEDBACK_REVIEW_FIX_ROUNDS in this job's environment changes it (0 is off).
 request_review() {
   local why is
   [ "$REVIEW_ASKED" = on ] || return 0
@@ -1069,12 +1066,13 @@ answer_requests() {
 # pull request, where he asked, and he can ask again. $1 pr, $2 ids, $3 what to say there,
 # $4 what to say in the summary.
 decline_requests() {
-  local note="$OUT/state/decline-$STAMP.tmp" again="Comment \`/revise\` again"
-  # A pass the reviewer's findings would have started: it is not tried again by itself.
-  case "$2" in v*) again="Comment \`/revise review\`" ;; esac
+  local note="$OUT/state/decline-$STAMP.tmp" again="Comment \`/revise\` again" ids=$2
+  # A pass the reviewer's findings would have started: the review is set aside (x<number>), so
+  # it is not tried again by itself and is not counted as a pass that ran.
+  case "$ids" in v*) again="Comment \`/revise review\`"; ids="x${ids#v}" ;; esac
   { echo "FIX RESULT: skipped pull request #$1"; echo; echo "$4"; echo; } >> "$RUN"
   printf '%s\n' "$3 $again once that is cleared. The run's summary on Lilliput has the details." > "$note"
-  answer_requests "$1" "$2" "$note"
+  answer_requests "$1" "$ids" "$note"
   rm -f "$note"
 }
 
@@ -1099,12 +1097,11 @@ settle_interrupted() {
   state="is gone"; [ "$kept" = yes ] && state="is still there"
   if [ "$kind" = follow-up ]; then
     { echo "FIX RESULT: interrupted pull request #$what"; echo; echo "An earlier run ended while its follow-up session on pull request #$what was still running, or just after it. Nothing was posted then. Its worktree $tree $state$([ "$kept" = yes ] && echo ": look at what it holds, then remove it (docs/admin-feedback-check.md, \"A worktree that was kept\")")."; echo; } >> "$RUN"
-    local cut="The follow-up pass on your \`/revise\` request" again="Comment \`/revise\` again"
-    case "$ids" in v*) cut="The fix pass on the reviewer's findings"; again="Comment \`/revise review\`" ;; esac
+    name_pass "$ids"
     if [ "$kept" = yes ]; then
-      printf '%s\n' "$cut was cut off when the run on Lilliput ended early. Its worktree there has to be looked at and removed before another pass can start; the run's summary on Lilliput has the details." > "$note"
+      printf '%s\n' "$PASS_NAME was cut off when the run on Lilliput ended early. Its worktree there has to be looked at and removed before another pass can start; the run's summary on Lilliput has the details." > "$note"
     else
-      printf '%s\n' "$cut was cut off when the run on Lilliput ended early. $again to have it tried once more." > "$note"
+      printf '%s\n' "$PASS_NAME was cut off when the run on Lilliput ended early. $PASS_AGAIN to have it tried once more." > "$note"
     fi
     answer_requests "$what" "$ids" "$note"
     rm -f "$note"
@@ -1115,6 +1112,24 @@ settle_interrupted() {
     { echo "FIX RESULT: interrupted #$what"; echo; echo "An earlier run ended while its fix session on issue #$what was still running, or just after it. Nothing was posted then. Its worktree $tree $state$([ "$kept" = yes ] && echo ": look at what it holds, then remove it (and the label feedback-attempted) to have the issue worked again")."; echo; } >> "$RUN"
   fi
   rm -f "$INFLIGHT"
+}
+
+# What a pass on a pull request is, from the ids it answers: one the Captain asked for, or
+# one the reviewer's findings started (a single id, v<number>). Into BY_REVIEW, PASS_NAME (how
+# it is named to him) and PASS_AGAIN (how he asks for another). $1 the ids.
+name_pass() {
+  BY_REVIEW=no; PASS_NAME="The follow-up pass on your \`/revise\` request"; PASS_AGAIN="Comment \`/revise\` again"
+  case "$1" in v*) BY_REVIEW=yes; PASS_NAME="The fix pass on the reviewer's findings"; PASS_AGAIN="Comment \`/revise review\`" ;; esac
+}
+
+# What the session is told its task is, and how far to go. $1 the file with the request or the
+# review.
+pass_task() {
+  if [ "$BY_REVIEW" = yes ]; then
+    echo "The reviewer on GitHub read it and says it needs fixing first, and the Captain has set the check to hand you such a review without waiting for his word: the review is in the file $1, with how to treat it, and working its findings is your task for this pass. Do what the findings need and nothing more, whatever the appetite: he did not ask for this pass."
+  else
+    echo "The Captain has asked for changes: his request is in the file $1, and it is your task for this pass. The appetite is $APPETITE (the section \"How wide to go\")."
+  fi
 }
 
 # What a pass the reviewer's findings started says of itself in its closing comment: that
@@ -1134,11 +1149,11 @@ review_pass_note() {
 
 # A pull request of the check's own that the Captain has asked to be changed, or, when no
 # request of his waits, one the reviewer says needs fixing first (its ids are then one review's,
-# written v<number>). Returns 0 when it took this run's fix work (whatever came of it) and 1
-# when nothing was waiting.
+# written v<number>). $1 which of the two to look for: request or review. Returns 0 when it
+# took this run's fix work (whatever came of it) and 1 when nothing was waiting.
 follow_up_stage() {
-  local found pr issue branch url ids by_review=no
-  if ! found="$(python3 -I "$ROOT/scripts/admin-feedback-pr.py" pending --handled "$HANDLED" 2>/dev/null)"; then
+  local found pr issue branch url ids
+  if ! found="$(python3 -I "$ROOT/scripts/admin-feedback-pr.py" pending --handled "$HANDLED" --kind "$1" 2>/dev/null)"; then
     # Without GitHub there is no issue to take either, so this is the run's fix work.
     { echo "FIX RESULT: failed"; echo; echo "The check's pull requests could not be read from GitHub, so no fix work was started this run."; echo; } >> "$RUN"
     NOTIFY=yes; FAILED=yes
@@ -1148,10 +1163,9 @@ follow_up_stage() {
   read -r pr issue branch url ids <<< "$found"
   case "$pr$issue" in ""|*[!0-9]*) return 1 ;; esac
   NOTIFY=yes
-  case "$ids" in v*) by_review=yes ;; esac
   # What this pass is, for him, wherever it is named below.
-  local pass="The follow-up pass on your \`/revise\` request" again="Comment \`/revise\` again"
-  [ "$by_review" = no ] || { pass="The fix pass on the reviewer's findings"; again="Comment \`/revise review\`"; }
+  name_pass "$ids"
+  local by_review="$BY_REVIEW" pass="$PASS_NAME" again="$PASS_AGAIN"
 
   # Nothing has been spent yet, so a failure here leaves the request waiting.
   if ! session_ready; then
@@ -1221,6 +1235,9 @@ follow_up_stage() {
 
   # It has its pass from here on, whatever comes of it, even if this run dies before the end.
   for id in ${ids//,/ }; do printf '%s\n' "$id" >> "$HANDLED"; done
+  # A pass the reviewer's findings started is also counted for its pull request, whatever
+  # becomes of the review's text or of the markers on GitHub.
+  [ "$by_review" = no ] || printf '%s:%s\n' "$pr" "$ids" >> "$HANDLED"
   printf 'follow-up %s %s %s %s\n' "$$" "$pr" "$ids" "$tree" > "$INFLIGHT"
   say_started pr "$pr"
   draft_for_pass "$pr"
@@ -1234,9 +1251,8 @@ follow_up_stage() {
 
   as_session /bin/sh -c 'printf "\n## Follow-up pass, %s\n\n" "$2" >> "$1"' sh "$log" "$(date -u +%Y-%m-%dT%H:%MZ)"
   there "$reports" && codes=" The codes of the reports the issue names are in the file $reports: the output of scripts/admin-api.sh sam-show, which you cannot run here."
-  local task="The Captain has asked for changes: his request is in the file $asked, and it is your task for this pass."
-  [ "$by_review" = no ] || task="The reviewer on GitHub read it and says it needs fixing first, and the Captain has set the check to hand you such a review without waiting for his word: the review is in the file $asked, with how to treat it, and working its findings is your task for this pass."
-  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. $task First read AGENTS.md in this worktree and the file $SHARED/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged.$codes Deliver by pushing to the same branch and updating the pull request, as those instructions say. The pull request is a draft while you work, so that it cannot be merged under you; leave it one, the runner makes it ready again. The appetite is $APPETITE (the section \"How wide to go\"). What this pull request leaves for later is the list in the file $next, as earlier passes left it: bring it up to date before your final reply, as the section \"Next\" says. The proof of the fix is in the file $proof (the section \"The proof\" of those instructions; there is none yet if the file is missing): write it, or bring it up to date, before your final reply. The runner runs it with and without the fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
+  local task; task="$(pass_task "$asked")"
+  local prompt="Continue your work on pull request #$pr of $REPO ($url), which resolves issue #$issue. $task First read AGENTS.md in this worktree and the file $SHARED/docs/admin-feedback-fix.md (read it at that path: it is the current copy, and the one in this worktree may be older), including its section \"A follow-up pass\": together they are your instructions. You are in your own git worktree on the branch $branch, at the pull request's head. Add to the activity log in the file $log, under the heading already written for this pass; do not rewrite what earlier passes logged.$codes Deliver by pushing to the same branch and updating the pull request, as those instructions say. The pull request is a draft while you work, so that it cannot be merged under you; leave it one, the runner makes it ready again. What this pull request leaves for later is the list in the file $next, as earlier passes left it: bring it up to date before your final reply, as the section \"Next\" says. The proof of the fix is in the file $proof (the section \"The proof\" of those instructions; there is none yet if the file is missing): write it, or bring it up to date, before your final reply. The runner runs it with and without the fix after you finish and says the result on the pull request. Do not wait for the checks: the runner reads them after you finish. Aim to finish within 15 minutes; the session is stopped at 30. Your final reply's first line must be exactly one of \"RESULT: pr <address>\", \"RESULT: stuck\" or \"RESULT: failed\"."
 
   start_session_docker
   started=$(date +%s)
@@ -1341,12 +1357,17 @@ fix_stage() {
   read_waiting || read_ok=no
   if [ -z "$issue" ]; then
     # What he has asked to be changed comes before anything new.
-    follow_up_stage && return
+    follow_up_stage request && return
     if [ "$read_ok" = no ]; then
       { echo "FIX RESULT: failed"; echo; echo "No fix work was started this run."; echo; } >> "$RUN"
       NOTIFY=yes; FAILED=yes
       return
     fi
+    # Then what he or a learner filed. What the reviewer says needs fixing first comes after
+    # those and before what a session left for later (the follow-ups, which are listed last).
+    case "$(printf '%s\n' "$WAITING" | awk 'NR == 1 {print $2}')" in
+      ""|follow-up) follow_up_stage review && return ;;
+    esac
     issue="$(printf '%s\n' "$WAITING" | awk 'NR == 1 {print $1}')"
     if [ -z "$issue" ]; then
       { echo "FIX RESULT: nothing-waiting"; echo; } >> "$RUN"

@@ -144,13 +144,44 @@ class ReviewStartedPassTests(unittest.TestCase):
         harness = f"set -uo pipefail\nexport STUB={self.root} PATH={self.root}/bin:/usr/bin:/bin {setting}\n{script}\n"
         return subprocess.run(["/bin/bash", "-c", harness], capture_output=True, text=True, timeout=60)
 
-    def test_two_rounds_unless_the_setting_is_a_small_number(self):
-        start = self.text.index('REVIEW_FIX_ROUNDS="${FEEDBACK_REVIEW_FIX_ROUNDS:-2}"')
-        setting = self.text[start:self.text.index("\n", self.text.index("export FEEDBACK_REVIEW_FIX_ROUNDS", start))]
-        for asked, rounds in ((None, "2"), ("0", "0"), ("1", "1"), ("7", "7"), ("", "2"), ("many", "2"), ("-1", "2"), ("123", "2")):
-            given = "" if asked is None else f"FEEDBACK_REVIEW_FIX_ROUNDS='{asked}'"
-            done = self.bash(f'{setting}\n/usr/bin/env | grep ^FEEDBACK_REVIEW_FIX_ROUNDS=', given)
-            self.assertEqual(done.stdout, f"FEEDBACK_REVIEW_FIX_ROUNDS={rounds}\n", (asked, done.stderr))
+    def test_the_number_of_rounds_has_one_default_and_it_is_not_here(self):
+        # scripts/admin-feedback-run.sh rewrites the status issue without this script, so a
+        # default set here would not reach it.
+        self.assertNotIn("FEEDBACK_REVIEW_FIX_ROUNDS:-", self.text)
+        self.assertNotIn("export FEEDBACK_REVIEW_FIX_ROUNDS", self.text)
+        self.assertEqual(pr_script.FIX_ROUNDS, 2)
+
+    def words(self, ids, appetite="wide"):
+        script = f"""APPETITE={appetite}
+{self.step("name_pass() {")}
+{self.step("pass_task() {")}
+name_pass '{ids}'
+printf '%s\\n' "$BY_REVIEW" "$PASS_NAME" "$PASS_AGAIN"
+pass_task /files/request.md
+"""
+        done = self.bash(script)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done.stdout.splitlines()
+
+    def test_a_pass_he_asked_for_is_named_as_his(self):
+        for ids in ("41", "41,r7", "r7"):
+            by_review, name, again, task = self.words(ids)
+            self.assertEqual((by_review, name, again),
+                             ("no", "The follow-up pass on your `/revise` request", "Comment `/revise` again"), ids)
+            self.assertIn("The Captain has asked for changes: his request is in the file /files/request.md", task)
+            self.assertIn('The appetite is wide (the section "How wide to go").', task)
+
+    def test_a_pass_the_review_started_is_not_addressed_to_a_request_he_never_made(self):
+        by_review, name, again, task = self.words("v900")
+
+        self.assertEqual((by_review, name, again),
+                         ("yes", "The fix pass on the reviewer's findings", "Comment `/revise review`"))
+        self.assertIn("the Captain has set the check to hand you such a review without waiting for his word", task)
+        self.assertIn("the review is in the file /files/request.md", task)
+        # The appetite widens a pass he asked for; nobody asked for this one.
+        self.assertIn("Do what the findings need and nothing more, whatever the appetite", task)
+        self.assertNotIn("The appetite is", task)
+        self.assertNotIn("has asked for changes", task)
 
     def note(self, answer):
         stub = self.root / "bin" / "python3"
@@ -189,23 +220,46 @@ decline_requests 312 {ids} "The pass could not start: the worktree of an earlier
 """
         done = self.bash(script)
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual((self.root / "answered").read_text(encoding="utf-8"), f"312 {ids}\n")
-        return (self.root / "said").read_text(encoding="utf-8")
+        return (self.root / "said").read_text(encoding="utf-8"), (self.root / "answered").read_text(encoding="utf-8")
 
     def test_a_pass_that_could_not_start_says_how_to_ask_for_it(self):
-        self.assertIn("Comment `/revise review` once that is cleared.", self.decline("v900"))
-        self.assertIn("Comment `/revise` again once that is cleared.", self.decline("41,r7"))
+        said, answered = self.decline("v900")
+        self.assertIn("Comment `/revise review` once that is cleared.", said)
+        # Set aside, so it is not tried again each minute, and not counted as a pass that ran.
+        self.assertEqual(answered, "312 x900\n")
+        said, answered = self.decline("41,r7")
+        self.assertIn("Comment `/revise` again once that is cleared.", said)
+        self.assertEqual(answered, "312 41,r7\n")
 
-    def test_the_stage_tells_a_pass_the_review_started_from_one_he_asked_for(self):
-        start = self.text.index("\nfollow_up_stage() {\n")
-        stage = self.text[start:self.text.index("\n}\n", start)]
-        self.assertIn('case "$ids" in v*) by_review=yes ;; esac', stage)
-        # The session is told whose word made it the task, and the closing comment is not
-        # addressed to a request he never made.
-        self.assertIn("the Captain has set the check to hand you such a review without waiting for his word", stage)
-        self.assertNotIn("on your \\`/revise\\` request has finished", stage)
-        self.assertIn('rounds_note="$(review_pass_note "$pr")"', stage)
+    def stage(self, name):
+        start = self.text.index(f"\n{name}() {{\n")
+        return self.text[start:self.text.index("\n}\n", start)]
+
+    def test_the_stage_uses_those_words_and_records_the_pass_for_its_pull_request(self):
+        stage = self.stage("follow_up_stage")
+        self.assertIn('pending --handled "$HANDLED" --kind "$1"', stage)
+        self.assertIn('name_pass "$ids"\n  local by_review="$BY_REVIEW" pass="$PASS_NAME" again="$PASS_AGAIN"', stage)
+        self.assertIn('task="$(pass_task "$asked")"', stage)
+        self.assertNotIn("on your \\`/revise\\` request", stage)
+        self.assertNotIn("The appetite is", stage)
+        self.assertIn("""[ "$by_review" = no ] || printf '%s:%s\\n' "$pr" "$ids" >> "$HANDLED\"""", stage)
+        self.assertIn('[ "$by_review" = no ] || rounds_note="$(review_pass_note "$pr")"', stage)
         self.assertGreater(stage.index('answer_requests "$pr" "$ids" "$closing"'), stage.index('echo "$rounds_note"'))
+        self.assertIn('name_pass "$ids"', self.stage("settle_interrupted"))
+
+    def test_his_requests_then_what_was_filed_then_the_reviewers_findings_then_the_follow_ups(self):
+        stage = self.stage("fix_stage")
+        first = stage.index("follow_up_stage request && return")
+        later = stage.index('""|follow-up) follow_up_stage review && return ;;')
+        takes_issue = stage.index("""issue="$(printf '%s\\n' "$WAITING" | awk 'NR == 1 {print $1}')\"""")
+        self.assertLess(first, later)
+        self.assertLess(later, takes_issue)
+        self.assertEqual(stage.count("follow_up_stage "), 2)
+        # The first issue waiting decides: the follow-ups are listed after everything else.
+        self.assertIn("""case "$(printf '%s\\n' "$WAITING" | awk 'NR == 1 {print $2}')" in""", stage)
+        self.assertEqual([source for _, source in sorted([(9, "follow-up"), (12, "app"), (3, "follow-up")],
+                                                          key=lambda found: (found[1] == "follow-up", found[0]))],
+                         ["app", "follow-up", "follow-up"])
 
 
 class GatherStepTests(unittest.TestCase):

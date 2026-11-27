@@ -100,8 +100,11 @@ as merged. Changing that text needs no compile; changing the front matter does
   twice on one pull request (`docs/admin-feedback-check.md`, "The review", has the
   conditions); a "Your call" never does. Either way it is handed over as literal text marked
   as the reviewer's, and only a review posted by `github-actions[bot]` whose check on the same
-  commit agrees is taken. A review talked into a false finding can therefore cost a pass on a
-  branch only he merges, which the reviewer then reads again.
+  commit agrees is taken, and only when GitHub says nobody edited it after it was posted. A
+  review talked into a false finding can therefore cost a pass on a branch only he merges,
+  which the reviewer then reads again. What can talk to it: the pull request, the output of
+  its failed tests, and the issue's text, which for an issue from the app's feedback button
+  is a learner's own words.
 - **Can the recommendation be forged, or be about the wrong commit?** Two ways are known,
   and the status issue guards against both; GitHub's own pages do not.
   - GitHub hangs a check on whatever the pull request's head is when the check is posted. A
@@ -177,9 +180,10 @@ that read, with the files read named in the review.
   live reviews"). The check on the reviewer's output before posting keeps the tool's small
   model (`safe-outputs.threat-detection.engine`).
 - **Stop the runner asking**: `FEEDBACK_REVIEW=off` for the check. `/review` still works.
-- **Stop a "Fix first" starting a fix pass**: `FEEDBACK_REVIEW_FIX_ROUNDS=0` for the check (or
-  change the default in `scripts/admin-feedback-check.sh`; the job runs what is on `main`).
-  The number is how many such passes one pull request gets.
+- **Stop a "Fix first" starting a fix pass**: set `FIX_ROUNDS = 0` in
+  `scripts/admin-feedback-pr.py` and merge (the job runs what is on `main`), or set
+  `FEEDBACK_REVIEW_FIX_ROUNDS=0` in the job's environment. The number is how many such passes
+  one pull request gets. For one pull request: make it a draft.
 - **`gh aw` on Lilliput**: `gh extension install github/gh-aw` fails there twice over: the
   signed-in token is refused by the `github` organization until single sign-on is authorized
   for it, and `~/.local` belongs to root. The release binary (checksum verified against the

@@ -263,15 +263,29 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   shouldn't just let Lem address it automatically?"). A "Fix first" starts a fix pass with no
   comment from him. `pending` in `scripts/admin-feedback-pr.py` takes the review in a request's
   place (its id written `v<number>`) when all of this holds:
-  - no request of his waits on the pull request (his go first, and alone), and it is not a
-    draft;
+  - no request of his waits on the pull request, and it is not a draft;
   - the review is the reviewer's newest on it, says "Fix first", and both GitHub's record and
     the review's own text say it read the head commit;
+  - GitHub says nobody edited the review after it was posted (`unedited`: an account with
+    write access can edit another's review, and the sessions' App has it; the same test
+    applies before a review is handed over on his `/revise review`, and before the status
+    issue repeats a recommendation; a comment on the diff that was edited is left out);
   - the check on that commit says the same, by the tests under "Reading" (`review_of`);
-  - no pass was started on that review before, and he has not handed it over himself since
-    (a `/revise` that names the review, made after it);
-  - fewer than two passes were started this way on the pull request
-    (`FEEDBACK_REVIEW_FIX_ROUNDS`, default 2; 0 turns it off).
+  - no pass was started on that review before, none was set aside for it, and he has not
+    handed it over himself since (a `/revise` that names the review, made after it);
+  - fewer than two passes were started this way on the pull request (`FIX_ROUNDS` in
+    `scripts/admin-feedback-pr.py`; `FEEDBACK_REVIEW_FIX_ROUNDS` in the job's environment
+    changes it, 0 turns it off, and so does anything that is not one digit).
+
+  **The order of work** in a pass: a request of his on any pull request; then an issue he or
+  a learner filed; then a pull request the reviewer says needs fixing first; then the
+  follow-up issues a session left for later.
+
+  **Counting.** A pass that starts is recorded twice: the marker in its closing comment
+  (`v<number>`), and a line `<pr>:v<number>` in `state/handled-requests` written before the
+  session starts. Neither depends on what the review says afterwards. A pass that could not
+  start (a worktree in the way) sets the review aside as `x<number>`: it is not tried again
+  by itself and is not counted.
 
   The session is handed the review as literal text marked as the reviewer's, with the
   sentence that the Captain's standing instruction, not a request, made it the task
@@ -284,8 +298,12 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   "Your call" starts nothing: those decisions are his. What this gives up is the rule that an
   agent's text becomes a session's task only on his word. What bounds it: only he merges, the
   reviewer reads the result again, the session may answer a finding "not a fault" and change
-  nothing, and the rounds are counted in two places (the markers on the pull request and
-  `state/handled-requests` on Lilliput).
+  nothing, and the rounds are counted in two places.
+
+  Known and accepted: the reviewer reads text nobody vetted (the pull request, the failed
+  tests' output, and for an issue from the app's feedback button the learner's own words),
+  so it can be talked into a finding; and a draft is a convenience, not a guard, because the
+  sessions' App can make a draft ready.
 
 ## Where and when it runs
 
