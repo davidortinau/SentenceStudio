@@ -265,7 +265,7 @@ public static class CoachTurnOutcomeOpportunityMapper
             {
                 CoachEmptyAnnouncementRetryOutcome.SecondReplyHeldContent =>
                     CoachOpportunityCapabilityCodes.EmptyAnnouncementSecondReplyHeldContent,
-                CoachEmptyAnnouncementRetryOutcome.SecondReplyAnnouncedAgain =>
+                CoachEmptyAnnouncementRetryOutcome.SecondReplyHeldNothing =>
                     CoachOpportunityCapabilityCodes.EmptyAnnouncementSecondReplyEmpty,
                 _ => CoachOpportunityCapabilityCodes.EmptyAnnouncementSecondCallFailed
             },
@@ -357,11 +357,17 @@ public static class CoachTurnOutcomeOpportunityMapper
 /// <remarks>Never stored: the ledger stores the capability code each member maps to.</remarks>
 public enum CoachEmptyAnnouncementRetryOutcome
 {
-    /// <summary>The second reply held content and is the turn's reply.</summary>
+    /// <summary>
+    /// The second reply held content and is the turn's reply: text that is not an empty
+    /// announcement, or rows or a card the server shows under it.
+    /// </summary>
     SecondReplyHeldContent,
 
-    /// <summary>The second reply announced content and held none as well; it is shown as it is.</summary>
-    SecondReplyAnnouncedAgain,
+    /// <summary>
+    /// The second reply held none as well: it announced again, or its message was blank, with no
+    /// rows and no card under it. It is shown as it is.
+    /// </summary>
+    SecondReplyHeldNothing,
 
     /// <summary>The second call did not complete; the first reply is shown.</summary>
     SecondCallFailed
