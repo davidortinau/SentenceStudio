@@ -19,8 +19,9 @@
 #          profile, a git configuration: whatever a session or a tool left);
 #       2. the folders the image holds are made equal to it, file for file by content;
 #       3. the folders a session's files are loaded from (~/sstudio and what is in it) lose
-#          anything Claude Code would read as instructions, and ~/sstudio/fix anything that is
-#          not one of the check's own files, to the same set-aside folder;
+#          anything Claude Code would read as instructions, ~/sstudio/fix anything that is
+#          not one of the check's own files, and ~/sstudio/gh anything but the sign-in the
+#          runner writes there, to the same set-aside folder;
 #       4. <temporary folder> is emptied: the session user's own, named by the runner. This
 #          script never works out a temporary folder by itself (it did once, on 2026-11-27,
 #          and a test run as the Captain emptied his); "-" leaves that step out. Only one of
@@ -66,13 +67,16 @@ never_taken() {
   return 1
 }
 
-# Every entry at the top level of a folder, hidden ones too. $1 the folder.
+# Every entry at the top level of a folder, hidden ones too, each ended by a NUL: a name may
+# hold a line break. $1 the folder.
 entries() {
   local path
   for path in "$1"/.[!.]* "$1"/..?* "$1"/*; do
-    { [ -e "$path" ] || [ -L "$path" ]; } && printf '%s\n' "$path"
+    { [ -e "$path" ] || [ -L "$path" ]; } && printf '%s\0' "$path"
   done
 }
+# A name as it may be printed: one line, nothing that is not a plain character.
+plain() { printf '%s' "$1" | LC_ALL=C tr -c 'A-Za-z0-9._ -' '?'; }
 
 case "${HOME:-}" in /*) ;; *) fail "HOME is not set to a folder" ;; esac
 [ -d "$HOME" ] && [ ! -L "$HOME" ] || fail "$HOME is not a folder"
@@ -81,7 +85,7 @@ mode="${1:-}"
 
 if [ "$mode" = image ]; then
   names=() excludes=()
-  while IFS= read -r path; do
+  while IFS= read -r -d '' path; do
     name="${path##*/}"
     kept "$name" && continue
     never_taken "$name" && continue
@@ -101,6 +105,11 @@ home="$(cd "$HOME" && pwd -P)" || fail "$HOME could not be read"
 # The home the system has on record for whoever runs this, which no HOME setting changes.
 own_home="$(perl -e 'print((getpwuid($<))[7] // "")' 2>/dev/null)"
 own_home="$(cd "${own_home:-/nonexistent}" 2>/dev/null && pwd -P)" || own_home=""
+[ -d "$HOME/sstudio" ] && [ ! -L "$HOME/sstudio" ] || fail "$HOME/sstudio is not a plain folder: nothing was moved"
+# What is set aside must land in the home's own folder for it, not wherever a link points.
+for part in "$HOME/sstudio/set-aside" "$HOME/sstudio/set-aside/${2:-}"; do
+  [ ! -L "$part" ] || fail "$part is a link: nothing was moved"
+done
 [ -f "$HOME/sstudio/.session-home" ] && [ ! -L "$HOME/sstudio/.session-home" ] \
   || fail "$HOME is not marked as a session user's home (no sstudio/.session-home): nothing was moved"
 if [ "$home" = "$own_home" ]; then
@@ -142,7 +151,8 @@ aside="$HOME/sstudio/set-aside/$stamp"
 # $2 the name to give it.
 set_aside() {
   local to="$aside/$2" n=1
-  echo "aside $2"
+  case "$1" in "$HOME"/*) ;; *) fail "a thing to set aside is not in the home: $(plain "$1")" ;; esac
+  echo "aside $(plain "$2")"
   [ "$dry" = no ] || return 0
   mkdir -p "$aside" || fail "the set-aside folder $aside could not be made"
   while [ -e "$to" ] || [ -L "$to" ]; do n=$((n + 1)); to="$aside/$2.$n"; done
@@ -150,12 +160,12 @@ set_aside() {
   # A file its owner locked, or a folder it closed to itself, is still its owner's to move.
   chflags -R nouchg,nouappnd "$1" 2>/dev/null; chmod -RN "$1" 2>/dev/null; chmod -R u+rwX "$1" 2>/dev/null
   chflags nouchg,nouappnd "$HOME" 2>/dev/null
-  mv "$1" "$to" || fail "$1 could not be set aside"
+  mv "$1" "$to" || fail "$(plain "$1") could not be set aside"
 }
 
 # 1. The top level of the home: what is neither kept nor in the image.
 unmoved=""
-while IFS= read -r path; do
+while IFS= read -r -d '' path; do
   name="${path##*/}"
   kept "$name" && continue
   { [ -e "$image/$name" ] || [ -L "$image/$name" ]; } && continue
@@ -172,6 +182,9 @@ rules="$image.rules"
   for name in $KEEP $BULK; do printf '/%s\n' "$name"; done
   printf '%s' "$unmoved"; } > "$rules" || fail "the list of what is kept could not be written"
 options="-a -c --delete -i"; [ "$dry" = no ] || options="$options -n"
+# rsync gives the home the permissions of the folder it copies from, and the home's own are
+# the account's (a session user's home is closed to others): the image's folder gets them first.
+chmod "$(stat -f %Lp "$HOME")" "$image" || fail "the image folder could not be given the home's permissions"
 # shellcheck disable=SC2086
 changes="$(rsync $options --exclude-from="$rules" "$image/" "$HOME/" 2>"$rules.err")"
 code=$?
@@ -195,7 +208,7 @@ echo "restored $count"
 # among those files only the check's own (issue-<n>-...) stay.
 for folder in "$HOME/sstudio" "$HOME/sstudio/trees" "$HOME/sstudio/clones" "$HOME/sstudio/fix"; do
   [ -d "$folder" ] && [ ! -L "$folder" ] || continue
-  while IFS= read -r path; do
+  while IFS= read -r -d '' path; do
     name="${path##*/}"
     case "$(lower "$name")" in
       claude.md|claude.local.md|agents.md|.claude|.mcp.json|.git|.gitconfig|.gitattributes)
@@ -205,6 +218,20 @@ for folder in "$HOME/sstudio" "$HOME/sstudio/trees" "$HOME/sstudio/clones" "$HOM
     esac
   done < <(entries "$folder")
 done
+
+# The folder the session's gh reads: the runner writes its sign-in there for each session and
+# removes it after. A sign-in left behind is deleted, and anything else (a gh configuration
+# with aliases, say) set aside.
+if [ -d "$HOME/sstudio/gh" ] && [ ! -L "$HOME/sstudio/gh" ]; then
+  while IFS= read -r -d '' path; do
+    name="${path##*/}"
+    if [ "$name" = hosts.yml ] && [ ! -L "$path" ]; then
+      [ "$dry" = yes ] || rm -f "$path"
+    else
+      set_aside "$path" "sstudio-gh-$name"
+    fi
+  done < <(entries "$HOME/sstudio/gh")
+fi
 
 # 4. The temporary folder the runner named. Nothing of this user's is running, so nothing in
 # it is in use.

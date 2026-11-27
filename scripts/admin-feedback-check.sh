@@ -814,6 +814,19 @@ session_docker_state() {
 # Without an image no session starts: the home cannot be told from one a session changed.
 HOME_IMAGE="$OUT/home-image"
 CLEAN_NOTE=""
+# Marks the home as a session user's and makes the folder the image is unpacked into, with what
+# an earlier run left of such a folder removed first. Nothing is written through a link: a
+# session could have put one where the mark or the folder goes. $1 the folder to make.
+mark_session_home() {
+  as_session /bin/sh -c '
+    d="${1%/*}"
+    mkdir -p "$d" && [ -d "$d" ] && [ ! -L "$d" ] || exit 1
+    for old in "$d"/.home-image-*; do
+      { [ -e "$old" ] || [ -L "$old" ]; } || continue
+      chmod -R u+rwX "$old" 2>/dev/null; rm -rf "$old"
+    done
+    rm -f "$d/.session-home" && : > "$d/.session-home" && [ ! -L "$d/.session-home" ] && mkdir "$1"' sh "$1"
+}
 clean_start() {
   local staging="$SESSION_HOME/sstudio/.home-image-$STAMP" out code aside odd err="$OUT/state/session-clean.err"
   CLEAN_NOTE=""
@@ -821,8 +834,8 @@ clean_start() {
     || { SESSION_ERROR="there is no image of $SESSION_USER's home for a session to start from (scripts/admin-feedback-check.sh --home-image takes one)"; return 1; }
   # The mark the script wants on a home before it moves anything in it: this is the session
   # user's (session_places never takes the runner's own user for one).
-  as_session /bin/sh -c 'mkdir -p "${1%/*}" && : > "${1%/*}/.session-home" && mkdir "$1"' sh "$staging" 2>/dev/null \
-    || { SESSION_ERROR="the folder $staging for the image of the home could not be made"; return 1; }
+  mark_session_home "$staging" 2>/dev/null \
+    || { SESSION_ERROR="the folder $staging for the image of the home could not be made (or $SESSION_HOME/sstudio is not a plain folder)"; return 1; }
   /usr/bin/tar -cf - -C "$HOME_IMAGE" . 2>/dev/null | as_session /usr/bin/tar -xf - -C "$staging" 2>/dev/null
   case "${PIPESTATUS[*]}" in
     "0 0") ;;
@@ -847,6 +860,10 @@ clean_start() {
   aside="$(printf '%s\n' "$aside" | grep -E '^[A-Za-z0-9._-]+$' | head -12 | tr '\n' ' ' | sed 's/ *$//')"
   [ "$odd" -eq 0 ] || aside="${aside:+$aside and }$odd with names that are not plain"
   CLEAN_NOTE="Before this session, what was in $SESSION_USER's home and not in its image was set aside in $SESSION_HOME/sstudio/set-aside/$STAMP: $aside."
+  # Kept under its own name: the next clean start writes the log again.
+  cp "$OUT/state/session-clean.log" "$OUT/state/session-clean-$STAMP.log" 2>/dev/null
+  # Said whatever becomes of the pass: a pass that is declined has cleaned the home too.
+  { echo "$CLEAN_NOTE"; echo; } >> "$RUN"
   return 0
 }
 
@@ -872,24 +889,41 @@ mirror_ready() {
 
 # A clone of its own for the session on one issue, made from the mirror, with GitHub as its
 # origin. Called once nothing of an earlier pass on the issue is in the way: a worktree that
-# was kept has kept its clone, and that pass is declined before this. A clone left without its
-# worktree holds nothing a branch on GitHub does not (leave_tree), and is set aside, not
-# deleted. $1 the issue. Returns 1 with the reason in SESSION_ERROR.
+# was kept has kept its clone, and that pass is declined before this. $1 the issue. Returns 1
+# with the reason in SESSION_ERROR.
 session_clone() {
   CLONE="$CLONES/feedback-issue-$1"
-  if there "$CLONE"; then
-    as_session /bin/sh -c 'mkdir -p "$2" && mv "$1" "$2/"' sh "$CLONE" "$SESSION_HOME/sstudio/set-aside/$STAMP" 2>/dev/null \
-      || { SESSION_ERROR="the clone $CLONE of an earlier pass could not be set aside"; return 1; }
-  fi
-  # (The mirror is the Captain's, so git wants to be told that reading it is meant.)
+  # One left by a pass whose worktree is gone: removed when GitHub has all of it, kept aside
+  # when it does not (drop_clone).
+  drop_clone
+  there "$CLONE" && { SESSION_ERROR="the clone $CLONE of an earlier pass is still there and could not be moved"; return 1; }
+  # (The mirror is the Captain's, so git wants to be told that reading it is meant. No tags:
+  # every ref the clone then holds is a branch of GitHub's or the session's own, which is what
+  # drop_clone asks about.)
   as_session /bin/mkdir -p "$CLONES" 2>/dev/null \
-    && as_session git -c "safe.directory=$MIRROR" clone -q --no-hardlinks --no-checkout "$MIRROR" "$CLONE" >/dev/null 2>&1 \
+    && as_session git -c "safe.directory=$MIRROR" clone -q --no-hardlinks --no-checkout --no-tags "$MIRROR" "$CLONE" >/dev/null 2>&1 \
     && sgit remote set-url origin "https://github.com/$REPO.git" 2>/dev/null \
-    || { drop_clone; SESSION_ERROR="a clone for the session could not be made in $CLONE from $MIRROR"; return 1; }
+    || { as_session /bin/rm -rf "$CLONE" 2>/dev/null; SESSION_ERROR="a clone for the session could not be made in $CLONE from $MIRROR"; return 1; }
 }
-# Removes the session's clone. Only ever a folder this script made for an issue.
+# Removes the session's clone: only ever a folder this script made for an issue, never while
+# its worktree is still there, and never with anything in it that GitHub does not have. A
+# clone that holds a commit no branch on GitHub has (a second branch, a stash, a detached
+# commit: leave_tree looks at one branch and the worktree), or that cannot be asked, is kept
+# under ~/sstudio/kept/ and said in the summary.
+KEPT_NOTE=""
 drop_clone() {
-  case "$CLONE" in "$CLONES"/feedback-issue-[0-9]*) as_session /bin/rm -rf "$CLONE" 2>/dev/null ;; esac
+  local ahead to
+  case "$CLONE" in "$CLONES"/feedback-issue-[0-9]*) ;; *) return 0 ;; esac
+  there "$CLONE" || return 0
+  there "$WORKTREES/${CLONE##*/}" && return 0
+  if ahead="$(sgit rev-list --all --not --remotes -n 1 2>/dev/null)" && [ -z "$ahead" ]; then
+    as_session /bin/rm -rf "$CLONE" 2>/dev/null
+    return 0
+  fi
+  to="$SESSION_HOME/sstudio/kept/${CLONE##*/}-$STAMP"
+  as_session /bin/sh -c 'mkdir -p "${2%/*}" && mv "$1" "$2"' sh "$CLONE" "$to" 2>/dev/null || to="$CLONE"
+  KEPT_NOTE="A clone of the repository held commits that are not on GitHub (or could not be asked) and was kept: $to."
+  { echo "$KEPT_NOTE"; echo; } >> "$RUN"
   return 0
 }
 # Removes a session's worktree and, once it is gone, the clone it was made in. $1 the worktree.
@@ -915,10 +949,12 @@ session_ready() {
   case "$SESSION_TMP" in /*[!A-Za-z0-9_./-]*|"") SESSION_TMP="" ;; /*) ;; *) SESSION_TMP="" ;; esac
   as_session /bin/sh -c 'mkdir -p "$1" "$2" "$3" && chmod 700 "$3"' sh "$WORKTREES" "$SESSION_FIX" "$SESSION_GH" \
     || { SESSION_ERROR="the folders under $SESSION_HOME/sstudio could not be made"; return 1; }
-  clean_start || return 1
   mirror_ready || return 1
   publish_shared || return 1
   bridge_ready
+  # Last, so that whatever the steps above ran as that user (git in the bridge's clone, which
+  # is kept) cannot leave something in the home for the session.
+  clean_start || return 1
   SESSION_READY=yes
 }
 
@@ -938,14 +974,19 @@ BRIDGE_REPO="${FEEDBACK_BRIDGE_REPO:-davidortinau/Microsoft.SwiftUI}"
 # The bridge's clone is kept from one session to the next for its build output (a build from
 # nothing takes minutes), so what git itself would run or obey there is rewritten before any
 # git command touches it: no hooks, no replaced objects, no grafts or attributes of the
-# clone's own, and a configuration that names the origin and nothing else. Done on the files,
-# with no git command, because a git command would already obey them. Returns 1 when the
-# clone's .git is not a plain folder.
+# clone's own, no other folder named as its common one, and a configuration that names the
+# origin and nothing else. Done on the files, with no git command, because a git command
+# would already obey them. Returns 1 when the clone's .git is not a plain folder.
+# This narrows what a session can leave there and does not close it: a repository nested
+# among the working files can still carry a configuration that git obeys when it looks into
+# it. So the runner's own git commands here run before the home is cleaned (session_ready),
+# and what remains is that a session's own git, in this one clone, can be steered by an
+# earlier session. Closing that means a clone of its own per session and a build from nothing.
 bridge_git_plain() {
   as_session /bin/sh -c '
     g="$1/.git"
     [ -d "$g" ] && [ ! -L "$g" ] || exit 1
-    rm -rf "$g/hooks" "$g/info/attributes" "$g/info/grafts" "$g/refs/replace" "$g/config.worktree" || exit 1
+    rm -rf "$g/hooks" "$g/info/attributes" "$g/info/grafts" "$g/refs/replace" "$g/config.worktree" "$g/commondir" || exit 1
     if [ -f "$g/packed-refs" ] && [ ! -L "$g/packed-refs" ]; then
       grep -v " refs/replace/" "$g/packed-refs" > "$g/packed-refs.plain"; mv "$g/packed-refs.plain" "$g/packed-refs" || exit 1
     fi
@@ -1538,7 +1579,6 @@ follow_up_stage() {
     [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
     echo "$docker_state"
     [ -n "$BRIDGE_NOTE" ] && echo "$BRIDGE_NOTE"
-    [ -n "$CLEAN_NOTE" ] && echo "$CLEAN_NOTE"
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo "$([ "$by_review" = yes ] && echo "The review it was handed" || echo "His request"): $request"
@@ -1720,7 +1760,6 @@ fix_stage() {
     [ -n "$VERDICT" ] && { echo "$VERDICT"; echo; }
     echo "$docker_state"
     [ -n "$BRIDGE_NOTE" ] && echo "$BRIDGE_NOTE"
-    [ -n "$CLEAN_NOTE" ] && echo "$CLEAN_NOTE"
     leave_tree "$branch" "$tree"
     echo "Activity log: $log"
     echo
@@ -1754,7 +1793,8 @@ home_image() {
   rm -f "$RUN"
   session_places || { echo "$SESSION_ERROR" >&2; exit 1; }
   [ ! -f "$INFLIGHT" ] || { echo "A fix session is recorded as running ($INFLIGHT). Take the image when it has ended." >&2; exit 1; }
-  rm -rf "$new"; mkdir -p "$new" || exit 1
+  chmod -R u+rwX "$new" 2>/dev/null; rm -rf "$new"
+  [ ! -e "$new" ] && mkdir -p "$new" || { echo "The folder $new for the new image could not be made empty." >&2; exit 1; }
   as_session /bin/bash -s image < "$ROOT/scripts/session-clean.sh" 2> "$err" | /usr/bin/tar -xf - -C "$new" 2>> "$err"
   case "${PIPESTATUS[*]}" in
     "0 0") ;;
@@ -1764,9 +1804,12 @@ home_image() {
   names="$(ls -A "$new")"
   [ -n "$names" ] || { echo "The image of $SESSION_USER's home came out empty." >&2; rm -rf "$new"; exit 1; }
   printf '%s\n' "$names" > "$new/.sstudio-home-image"
-  rm -rf "$HOME_IMAGE.previous"
-  [ ! -d "$HOME_IMAGE" ] || mv "$HOME_IMAGE" "$HOME_IMAGE.previous"
-  mv "$new" "$HOME_IMAGE" || exit 1
+  chmod -R u+rwX "$HOME_IMAGE.previous" 2>/dev/null; rm -rf "$HOME_IMAGE.previous"
+  [ ! -e "$HOME_IMAGE.previous" ] || { echo "The image before the last one ($HOME_IMAGE.previous) could not be removed; the new image is in $new and is not in use." >&2; exit 1; }
+  if [ -e "$HOME_IMAGE" ]; then
+    mv "$HOME_IMAGE" "$HOME_IMAGE.previous" || { echo "The image in use could not be moved aside; the new one is in $new and is not in use." >&2; exit 1; }
+  fi
+  mv "$new" "$HOME_IMAGE" || { echo "The new image could not be put in place: it is in $new, the one before in $HOME_IMAGE.previous, and no session starts until one is in $HOME_IMAGE." >&2; exit 1; }
   echo "The image of $SESSION_USER's home is in $HOME_IMAGE ($(du -sh "$HOME_IMAGE" | cut -f1)). Every fix session starts from it. It holds:"
   printf '%s\n' "$names" | while IFS= read -r name; do
     printf '  %s (%s files)\n' "$name" "$(find "$HOME_IMAGE/$name" -type f 2>/dev/null | wc -l | tr -d ' ')"
@@ -1782,7 +1825,7 @@ home_check() {
   [ ! -f "$INFLIGHT" ] || { echo "A fix session is recorded as running ($INFLIGHT). Look when it has ended." >&2; exit 1; }
   [ -f "$HOME_IMAGE/.sstudio-home-image" ] || { echo "There is no image of $SESSION_USER's home yet: scripts/admin-feedback-check.sh --home-image takes one." >&2; exit 1; }
   staging="$SESSION_HOME/sstudio/.home-image-$STAMP"
-  as_session /bin/sh -c 'mkdir -p "${1%/*}" && : > "${1%/*}/.session-home" && mkdir "$1"' sh "$staging" || exit 1
+  mark_session_home "$staging" || exit 1
   /usr/bin/tar -cf - -C "$HOME_IMAGE" . | as_session /usr/bin/tar -xf - -C "$staging"
   case "${PIPESTATUS[*]}" in "0 0") ;; *) as_session /bin/rm -rf "$staging"; echo "The image could not be unpacked." >&2; exit 1 ;; esac
   out="$(as_session /bin/bash -s clean "$STAMP" "$staging" - --dry-run < "$ROOT/scripts/session-clean.sh")"; code=$?

@@ -27,10 +27,11 @@ and not rules for you.
   intended. Do not look for a way around it. See "Hard limits on this machine" for what that
   leaves out.
 - **A clean start.** Before every session your home is put back to an image the Captain
-  keeps, and your worktree is in a clone made for this session alone. Nothing you write
-  outside your worktree, your branch on GitHub and the files your prompt names reaches a
-  later session: not a note or memory of Claude Code's, not a shell or git setting, not a
-  tool you install or update. So do not rely on any of that to carry something forward:
+  keeps, and your worktree is in a clone made for this session alone. What you write
+  outside your worktree, your branch on GitHub and the files your prompt names is not
+  carried to a later session: not a note or memory of Claude Code's, not a shell or git
+  setting, not a tool you install or update. So do not rely on any of that to carry
+  something forward, and do not go looking for what an earlier session left:
   what a later pass must know goes in the activity log, the pull request's description and
   the "Next" list. A tool the work needs that is not on this machine is a thing to say in
   your reply, not to install for next time.

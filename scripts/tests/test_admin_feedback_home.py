@@ -24,6 +24,8 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 CLEAN = SCRIPTS / "session-clean.sh"
 CHECK = SCRIPTS / "admin-feedback-check.sh"
 STAMP = "20261127T000000Z"
+# git as a test runs it: nothing of the developer's own configuration or repository.
+GIT_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
 
 
 def write(path, text="x\n", mode=None):
@@ -292,7 +294,7 @@ class CleanTests(HomeTestCase):
                             (str(self.home), "holds the home"), ("relative/folder", "is not a full path"),
                             (str(self.root / "missing"), "is not a folder of this user's own"),
                             (str(unmarked), "neither a per-user temporary folder nor marked as a stand-in"),
-                            ("/tmp", "is not"), ("/", "is not"), ("/var/folders", "is not")):
+                            ):
             done = self.run_clean("clean", STAMP, str(self.image), folder)
             self.assertEqual(done.returncode, 1, folder)
             self.assertIn(why, done.stderr, folder)
@@ -302,15 +304,19 @@ class CleanTests(HomeTestCase):
         self.assertEqual(tree(self.home), self.before + ["sstudio/tmp/.sstudio-session-tmp"])
 
     def test_a_real_temporary_folder_is_only_emptied_for_the_real_home_of_whoever_runs_it(self):
-        # Read, not run: no test hands this script a real temporary folder, whatever it is
-        # expected to do with it. A folder that is not a marked stand-in has to be a per-user
-        # temporary folder, and HOME has to be the home the system has on record for the user.
+        # Read, not run: no test hands this script a real folder to empty (the root, /tmp, a
+        # per-user temporary folder), whatever it is expected to do with it: if the rule it
+        # checks were ever wrong, the test would be what did the damage.
+        rules = CLEAN.read_text(encoding="utf-8")
+        self.assertIn('[ "$tmp" != / ] || fail "the temporary folder / is not one to empty"', rules)
+        self.assertIn('[ -d "$tmp" ] && [ ! -L "$tmp" ] && [ -O "$tmp" ] || fail', rules)
+        # A folder that is not a marked stand-in has to be a per-user temporary folder, and
+        # HOME has to be the home the system has on record for the user.
         text = CLEAN.read_text(encoding="utf-8")
         rule = text[text.index('if [ -f "$tmp/.sstudio-session-tmp" ]'):text.index("# 1. The top level of the home")]
         self.assertIn("/var/folders/*/*/T|/private/var/folders/*/*/T) ;;", rule)
         self.assertIn('*) fail "the temporary folder $tmp is neither a per-user temporary folder nor marked as a stand-in', rule)
         self.assertIn('[ "$home" = "$own_home" ] || fail "the temporary folder $tmp is a real one and $HOME is not this user\'s real home', rule)
-        self.assertNotIn("DARWIN_USER_TEMP_DIR", Path(__file__).read_text(encoding="utf-8").replace('"DARWIN_USER_TEMP_DIR"', ""))
 
     def test_a_home_that_is_not_marked_as_a_session_users_is_refused_before_anything_moves(self):
         (self.home / "sstudio/.session-home").unlink()
@@ -335,6 +341,74 @@ class CleanTests(HomeTestCase):
         # Before the first thing that moves or deletes.
         for later in ("set_aside() {", "rsync $options", 'find "$tmp" -mindepth 1'):
             self.assertLess(guard, text.index(later), later)
+
+    def test_a_name_with_a_line_break_in_it_is_set_aside_like_any_other(self):
+        odd = self.home / "x\nUsers"
+        write(odd / "file")
+        write(self.home / "-rf")
+        write(self.home / "sstudio/fix/issue-1\nCLAUDE.md")
+
+        said = self.cleaned()
+
+        self.assertEqual(sorted(line for line in said if line.startswith("aside ")), ["aside -rf", "aside x?Users"])
+        self.assertFalse(odd.exists())
+        self.assertTrue((self.aside() / "x\nUsers/file").exists())
+        self.assertTrue((self.aside() / "-rf").exists())
+        self.assertEqual(said[-1], "restored 0")
+
+    def test_nothing_is_moved_through_a_link_a_session_left_in_its_folder(self):
+        write(self.home / ".zshrc")
+        elsewhere = self.root / "elsewhere"
+        elsewhere.mkdir()
+        for make, why in (
+                (lambda: (self.home / "sstudio/set-aside").symlink_to(self.home / ".dotnet"), "set-aside is a link"),
+                (lambda: ((self.home / "sstudio/set-aside").mkdir(), (self.aside()).symlink_to(elsewhere)), f"{STAMP} is a link"),
+                (lambda: ((self.home / "sstudio/.session-home").unlink(),
+                          (self.home / "sstudio/.session-home").symlink_to(self.home / ".claude-token")), "is not marked")):
+            make()
+            done = self.clean()
+            self.assertEqual(done.returncode, 1, why)
+            self.assertIn(why, done.stderr)
+            self.assertEqual(done.stdout, "")
+            self.assertTrue((self.home / ".zshrc").exists())
+            for link in (self.aside(), self.home / "sstudio/set-aside", self.home / "sstudio/.session-home"):
+                if link.is_symlink():
+                    link.unlink()
+            subprocess.run(["rm", "-rf", str(self.home / "sstudio/set-aside")], check=True)
+            write(self.home / "sstudio/.session-home", "")
+        self.assertEqual(list(elsewhere.iterdir()), [])
+        self.assertTrue((self.home / ".dotnet/tools/aspire").exists())
+
+    def test_a_folder_of_the_check_that_is_a_link_stops_it(self):
+        real = self.root / "real-sstudio"
+        (self.home / "sstudio").rename(real)
+        (self.home / "sstudio").symlink_to(real)
+
+        done = self.clean()
+
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("sstudio is not a plain folder", done.stderr)
+
+    def test_the_home_keeps_its_own_permissions(self):
+        self.home.chmod(0o750)
+        self.image.chmod(0o755)
+        (self.home / ".dotnet/tools/aspire").write_text("changed\n", encoding="utf-8")
+
+        self.cleaned()
+
+        self.assertEqual(oct(self.home.stat().st_mode & 0o777), "0o750")
+        self.assertEqual((self.home / ".dotnet/tools/aspire").read_text(encoding="utf-8"), "the aspire tool\n")
+
+    def test_the_folder_gh_reads_holds_nothing_from_the_session_before(self):
+        write(self.home / "sstudio/gh/hosts.yml", "github.com:\n  oauth_token: left-behind\n", 0o600)
+        write(self.home / "sstudio/gh/config.yml", "aliases:\n  pr: '!evil'\n")
+
+        said = self.cleaned()
+
+        self.assertEqual([line for line in said if line.startswith("aside ")], ["aside sstudio-gh-config.yml"])
+        self.assertEqual(list((self.home / "sstudio/gh").iterdir()), [])
+        # A sign-in is not kept anywhere.
+        self.assertEqual(tree(self.aside()), ["sstudio-gh-config.yml"])
 
     def test_a_dash_leaves_the_temporary_folder_out(self):
         write(self.tmp / "must-stay")
@@ -432,25 +506,38 @@ class RunnerTestCase(HomeTestCase):
         return self.text[start:self.text.index("\n}\n", start)]
 
     def bash(self, script):
+        # The script's own one-line helpers are written out here, not cut from it: a cut runs
+        # on to the end of the next function, and after sgit that is the one that ends every
+        # process of the session's user, who in a test is whoever runs the test.
         harness = f"""set -uo pipefail
-export PATH=/usr/bin:/bin
+export PATH=/usr/bin:/bin GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 ROOT={SCRIPTS.parent}; OUT={self.out}; STAMP={STAMP}; SESSION_USER=lemuel; SESSION_HOME={self.home}
 SESSION_TMP={self.tmp}; SESSION_ERROR=; RUN={self.out}/run.md; INFLIGHT={self.out}/state/session-in-flight
 REPO=someone/app; SHARED={self.root}/shared; CLONES={self.home}/sstudio/clones; CLONE=$CLONES/none
 WORKTREES={self.home}/sstudio/trees
 as_session() {{ HOME="$SESSION_HOME" "$@"; }}
 there() {{ test -e "$1"; }}
-{self.step("run_here() {")}
-{self.step("sgit() {")}
+run_here() {{ local limit=$1; shift; perl -e 'alarm shift; exec @ARGV or exit 127' "$limit" "$@"; }}
+sgit() {{ as_session git -C "$CLONE" "$@"; }}
+stop_session_processes() {{ echo "a test reached stop_session_processes" >&2; exit 99; }}
 {script}
 """
+        for never in ("kill -", "simctl", "colima stop", "sudo "):
+            self.assertNotIn(never, harness, "a step cut from the script brought more with it than was meant")
         return subprocess.run(["/bin/bash", "-c", harness], capture_output=True, text=True, timeout=120)
+
+    def test_the_helpers_written_out_here_are_the_scripts_own(self):
+        self.assertIn('\nsgit() { as_session git -C "$CLONE" "$@"; }\n', self.text)
+        self.assertIn("""\nrun_here() { local limit=$1; shift; perl -e 'alarm shift; exec @ARGV or exit 127' "$limit" "$@"; }\n""",
+                      self.text)
 
 
 @ON_A_MAC
 class CleanStartTests(RunnerTestCase):
     def start(self, more=""):
         script = f"""{self.step('HOME_IMAGE="$OUT/home-image"')}
+{self.step("clean_start() {")}
 {more}
 clean_start; echo "code=$?"; echo "error=$SESSION_ERROR"; echo "note=$CLEAN_NOTE"
 """
@@ -521,13 +608,52 @@ clean_start; echo "code=$?"; echo "error=$SESSION_ERROR"; echo "note=$CLEAN_NOTE
         self.assertIn('clean "$STAMP" "$staging" "${SESSION_TMP:--}" < "$ROOT/scripts/session-clean.sh"', start)
         ready = self.stage("session_ready")
         # After that user's processes are ended, and before anything is made or fetched for it.
-        order = [ready.index(step) for step in ("stop_session_processes", 'SESSION_TMP="$(as_session', "clean_start || return 1",
-                                                "mirror_ready || return 1", "publish_shared || return 1", "bridge_ready")]
+        # After that user's processes are ended, and last of all: what the steps before it
+        # run as that user (git in the bridge's clone, which is kept) is cleaned up after.
+        order = [ready.index(step) for step in ("stop_session_processes", 'SESSION_TMP="$(as_session', "mirror_ready || return 1",
+                                                "publish_shared || return 1", "bridge_ready\n", "clean_start || return 1",
+                                                "SESSION_READY=yes")]
         self.assertEqual(order, sorted(order))
         self.assertNotIn("git clone", ready)
 
-    def test_a_summary_says_what_was_set_aside(self):
-        self.assertEqual(self.text.count('[ -n "$CLEAN_NOTE" ] && echo "$CLEAN_NOTE"'), 2)
+    def test_the_summary_says_what_was_set_aside_whatever_becomes_of_the_pass(self):
+        self.an_image()
+        write(self.home / ".zshrc")
+
+        said = self.start()
+
+        self.assertEqual((self.out / "run.md").read_text(encoding="utf-8"), said["note"] + "\n\n")
+        # And the list is kept under its own name: the next clean start writes the log again.
+        self.assertIn("aside .zshrc\n", (self.out / f"state/session-clean-{STAMP}.log").read_text(encoding="utf-8"))
+        self.assertNotIn('echo "$CLEAN_NOTE"\n', self.stage("fix_stage") + self.stage("follow_up_stage"))
+
+    def test_the_mark_and_the_folder_for_the_image_are_never_written_through_a_link(self):
+        self.an_image()
+        mark = self.home / "sstudio/.session-home"
+        mark.unlink()
+        mark.symlink_to(self.home / ".claude-token")
+        left = self.home / f"sstudio/.home-image-20261101T000000Z"
+        write(left / "closed/file")
+        (left / "closed").chmod(0o500)
+
+        said = self.start()
+
+        self.assertEqual((said["code"], said["error"]), ("0", ""))
+        self.assertEqual((self.home / ".claude-token").read_text(encoding="utf-8"), "token\n")
+        self.assertFalse(mark.is_symlink())
+        # What a run that died left of an unpacked image is gone.
+        self.assertFalse(left.exists())
+
+    def test_a_folder_of_the_check_that_is_a_link_starts_no_session(self):
+        self.an_image()
+        real = self.root / "real-sstudio"
+        (self.home / "sstudio").rename(real)
+        (self.home / "sstudio").symlink_to(real)
+
+        said = self.start()
+
+        self.assertEqual(said["code"], "1")
+        self.assertIn("is not a plain folder", said["error"])
 
 
 @ON_A_MAC
@@ -587,7 +713,7 @@ class CloneTests(RunnerTestCase):
 
     def git(self, where, *args):
         done = subprocess.run(["git", "-C", str(where), "-c", "user.name=t", "-c", "user.email=t@example.invalid",
-                               "-c", "commit.gpgsign=false", *args], capture_output=True, text=True, timeout=60)
+                               "-c", "commit.gpgsign=false", *args], capture_output=True, text=True, timeout=60, env=GIT_ENV)
         self.assertEqual(done.returncode, 0, done.stderr)
         return done.stdout
 
@@ -595,8 +721,8 @@ class CloneTests(RunnerTestCase):
         super().setUp()
         # GitHub's stand-in, and the mirror the runner keeps of it.
         self.github, work = self.root / "github.git", self.root / "work"
-        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(self.github)], check=True, timeout=60)
-        subprocess.run(["git", "init", "-q", "-b", "main", str(work)], check=True, timeout=60)
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(self.github)], check=True, timeout=60, env=GIT_ENV)
+        subprocess.run(["git", "init", "-q", "-b", "main", str(work)], check=True, timeout=60, env=GIT_ENV)
         write(work / "src/A.cs", "a\n")
         self.git(work, "add", "-A")
         self.git(work, "commit", "-q", "-m", "main")
@@ -610,10 +736,10 @@ class CloneTests(RunnerTestCase):
         self.work = work
         self.mirror = self.root / "shared/repo.git"
         (self.root / "shared").mkdir()
-        subprocess.run(["git", "clone", "-q", "--bare", str(self.github), str(self.mirror)], check=True, timeout=60)
+        subprocess.run(["git", "clone", "-q", "--bare", str(self.github), str(self.mirror)], check=True, timeout=60, env=GIT_ENV)
 
     def functions(self):
-        return "\n".join(self.step(start) for start in ('MIRROR="$SHARED/repo.git"', "session_clone() {", "drop_clone() {",
+        return "\n".join(self.step(start) for start in ('MIRROR="$SHARED/repo.git"', "session_clone() {", 'KEPT_NOTE=""',
                                                          "remove_tree() {"))
 
     def run_steps(self, script):
@@ -653,7 +779,8 @@ sgit worktree add -q -B feedback/issue-12 "$WORKTREES/feedback-issue-12" origin/
         # Its objects are its own: nothing of it lives in the mirror, and the mirror is not
         # needed again once it is made.
         self.assertFalse((clone / ".git/objects/info/alternates").exists())
-        self.assertIn(f"-c \"safe.directory=$MIRROR\" clone -q --no-hardlinks --no-checkout", self.step("session_clone() {"))
+        self.assertIn('-c "safe.directory=$MIRROR" clone -q --no-hardlinks --no-checkout --no-tags', self.step("session_clone() {"))
+        self.assertEqual(self.git(clone, "tag", "--list"), "")
 
     def test_nothing_an_earlier_session_left_in_its_clone_reaches_the_next(self):
         self.run_steps("session_clone 12")
@@ -667,11 +794,55 @@ sgit worktree add -q -B feedback/issue-12 "$WORKTREES/feedback-issue-12" origin/
 """)
 
         self.assertEqual(out, "code=0\ntree=0\n")
+        # The worktree was checked out, which is when that hook would have run.
         self.assertFalse((self.home / "hook-ran").exists())
+        self.assertFalse((clone / ".git/hooks/post-checkout").exists())
         self.assertNotIn("alias", self.git(clone, "config", "--local", "--list"))
         self.assertNotIn("hookspath", self.git(clone, "config", "--local", "--list").lower())
-        # The one before is set aside, not deleted.
-        self.assertTrue((self.aside() / "feedback-issue-12/.git/hooks/post-checkout").exists())
+        self.assertEqual((self.out / "run.md").read_text(encoding="utf-8") if (self.out / "run.md").exists() else "", "")
+
+    def test_a_clone_is_only_removed_when_github_has_everything_in_it(self):
+        clone = self.home / "sstudio/clones/feedback-issue-12"
+        for number, leave in enumerate((
+                'git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m "on main, not pushed"',
+                'git -C "$CLONE" branch second origin/main && git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid '
+                'commit-tree -m detached "origin/main^{tree}" -p origin/main | xargs git -C "$CLONE" update-ref refs/heads/second',
+                'git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid commit-tree -m stashed "origin/main^{tree}" '
+                '-p origin/main | xargs git -C "$CLONE" update-ref refs/stash',
+                'rm -rf "$CLONE/.git/objects"')):
+            with self.subTest(leave[:60]):
+                self.setUp()
+                out = self.run_steps(f"""session_clone 12
+{leave}
+drop_clone; echo "note=$KEPT_NOTE"
+""")
+                kept = self.home / f"sstudio/kept/feedback-issue-12-{STAMP}"
+                self.assertFalse((self.home / "sstudio/clones/feedback-issue-12").exists())
+                self.assertTrue((kept / ".git").is_dir())
+                self.assertIn(f"was kept: {kept}.", out)
+                self.assertIn(f"was kept: {kept}.", (self.out / "run.md").read_text(encoding="utf-8"))
+        self.setUp()
+        # With nothing of its own in it, whatever else was done to it, it goes.
+        self.run_steps('session_clone 12; git -C "$CLONE" config alias.x y; git -C "$CLONE" fetch -q "$MIRROR" 2>/dev/null; drop_clone')
+        self.assertFalse(clone.exists())
+        self.assertFalse((self.home / "sstudio/kept").exists())
+
+    def test_a_clone_is_never_removed_while_its_worktree_is_there(self):
+        self.run_steps("""session_clone 12
+sgit worktree add -q -B feedback/issue-12 "$WORKTREES/feedback-issue-12" origin/feedback/issue-12
+drop_clone
+""")
+        self.assertTrue((self.home / "sstudio/clones/feedback-issue-12/.git").is_dir())
+        self.assertTrue((self.home / "sstudio/trees/feedback-issue-12/src/B.cs").exists())
+
+    def test_a_clone_an_earlier_pass_left_with_work_in_it_is_kept_and_a_new_one_made(self):
+        out = self.run_steps("""session_clone 12
+git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m "not pushed"
+session_clone 12; echo "code=$? $SESSION_ERROR"
+""")
+        self.assertIn("code=0 \n", out)
+        self.assertTrue((self.home / f"sstudio/kept/feedback-issue-12-{STAMP}/.git").is_dir())
+        self.assertEqual(self.git(self.home / "sstudio/clones/feedback-issue-12", "rev-list", "--all", "--not", "--remotes"), "")
 
     def test_the_clone_goes_with_its_worktree_and_stays_with_one_that_is_kept(self):
         tree_ = self.home / "sstudio/trees/feedback-issue-12"
@@ -698,6 +869,7 @@ remove_tree "$WORKTREES/feedback-issue-12"
                      self.home / "sstudio/clones/feedback-issue-x"):
             path.mkdir(parents=True, exist_ok=True)
             self.run_steps(f'CLONE="{path}"; drop_clone')
+            self.assertFalse((self.home / "sstudio/kept").exists(), path)
             self.assertTrue(path.exists(), path)
 
     def test_a_clone_that_cannot_be_made_is_said_and_leaves_nothing(self):
@@ -726,6 +898,7 @@ remove_tree "$WORKTREES/feedback-issue-12"
         # A worktree is never removed without its clone.
         self.assertEqual(self.text.count('sgit worktree remove --force'), 1)
         self.assertIn('sgit worktree remove --force "$1" >/dev/null 2>&1\n  there "$1" || drop_clone', self.step("remove_tree() {"))
+        self.assertIn('there "$WORKTREES/${CLONE##*/}" && return 0', self.step('KEPT_NOTE=""'))
         self.assertIn('CLONE="$CLONES/none"', self.step("session_places() {"))
 
 
@@ -733,10 +906,11 @@ class BridgeTests(RunnerTestCase):
     def setUp(self):
         super().setUp()
         self.bridge = self.home / "sstudio/bridge"
-        subprocess.run(["git", "init", "-q", "-b", "main", str(self.bridge)], check=True, timeout=60)
+        subprocess.run(["git", "init", "-q", "-b", "main", str(self.bridge)], check=True, timeout=60, env=GIT_ENV)
         write(self.bridge / "Package.swift")
         subprocess.run(["git", "-C", str(self.bridge), "-c", "user.name=t", "-c", "user.email=t@example.invalid",
-                        "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "first"], check=True, timeout=60)
+                        "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "first"], check=True, timeout=60,
+                       env=GIT_ENV)
 
     def plain(self):
         done = self.bash(f"""BRIDGE={self.bridge}
@@ -754,6 +928,7 @@ bridge_git_plain; echo "code=$?"
         write(git / "info/grafts", "x\n")
         write(git / "refs/replace/0000000000000000000000000000000000000001", "x\n")
         write(git / "config.worktree", "[core]\n\thooksPath = /somewhere\n")
+        write(git / "commondir", "../build\n")
         with (git / "config").open("a", encoding="utf-8") as config:
             config.write('[alias]\n\tstatus = !echo evil\n[core]\n\tfsmonitor = /somewhere/evil\n'
                          '[filter "evil"]\n\tsmudge = evil\n[include]\n\tpath = /somewhere/else\n')
@@ -761,17 +936,19 @@ bridge_git_plain; echo "code=$?"
 
         self.assertEqual(self.plain(), "code=0\n")
 
-        for gone in ("hooks", "info/attributes", "info/grafts", "refs/replace", "config.worktree"):
+        for gone in ("hooks", "info/attributes", "info/grafts", "refs/replace", "config.worktree", "commondir"):
             self.assertFalse((git / gone).exists(), gone)
-        config = subprocess.run(["git", "-C", str(self.bridge), "config", "--local", "--list"], capture_output=True, text=True).stdout
+        config = subprocess.run(["git", "-C", str(self.bridge), "config", "--local", "--list"], capture_output=True, text=True,
+                                env=GIT_ENV).stdout
         self.assertEqual(sorted(config.split()), [
             "core.bare=false", "core.filemode=true", "core.ignorecase=true", "core.logallrefupdates=true",
             "core.precomposeunicode=true", "core.repositoryformatversion=0",
             "remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*",
             "remote.origin.url=https://github.com/davidortinau/Microsoft.SwiftUI.git"])
         self.assertTrue((self.bridge / "build/output.o").exists())
-        status = subprocess.run(["git", "-C", str(self.bridge), "status", "--porcelain"], capture_output=True, text=True)
-        self.assertEqual(status.returncode, 0, status.stderr)
+        checkout = subprocess.run(["git", "-C", str(self.bridge), "checkout", "-q", "--detach", "HEAD"], capture_output=True,
+                                  text=True, env={**GIT_ENV, "HOME": str(self.home)})
+        self.assertEqual(checkout.returncode, 0, checkout.stderr)
         self.assertFalse((self.home / "hook-ran").exists())
 
     def test_a_clone_whose_git_folder_is_not_a_plain_folder_is_left_alone_and_said(self):

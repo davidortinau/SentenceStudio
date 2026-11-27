@@ -468,8 +468,10 @@ A review agent on GitHub reads each pull request and recommends what to do with 
       `.azd`, `.netrc`), `.config/git`.
     - **Where a session's files load from:** `~lemuel/sstudio`, `trees`, `clones` and `fix`
       lose any `CLAUDE.md`, `AGENTS.md`, `.claude` or `.mcp.json` lying in them (Claude Code
-      reads those from the folders above its worktree and from a folder it is given), and
-      `fix` anything that is not one of the check's own `issue-<n>-...` files.
+      reads those from the folders above its worktree and from a folder it is given),
+      `fix` anything that is not one of the check's own `issue-<n>-...` files, and `gh`
+      anything but the sign-in the runner writes there for each session (a sign-in left
+      behind is deleted).
     - **The temporary folder** of that user is emptied. The runner names it; the script
       never works one out. (It did once, on 2026-11-27, and a test run as the Captain emptied
       his own.) It empties only that user's own per-user temporary folder, and only when run
@@ -481,16 +483,25 @@ A review agent on GitHub reads each pull request and recommends what to do with 
     - **A clone of its own.** The runner keeps the repository as GitHub has it in
       `/Users/Shared/sstudio-feedback/repo.git` (`mirror_ready`: the Captain's, read-only to
       that user, fetched before each session). A session's worktree is made in a clone made
-      for it from that copy (`session_clone`), with GitHub as its origin, and the clone is
-      removed with the worktree. A worktree that is kept keeps its clone.
+      for it from that copy (`session_clone`), with GitHub as its origin and without tags,
+      and the clone is removed with the worktree. A worktree that is kept keeps its clone.
+      A clone is only ever removed when GitHub has every commit in it (`drop_clone`): one
+      that holds a second branch, a stash or a detached commit, or that cannot be asked, is
+      moved to `~lemuel/sstudio/kept/` and the summary says so.
     - **The SwiftUI bridge's clone** is kept for its build output (a build from nothing takes
       minutes), so before each session its hooks, replaced objects, grafts and attributes are
       removed and its configuration rewritten to name the origin and nothing else
-      (`bridge_git_plain`). Sessions' branches stay in it.
-    - **Nothing is deleted outright** except temporary files, what the image replaces inside
-      the tool folders, and set-aside folders after 14 days. `state/session-clean.log` has
-      what the last clean start set aside and put back; a summary says so when something
-      other than Claude Code's state was set aside.
+      (`bridge_git_plain`). Sessions' branches stay in it. This narrows what a session can
+      leave there and does not close it: a repository nested among its working files can
+      still carry a configuration git obeys. The runner's own git commands in that clone
+      therefore run before the home is cleaned, and what remains is that a session's own
+      git, in this one clone, can be steered by an earlier session.
+    - **Nothing is deleted outright** except temporary files, a sign-in left in `gh`, what
+      the image replaces inside the tool folders, a session's clone once GitHub has all of
+      it, and set-aside folders after 14 days. `state/session-clean.log` has what the last
+      clean start set aside and put back. When something other than Claude Code's state was
+      set aside, the run's summary says so, whatever becomes of the pass, and that list is
+      kept as `state/session-clean-<stamp>.log`.
       `scripts/admin-feedback-check.sh --home-check` says what the next one would do and
       changes nothing.
     - **Take a new image** after installing or updating a tool for that user on purpose, when
@@ -499,8 +510,14 @@ A review agent on GitHub reads each pull request and recommends what to do with 
     - **Still a session's to change for the next one**, because each is too large to restore
       or is macOS's own: the package cache (a changed package would be built into a later
       session's test run), the Docker machine's disk and images, `~lemuel/Library`, the
-      bridge's working files and build output, and the check's own files in `fix`, which are
-      handed from one pass on an issue to the next on purpose.
+      per-user cache folder beside the temporary one (compilers' caches), the bridge's
+      working files and build output, and the check's own files in `fix`, which are handed
+      from one pass on an issue to the next on purpose.
+    - **Still there for a session that goes looking**, though nothing loads them: the
+      set-aside folders of the last 14 days (an earlier session's Claude Code state among
+      them), other issues' kept worktrees and clones, the account's standard folders and
+      Trash, and the machine's shared `/tmp`. The same user owns them all, so nothing can
+      hide them from it.
   - **What it is given of the Captain's**, read-only in `/Users/Shared/sstudio-feedback`
     (owned by the Captain, rewritten before each session): the current
     `docs/admin-feedback-fix.md` and `AGENTS.md` as they are on `main` (a session is told to
