@@ -385,17 +385,21 @@ request_review() {
 # no session. state/red-after-merge holds the commits settled: the helper adds the ones whose
 # checks came out green or whose failures the reviewer had seen, and a commit asked about is
 # added here once the reviewer was started, so each is asked about once and a request that
-# failed is made again at the next look. What the helper could not read is in
-# state/red-look.err until a look reads everything.
+# failed is made again at the next look, three times in all (state/red-after-merge-tries
+# counts them); after that the commit is recorded all the same and he is told. What the
+# helper could not read is in state/red-look.err until a look reads everything, for whoever
+# wonders why nothing was asked.
 RED_LOOK="$OUT/state/last-red-look"
 RED_SEEN="$OUT/state/red-after-merge"
+RED_TRIES="$OUT/state/red-after-merge-tries"
 RED_EVERY=600
 REVIEW_AGAIN=no
 review_again_when_red() {
-  local lines pr branch head failed err="$OUT/state/red-look.err"
+  local lines pr branch head failed tries err="$OUT/state/red-look.err"
   [ "$REVIEW_ASKED" = on ] || return 0
   [ "$(seconds_since "$RED_LOOK")" -ge "$RED_EVERY" ] || return 0
-  date +%s > "$RED_LOOK"
+  # Without the time of this look on record, the next pass would look again at once.
+  date +%s > "$RED_LOOK" || return 0
   # GitHub not answering is left to the next look.
   lines="$(run_here 300 python3 -I "$ROOT/scripts/admin-feedback-pr.py" red-after-merge --seen "$RED_SEEN" 2> "$err")" || return 0
   [ -s "$err" ] || rm -f "$err"
@@ -404,8 +408,16 @@ review_again_when_red() {
     case "$pr" in ""|*[!0-9]*) continue ;; esac
     case "$head" in ""|*[!0-9a-f]*) continue ;; esac
     { echo "REVIEW: pull request #$pr is read again: its checks finished red at $head after the reviewer said Merge (failed, and not failing on main: $failed)."; echo; } >> "$RUN"
+    tries="$(grep -cx "$pr:$head" "$RED_TRIES" 2>/dev/null)"
+    printf '%s:%s\n' "$pr" "$head" >> "$RED_TRIES"
     request_review "$pr" "$branch"
-    [ "$REVIEW_REQUESTED" = no ] || printf '%s:%s\n' "$pr" "$head" >> "$RED_SEEN"
+    if [ "$REVIEW_REQUESTED" = yes ]; then
+      printf '%s:%s\n' "$pr" "$head" >> "$RED_SEEN"
+    elif [ "${tries:-0}" -ge 2 ]; then
+      printf '%s:%s\n' "$pr" "$head" >> "$RED_SEEN"
+      { echo "The reviewer was not started for pull request #$pr in three tries, so it is not tried again for this commit. Comment \`/review\` on it to ask."; echo; } >> "$RUN"
+      NOTIFY=yes
+    fi
     REVIEW_AGAIN=yes
   done <<< "$lines"
 }
@@ -1129,25 +1141,32 @@ decline_requests() {
 # changes one would take rules from the branch, which an earlier session wrote.
 RULE_FILES=(':(glob,icase)**/AGENTS.md' ':(glob,icase)**/CLAUDE.md' ':(glob,icase)**/CLAUDE.local.md'
             ':(glob,icase)**/.claude/**' ':(glob,icase)**/.mcp.json' ':(glob,icase).squad/skills/**')
-# Which of them a branch changes against main, into RULES (empty when none), and the commit
-# that was compared into RULES_HEAD. Returns 1 when the branch could not be compared. Compared
-# in the runner's own checkout, from GitHub: the sessions' clone is the session user's to
-# change. A file's name is the branch's to choose, and RULES goes into a prompt and into a
-# comment under the Captain's login: only plain names are repeated, the rest are counted.
+# Which of them a branch changes against main, into RULES (empty when none). Returns 1 when
+# GitHub could not be read for the branch, which passes. Compared in the runner's own
+# checkout, from GitHub: the sessions' clone is the session user's to change. RULES goes into
+# a prompt and into a comment under the Captain's login, and a file's name is the branch's to
+# choose: it names the kinds of file from a fixed list and how many, never a file. A branch
+# that cannot be compared (no history in common with main) is said as that, not as "none".
 # $1 the branch.
 rules_changed() {
-  local changed plain count
-  RULES=""; RULES_HEAD=""
+  local head changed kinds="" count
+  RULES=""
   run_here 60 git -C "$ROOT" fetch -q origin "refs/heads/$1" 2>/dev/null || return 1
-  RULES_HEAD="$(git -C "$ROOT" rev-parse --verify -q FETCH_HEAD 2>/dev/null)" || return 1
-  case "$RULES_HEAD" in ""|*[!0-9a-f]*) return 1 ;; esac
-  changed="$(git -C "$ROOT" diff --name-only "origin/main...$RULES_HEAD" -- "${RULE_FILES[@]}" 2>/dev/null)" || return 1
+  head="$(git -C "$ROOT" rev-parse --verify -q FETCH_HEAD 2>/dev/null)" || return 1
+  case "$head" in ""|*[!0-9a-f]*) return 1 ;; esac
+  if ! changed="$(git -C "$ROOT" diff --name-only "origin/main...$head" -- "${RULE_FILES[@]}" 2>/dev/null)"; then
+    RULES="which ones could not be told: the branch could not be compared with main"
+    return 0
+  fi
   [ -n "$changed" ] || return 0
-  plain="$(printf '%s\n' "$changed" | grep -E '^[A-Za-z0-9._/-]+$' | head -5)"
   count=$(( $(printf '%s\n' "$changed" | wc -l) ))
-  [ -z "$plain" ] || count=$(( count - $(printf '%s\n' "$plain" | wc -l) ))
-  RULES="$(printf '%s' "$plain" | tr '\n' ' ')"
-  [ "$count" -le 0 ] || RULES="${RULES:+$RULES and }$count more"
+  printf '%s\n' "$changed" | grep -qiE '(^|/)AGENTS\.md"?$' && kinds="$kinds, AGENTS.md"
+  printf '%s\n' "$changed" | grep -qiE '(^|/)CLAUDE(\.local)?\.md"?$' && kinds="$kinds, CLAUDE.md"
+  printf '%s\n' "$changed" | grep -qiE '(^"?|/)\.claude/' && kinds="$kinds, .claude/"
+  printf '%s\n' "$changed" | grep -qiE '(^|/)\.mcp\.json"?$' && kinds="$kinds, .mcp.json"
+  printf '%s\n' "$changed" | grep -qiE '^"?\.squad/skills/' && kinds="$kinds, .squad/skills/"
+  [ -n "$kinds" ] || kinds=", of another kind"
+  RULES="$count in all: ${kinds#, }"
   return 0
 }
 
@@ -1281,13 +1300,13 @@ follow_up_stage() {
   fi
   # Rules come from main. A pass he asked for goes ahead on a branch that changes them, and is
   # told they are the change under work; one nobody asked for does not start. Nothing has
-  # been spent yet, so a branch that could not be compared leaves the pass waiting.
+  # been spent yet, so a branch GitHub could not be read for leaves the pass waiting.
   if ! rules_changed "$branch"; then
-    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The branch $branch could not be compared with main (GitHub could not be read), so the pass was not started. The request is still waiting."; echo; } >> "$RUN"
+    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The branch $branch could not be fetched from GitHub to compare with main, so the pass was not started. The request is still waiting."; echo; } >> "$RUN"
     FAILED=yes
     return 0
   fi
-  local rules="$RULES" compared="$RULES_HEAD"
+  local rules="$RULES"
   if [ -n "$rules" ] && [ "$by_review" = yes ]; then
     decline_requests "$pr" "$ids" "No fix pass was started on the reviewer's findings: this branch changes files a session takes its rules from ($rules), and a pass nobody asked for takes its rules from main only." \
       "The branch $branch changes files a session takes its rules from ($rules), so the reviewer's findings on pull request #$pr did not start a pass by themselves." \
@@ -1300,15 +1319,6 @@ follow_up_stage() {
   if ! why="$(sgit worktree add -q -B "$branch" "$tree" "origin/$branch" 2>&1)"; then
     decline_requests "$pr" "$ids" "The follow-up pass could not start: a worktree for this branch could not be made on Lilliput (the branch may be checked out there)." \
       "The worktree for $branch could not be made: ${why:-no error text}"
-    return 0
-  fi
-  # The tree comes from the sessions' clone, which is the session user's to change: it has to
-  # be at the commit GitHub showed when the rule files were compared.
-  if [ "$(as_session git -C "$tree" rev-parse HEAD 2>/dev/null)" != "$compared" ]; then
-    # Nothing has run in it, so it holds nothing to keep.
-    sgit worktree remove --force "$tree" >/dev/null 2>&1
-    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The worktree for $branch is not at the commit GitHub shows for the branch (${compared:0:8}), so the session was not started. The request is still waiting."; echo; } >> "$RUN"
-    FAILED=yes
     return 0
   fi
   # His request, and what earlier passes logged and proved as the Captain's macOS user (before

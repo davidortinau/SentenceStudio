@@ -1311,6 +1311,17 @@ class RedAfterMergeTests(GitHubTestCase):
         self.github.check_runs[MAIN_HEAD] = [run("Build Api"), run("Test (Api)")]
         self.assertEqual(self.look(), (self.ASK, set()))
 
+    def test_a_commit_is_not_settled_while_one_of_its_failures_waits_on_main(self):
+        # One failure the reviewer had seen, one that main fails too: nothing to ask now, and
+        # the second is asked about once main is green again.
+        self.github.check_runs[PR_HEAD][2] = ended("Test (Api)", "2026-11-17T08:00:00Z")
+        self.github.check_runs[PR_HEAD].append(ended("Test (WebApp)", "2026-11-17T09:10:00Z"))
+        self.github.check_runs[MAIN_HEAD].append(run("Test (WebApp)", "failure"))
+        self.assertEqual(self.look(), ([], set()))
+
+        self.github.check_runs[MAIN_HEAD][2] = run("Test (WebApp)")
+        self.assertEqual(self.look(), ([(231, "feedback/issue-230", ["Test (WebApp)"])], set()))
+
     def test_while_main_still_runs_the_check_the_next_look_decides(self):
         self.github.check_runs[MAIN_HEAD] = [run("Build Api"), run("Test (Api)", None, status="in_progress")]
 

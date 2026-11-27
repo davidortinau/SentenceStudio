@@ -111,7 +111,7 @@ that commit says Merge, the reviewer is asked once more for that commit, unless:
 - the pull request is a draft, or the commit was settled before (--seen).
 
 A commit is settled when its checks finished green, when the reviewer had seen every failure
-held against it, or when the reviewer has been asked.
+and none of them waits on main, or when the reviewer has been asked.
 
 The reviewer already reads which test failed and whether main fails it too, and says "Fix
 first" when the change reaches it; from there "The reviewer's findings, by themselves" applies,
@@ -899,10 +899,10 @@ def red_after_merge(seen, problems=None):
             if on_main is None:
                 on_main = verdicts_for(gh_lines("api", f"repos/{REPO}/commits/main", "--jq", "{sha}")[0]["sha"])
             held = [name for name in failed if on_main.get(name, {}).get("verdict") not in ("failed", "running")]
-            if not held:
-                # Main is red or still running for every one of them. Not settled: a later
-                # look decides, when main's own run of the check has passed.
-                continue
+            # A check main fails too, or still runs, is not held against the change for now.
+            # While there is one, the commit is not settled: a later look decides, when
+            # main's own run of the check has passed.
+            waits = len(held) < len(failed)
             reviews = reviewers_reviews(item["pr"])
             posted = moment(reviews[-1].get("at")) if reviews else None
             unseen = []
@@ -919,7 +919,7 @@ def red_after_merge(seen, problems=None):
             continue
         if unseen:
             asks.append({**item, "failed": unseen})
-        else:
+        elif not waits:
             keep.add(key)
     return asks, keep
 

@@ -247,10 +247,12 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   - the pull request is a draft.
 
   Each commit is asked about once. `state/red-after-merge` holds the commits settled: those
-  whose checks came out green, those whose failures the reviewer had seen, and those the
-  reviewer was asked about, written once the request went through. A request that fails is
-  said in the summary and made again at the next look. What could not be read of a pull
-  request is in `state/red-look.err` until a look reads everything. The reviewer reads which
+  whose checks came out green, those whose failures the reviewer had all seen with none
+  waiting on `main`, and those the reviewer was asked about, written once the request went
+  through. A request that fails is said in the summary and made again at the next look,
+  three times in all; then the commit is let go and he is notified. What could not be read
+  of a pull request is in `state/red-look.err` until a look reads everything; nothing shows
+  that file, it is there for whoever wonders why nothing was asked. The reviewer reads which
   test failed and whether `main` fails it too, and says "Fix first" when the change reaches
   it; what follows from that is "Fixing what it found, by itself", with its count of rounds.
   Asking again starts no session.
@@ -304,11 +306,11 @@ A review agent on GitHub reads each pull request and recommends what to do with 
     compared with `main` in the runner's own checkout from what GitHub holds). Claude Code
     loads the worktree's `AGENTS.md` and `.claude/` by itself, whatever the prompt points
     at, so on such a branch the pass does not start: the runner says so on the pull request
-    (repeating only plain file names, and counting the rest), sets the review aside
-    (`x<number>`), and his `/revise review` starts it. A pass he asked for goes ahead on such
-    a branch and is told those files are the change under work, not its instructions. For
-    either kind of pass, a branch that could not be compared leaves the pass waiting, and
-    the worktree has to be at the commit that was compared or the session is not started;
+    (naming the kinds of file and how many, never a file's name, which is the branch's to
+    choose), sets the review aside (`x<number>`), and his `/revise review` starts it. A pass
+    he asked for goes ahead on such a branch and is told those files are the change under
+    work, not its instructions. A branch with no history in common with `main` counts as
+    changing them. A branch GitHub cannot be read for leaves either kind of pass waiting;
   - fewer than two passes were started this way on the pull request (`FIX_ROUNDS` in
     `scripts/admin-feedback-pr.py`; `FEEDBACK_REVIEW_FIX_ROUNDS` in the job's environment
     changes it, 0 turns it off, and so does anything that is not one digit).
@@ -339,8 +341,11 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   Known and not closed, about where a session's rules come from: the documents `AGENTS.md`
   points at (`docs/engineering-guide-full.md`, `docs/deploy-runbook.md`, files under
   `.squad/decisions/`) are read from the branch; and the session user's home and its clone
-  of the repository last from one session to the next, so what a misled session left there
-  (a git hook, Claude Code's own memory files) is there for the next one.
+  of the repository last from one session to the next, and a pass's worktree is made from
+  that clone, so what a misled session left there (a git hook, a replaced object, Claude
+  Code's own memory files) is there for the next one. The rule files are compared from what
+  GitHub holds, which says nothing about a clone that was tampered with. Closing this needs
+  a fresh clone and a clean home for each session.
 
   Known and accepted: the reviewer reads text nobody vetted (the pull request, the failed
   tests' output, and for an issue from the app's feedback button the learner's own words),
