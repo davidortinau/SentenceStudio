@@ -1263,5 +1263,150 @@ class ReviewStartedPassTests(GitHubTestCase):
             self.assertFalse([args for args in self.github.asked if "/check-runs" in args[1] or args[1] == "graphql"])
 
 
+MERGE = FIX_FIRST.replace("Fix first", "Merge")
+
+
+def ended(name, at, conclusion="failure"):
+    return {**run(name, conclusion), "ended": at}
+
+
+class RedAfterMergeTests(GitHubTestCase):
+    """Checks that finish red on the commit the reviewer said Merge for: it is asked again."""
+
+    def setUp(self):
+        super().setUp()
+        self.github.pull_requests = [pull_request(231, "feedback/issue-230")]
+        self.github.workflow_runs[PR_HEAD] = FINISHED
+        self.github.workflow_runs[MAIN_HEAD] = FINISHED
+        # The review was posted at 09:00; the test finished red ten minutes later.
+        self.github.reviews[231] = [reviewers(body=MERGE)]
+        self.github.check_runs[PR_HEAD] = [verdict("success", "Merge (at aaaaaaaa)"), run("Build Api"),
+                                           ended("Test (Api)", "2026-11-17T09:10:00Z")]
+        self.github.check_runs[MAIN_HEAD] = [run("Build Api"), run("Test (Api)")]
+
+    def look(self, seen=()):
+        asks, keep = pr_script.red_after_merge(set(seen))
+        return [(ask["pr"], ask["branch"], ask["failed"]) for ask in asks], keep
+
+    def test_a_test_that_fails_after_the_merge_recommendation_is_asked_about(self):
+        self.assertEqual(self.look(), ([(231, "feedback/issue-230", ["Test (Api)"])], {"231:aaaaaaaa"}))
+
+    def test_a_commit_is_asked_about_once(self):
+        self.github.asked.clear()
+
+        self.assertEqual(self.look(seen={"231:aaaaaaaa"}), ([], {"231:aaaaaaaa"}))
+        self.assertEqual([args[:2] for args in self.github.asked], [("pr", "list")])
+
+    def test_a_new_head_is_looked_at_afresh_and_a_closed_pull_request_is_forgotten(self):
+        self.assertEqual(self.look(seen={"231:cccccccc", "199:dddddddd"}),
+                         ([(231, "feedback/issue-230", ["Test (Api)"])], {"231:aaaaaaaa"}))
+
+    def test_a_check_main_fails_too_is_not_held_against_the_change(self):
+        self.github.check_runs[MAIN_HEAD] = [run("Build Api"), run("Test (Api)", "failure")]
+
+        self.assertEqual(self.look(), ([], {"231:aaaaaaaa"}))
+
+    def test_while_main_still_runs_the_check_the_next_look_decides(self):
+        self.github.check_runs[MAIN_HEAD] = [run("Build Api"), run("Test (Api)", None, status="in_progress")]
+
+        self.assertEqual(self.look(), ([], set()))
+
+    def test_a_check_main_never_ran_is_held_against_the_change(self):
+        self.github.check_runs[MAIN_HEAD] = [run("Build Api")]
+
+        self.assertEqual(self.look()[0], [(231, "feedback/issue-230", ["Test (Api)"])])
+
+    def test_a_failure_the_reviewer_had_seen_is_not_asked_about_again(self):
+        self.github.check_runs[PR_HEAD][2] = ended("Test (Api)", "2026-11-17T08:00:00Z")
+
+        self.assertEqual(self.look(), ([], {"231:aaaaaaaa"}))
+
+    def test_a_failure_that_ended_while_the_review_was_being_written_counts_as_unseen(self):
+        self.github.check_runs[PR_HEAD][2] = ended("Test (Api)", "2026-11-17T08:50:00Z")
+
+        self.assertEqual(self.look()[0], [(231, "feedback/issue-230", ["Test (Api)"])])
+
+    def test_a_failure_with_no_time_counts_as_unseen(self):
+        self.github.check_runs[PR_HEAD][2] = run("Test (Api)", "failure")
+
+        self.assertEqual(self.look()[0], [(231, "feedback/issue-230", ["Test (Api)"])])
+
+    def test_only_the_failures_not_seen_are_named(self):
+        self.github.check_runs[PR_HEAD].append(ended("Test (WebApp)", "2026-11-17T08:00:00Z"))
+        self.github.check_runs[MAIN_HEAD].append(run("Test (WebApp)"))
+
+        self.assertEqual(self.look()[0], [(231, "feedback/issue-230", ["Test (Api)"])])
+
+    def test_checks_still_running_are_left_for_the_next_look(self):
+        self.github.check_runs[PR_HEAD].append(run("Test (WebApp)", None, status="in_progress"))
+        self.assertEqual(self.look(), ([], set()))
+        self.github.check_runs[PR_HEAD].pop()
+        self.github.workflow_runs[PR_HEAD] = [{"id": 1, "name": "CI", "status": "in_progress", "conclusion": None}]
+        self.assertEqual(self.look(), ([], set()))
+
+    def test_green_checks_settle_the_commit(self):
+        self.github.check_runs[PR_HEAD][2] = run("Test (Api)")
+
+        self.assertEqual(self.look(), ([], {"231:aaaaaaaa"}))
+
+    def test_only_a_merge_the_review_bears_out_is_asked_about(self):
+        for reviews, check in (([reviewers()], verdict("failure", "Fix first: 1 to fix (at aaaaaaaa)")),
+                               ([reviewers()], verdict("success", "Merge (at aaaaaaaa)")),
+                               ([], verdict("success", "Merge (at aaaaaaaa)")),
+                               ([reviewers(body=MERGE)], verdict("success", "Merge (at cccccccc)")),
+                               ([reviewers(body=MERGE)], verdict(None, None, status="in_progress"))):
+            self.github.reviews[231] = reviews
+            self.github.check_runs[PR_HEAD][0] = check
+            pr_script.SEEN_REVIEWS.clear()
+            self.assertEqual(self.look(), ([], set()), (reviews, check))
+
+    def test_an_edited_review_is_not_taken_at_its_word(self):
+        self.github.edited.add(900)
+
+        self.assertEqual(self.look(), ([], set()))
+
+    def test_a_draft_is_left_alone(self):
+        self.github.pull_requests = [pull_request(231, "feedback/issue-230", draft=True)]
+
+        self.assertEqual(self.look(), ([], set()))
+
+    def test_a_pull_request_github_could_not_be_read_for_waits_and_the_others_do_not(self):
+        other = "d" * 40
+        self.github.pull_requests.append(pull_request(240, "feedback/issue-239", head=other))
+        self.github.workflow_runs[other] = FINISHED
+        self.github.reviews[240] = [reviewers(body=MERGE.replace("aaaaaaaa", "dddddddd"), commit=other)]
+        self.github.check_runs[other] = [verdict("success", "Merge (at dddddddd)"),
+                                         ended("Test (Api)", "2026-11-17T09:10:00Z")]
+        read = pr_script.review_of
+
+        def unreadable_for_231(ref, pr=None, kept=None):
+            if pr == 231:
+                raise pr_script.GitHubError("no answer")
+            return read(ref, pr, kept)
+
+        with mock.patch.object(pr_script, "review_of", unreadable_for_231):
+            self.assertEqual(self.look(), ([(240, "feedback/issue-239", ["Test (Api)"])], {"240:dddddddd"}))
+
+    def test_the_command_remembers_before_it_prints_and_prints_each_commit_once(self):
+        with tempfile.TemporaryDirectory() as folder:
+            kept = Path(folder) / "red-after-merge"
+            kept.write_text("199:dddddddd\nnot a key\n", encoding="utf-8")
+            with mock.patch("builtins.print") as printed:
+                self.assertEqual(pr_script.main(["red-after-merge", "--seen", str(kept)]), 0)
+                self.assertEqual(kept.read_text(encoding="utf-8"), "231:aaaaaaaa\n")
+                self.assertEqual(pr_script.main(["red-after-merge", "--seen", str(kept)]), 0)
+            self.assertEqual([call[0] for call in printed.call_args_list],
+                             [(231, "feedback/issue-230", "aaaaaaaa", "Test (Api)")])
+
+    def test_the_command_writes_nothing_when_github_cannot_be_read(self):
+        with tempfile.TemporaryDirectory() as folder:
+            kept = Path(folder) / "red-after-merge"
+            kept.write_text("231:aaaaaaaa\n", encoding="utf-8")
+            with mock.patch.object(pr_script, "own_pull_requests", side_effect=pr_script.GitHubError("no answer")), \
+                    mock.patch("builtins.print"):
+                self.assertEqual(pr_script.main(["red-after-merge", "--seen", str(kept)]), 3)
+            self.assertEqual(kept.read_text(encoding="utf-8"), "231:aaaaaaaa\n")
+
+
 if __name__ == "__main__":
     unittest.main()

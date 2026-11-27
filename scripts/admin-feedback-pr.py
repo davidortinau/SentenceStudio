@@ -37,6 +37,11 @@ report checks. A fix session uses `checks` after it pushes (docs/admin-feedback-
       was cancelled, 2 when they were still running, 3 when GitHub could not be read.
   admin-feedback-pr.py main-ci
       One line: whether the checks on main's newest commit are green, red or still running.
+  admin-feedback-pr.py red-after-merge --seen FILE
+      The pull requests the reviewer should read again, one line each (pull request, branch,
+      the head's first eight characters, then the failed checks): its checks finished red on
+      the commit the reviewer said "Merge" for. See "Red after a Merge". FILE remembers the
+      commits already settled, so each is asked about once.
 
 Whose words count: the repository is public, so anyone can comment on a pull request. Only a
 comment or review by the owner is a request, a pull request from a fork is never one of the
@@ -91,6 +96,22 @@ whichever pull request it is. What bounds the harm of a review that was talked i
 finding (by the pull request it read, or by the learner's own words in the issue): the session
 works on a branch nothing merges but him, the reviewer reads the result again, and the rounds
 are counted. A draft is a convenience and not a guard: the App can make one ready.
+
+Red after a Merge (Captain, 2026-11-27, from dotnet/maui's autopilot: not done until the tests
+have passed). The reviewer is asked the moment a session ends, when the checks on the commit
+are usually still running, so a test the change broke could finish red beside "Review: merge".
+When every check on the head has finished, one of them failed, and the reviewer's review of
+that commit says Merge, the reviewer is asked once more for that commit, unless:
+
+- main fails the same check (it is then not held against the change), or main's run of it has
+  not finished (the next look decides);
+- the failed check had finished REVIEW_TAKES before the review was posted: the reviewer saw
+  it and said Merge all the same;
+- the pull request is a draft, or the commit was settled before (--seen).
+
+The reviewer already reads which test failed and whether main fails it too, and says "Fix
+first" when the change reaches it; from there "The reviewer's findings, by themselves" applies,
+with its count of rounds. Nothing here starts a session.
 
 Before 2026-11-24 a fix session ran as the owner's macOS user and could reach his login, so an
 issue a misled session opened through it, or labelled feedback-check, would read as his. An
@@ -153,6 +174,10 @@ NAMES_REVIEW = re.compile(
 READ_COMMIT = re.compile(r"^Reviewed commit ([0-9a-f]{8})\b", re.MULTILINE)
 # How long a check found borne out by the reviewer's review is not asked about again.
 BORNE_OUT_SECONDS = 600
+# A review is posted some minutes after its run read the checks (about six, measured). A
+# check that finished within this many seconds before the review was posted may not have been
+# seen by it ("Red after a Merge").
+REVIEW_TAKES = 900
 # The title the reviewer is told to give its check. Anything else is not repeated.
 REVIEW_TITLE = re.compile(r"^(?:Merge|Fix first: (\d{1,3}) to fix|Your call: (\d{1,3}) to decide) \(at ([0-9a-f]{8})\)$")
 # How many passes the reviewer's findings may start on one pull request with no request of
@@ -589,7 +614,7 @@ def check_runs(ref, aside=()):
     runs = gh_lines(
         "api", f"repos/{REPO}/commits/{ref}/check-runs?per_page=100", "--paginate", "--jq",
         ".check_runs[] | {id, name, status, conclusion, url: .html_url, suite: .check_suite.id,"
-        " app: .app.slug, title: .output.title}")
+        " app: .app.slug, title: .output.title, ended: .completed_at}")
     SEEN_REVIEWS.clear()
     SEEN_REVIEWS[ref] = [run for run in runs if run["name"] == REVIEW_CHECK]
     return [run for run in runs if run["name"] != REVIEW_CHECK and run.get("suite") not in aside]
@@ -816,6 +841,78 @@ def main_ci():
     return f"MAIN CI: green {at} ({len(verdicts)} check{'' if len(verdicts) == 1 else 's'})"
 
 
+def moment(text):
+    """A time GitHub gave, or None."""
+    try:
+        return datetime.fromisoformat((text or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def seen_commits(path):
+    """The commits already settled for "Red after a Merge": lines of <pr>:<eight characters>."""
+    try:
+        with open(path, encoding="utf-8") as source:
+            return {word for word in source.read().split() if re.fullmatch(r"[0-9]+:[0-9a-f]{8}", word)}
+    except OSError:
+        return set()
+
+
+def red_after_merge(seen):
+    """Which of the check's own pull requests the reviewer should read again, and which
+    commits are settled ("Red after a Merge"). seen: the commits settled before, as
+    <pr>:<eight characters>. Returns the ones to ask about, each with its failed checks, and
+    the set to remember: what was settled before for a pull request still open, what this look
+    settled, and what it asks about (asked once, whatever comes of the asking). A pull request
+    GitHub could not be read for is left for the next look."""
+    asks, keep = [], set()
+    on_main = None
+    for item in own_pull_requests():
+        key = f"{item['pr']}:{item['head'][:8]}"
+        if key in seen:
+            keep.add(key)
+            continue
+        if item["draft"] or not item["head"]:
+            continue
+        try:
+            head = item["head"]
+            # Only a Merge the reviewer's own review of this commit bears out is asked about.
+            # A "Fix first" has its own road, and a "Your call" waits for him.
+            if review_of(head, item["pr"]) != "merge":
+                continue
+            finished, _, bad, aside = workflows(head)
+            runs = check_runs(head, aside)
+            verdicts = with_workflows(by_name(runs), bad)
+            if not finished or not verdicts or any(v["verdict"] == "running" for v in verdicts.values()):
+                continue
+            failed = sorted(name for name, v in verdicts.items() if v["verdict"] == "failed")
+            if failed and on_main is None:
+                on_main = verdicts_for(gh_lines("api", f"repos/{REPO}/commits/main", "--jq", "{sha}")[0]["sha"])
+            there = {name: (on_main or {}).get(name, {}).get("verdict") for name in failed}
+            held = [name for name in failed if there[name] not in ("failed", "running")]
+            if not held:
+                # Main's own run of a failed check decides once it has finished.
+                if not any(verdict == "running" for verdict in there.values()):
+                    keep.add(key)
+                continue
+            reviews = reviewers_reviews(item["pr"])
+            posted = moment(reviews[-1].get("at")) if reviews else None
+            unseen = []
+            for name in held:
+                ended = [moment(run.get("ended")) for run in runs
+                         if run["name"] == name and run.get("conclusion") in RED]
+                # A workflow that failed without leaving a check has no time: taken as unseen.
+                if (posted is None or not ended or None in ended
+                        or max(ended) + timedelta(seconds=REVIEW_TAKES) > posted):
+                    unseen.append(name)
+        except GitHubError:
+            continue
+        keep.add(key)
+        if unseen:
+            asks.append({**item, "failed": unseen})
+    return asks, keep
+
+
 def option(args, name):
     if name in args:
         position = args.index(name)
@@ -908,6 +1005,21 @@ def main(args):
             return code
         if mode == "main-ci":
             print(main_ci())
+            return 0
+        if mode == "red-after-merge":
+            kept = option(args, "--seen")
+            if not kept:
+                print(__doc__)
+                return 2
+            before = seen_commits(kept)
+            asks, keep = red_after_merge(before)
+            # Remembered before anything is asked: a commit is asked about once.
+            if keep != before:
+                with open(kept + ".tmp", "w", encoding="utf-8") as target:
+                    target.write("".join(f"{key}\n" for key in sorted(keep)))
+                os.replace(kept + ".tmp", kept)
+            for ask in asks:
+                print(ask["pr"], ask["branch"], ask["head"][:8], "; ".join(ask["failed"]))
             return 0
     except (GitHubError, KeyError, IndexError, TypeError, ValueError, OSError) as error:
         why = str(error) if isinstance(error, GitHubError) else f"an unexpected answer: {type(error).__name__} {error}"

@@ -20,6 +20,10 @@ on:
         required: false
         type: number
   roles: [admin, maintainer, write]
+  # A /review is answered by the reaction on the comment and then by the review and its check.
+  # gh-aw's own "started" and "completed" comment (on by default for a slash command) is
+  # left out: it would be one more comment on the page for each review.
+  status-comment: false
 
 # slash_command compiles to issue_comment; only pull request comments go on.
 if: >-

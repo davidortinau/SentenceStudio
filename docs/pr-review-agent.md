@@ -32,7 +32,12 @@ told is in `docs/admin-feedback-fix.md`, "The review".
 
 - **By itself**, for a fix session's pull request: the feedback check starts it when the
   session (or a `/revise` pass) has ended and the runner has posted what it checked.
-- **`/review`** in a comment on any pull request, by someone with write access.
+- **By itself, once more**, when that pull request's checks then finish red on the commit it
+  said Merge for, and `main` does not fail the same check (`docs/admin-feedback-check.md`,
+  "The review", "Asking again when the checks finish red").
+- **`/review`** in a comment on any pull request, by someone with write access. The comment
+  gets a reaction when the run starts; the answer is the review and its check. The tool's
+  own "started" and "completed" comment is turned off (`status-comment: false`).
 - **From the Actions tab**: "PR review", Run workflow, with the pull request's number.
 
 GitHub starts the workflow for every comment anywhere in the repository, which is how it hears
@@ -78,6 +83,9 @@ as merged. Changing that text needs no compile; changing the front matter does
 | `@copilot` at the start of the summary so the authoring agent picks it up (macios, android) | The runner hands a "Fix first" to a fix session by itself, at most twice on one pull request; `/revise review` by the Captain does it on his word. |
 | Three models and a vote (maui-labs); frozen inputs and four passes (maui) | One pinned model, one pass. A second opinion can be added if single reviews prove unreliable. |
 | Methodology in a skill file read at run time (macios, android) | In the workflow's own text, which is always read from `main`. |
+| A loop of review, fix, review, then tests, then fix (maui's autopilot) | The same loop, driven from Lilliput and stopped at two rounds. Taken from it on 2026-11-27: a fix pass reads `AGENTS.md` from `main`, a pass nobody asked for does not start on a branch that changes a session's rule files, the reviewer is asked again when the checks finish red, and `/review` posts no status comment. |
+| Two models each propose a fix (maui's autopilot) | Not taken: it doubles the cost of a round, and the reviewer is the second read. |
+| Labels that show the phase, older status comments hidden, one commit and one thread reply per finding (maui's autopilot) | Not built yet. |
 | Emoji severity marks | None; this project uses no emoji. |
 
 ## What it may and may not be trusted with
@@ -148,7 +156,8 @@ Nothing else: no label, no branch rule, no repository setting.
 
 About 37 of Copilot's AI credits and six and a half minutes a review, measured on pull
 request 311 (2 files, +176 -13) with the pinned model: 35 for the review, 2 for the check on
-its output. One review per fix session and one per `/revise` pass.
+its output. One review per fix session and one per `/revise` pass, and one more when a
+commit's checks finish red after the reviewer said Merge.
 
 ## The first live reviews (2026-11-26)
 
@@ -179,7 +188,8 @@ that read, with the files read named in the review.
   it or a request to it fails. Left to `auto`, Copilot chose a quick model that read only the diff (see "The first
   live reviews"). The check on the reviewer's output before posting keeps the tool's small
   model (`safe-outputs.threat-detection.engine`).
-- **Stop the runner asking**: `FEEDBACK_REVIEW=off` for the check. `/review` still works.
+- **Stop the runner asking**: `FEEDBACK_REVIEW=off` for the check, which also stops the
+  asking again on red checks. `/review` still works.
 - **Stop a "Fix first" starting a fix pass**: set `FIX_ROUNDS = 0` in
   `scripts/admin-feedback-pr.py` and merge (the job runs what is on `main`), or set
   `FEEDBACK_REVIEW_FIX_ROUNDS=0` in the job's environment. The number is how many such passes

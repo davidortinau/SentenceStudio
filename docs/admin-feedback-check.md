@@ -232,6 +232,24 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   the number comes from the session's reply. A request that fails is said in the summary and
   not tried again; `/review` on the pull request asks by hand. `FEEDBACK_REVIEW=off` stops the
   asking.
+- **Asking again when the checks finish red** (2026-11-27, from dotnet/maui's autopilot: not
+  done until the tests have passed). The reviewer is asked the moment a session ends, when
+  the commit's checks are usually still running, so a test the change broke could finish red
+  beside "Review: merge". A pass looks for that at most every ten minutes, never while a
+  session runs (`review_again_when_red`; `red-after-merge` in `scripts/admin-feedback-pr.py`):
+  every check on the head has finished, one failed, and the reviewer's review of that commit
+  says Merge. The reviewer is then asked once more for that commit, and the summary has a
+  line starting `REVIEW:`. Not when:
+  - `main` fails the same check (it is not held against the change), or `main`'s run of it
+    has not finished (the next look decides);
+  - the failed check had finished fifteen minutes or more before the review was posted: the
+    reviewer saw it and said Merge all the same;
+  - the pull request is a draft.
+
+  Each commit is asked about once (`state/red-after-merge` holds the commits settled). The
+  reviewer reads which test failed and whether `main` fails it too, and says "Fix first" when
+  the change reaches it; what follows from that is "Fixing what it found, by itself", with
+  its count of rounds. Asking again starts no session.
 - **Reading.** The recommendation is the check named `Merge recommendation` on the pull
   request's head commit, read by name and only when GitHub Actions posted it. The status
   issue leads each pull request's line with it: "Review: merge", "Review: fix first (2 to
@@ -276,6 +294,12 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   - the check on that commit says the same, by the tests under "Reading" (`review_of`);
   - no pass was started on that review before, none was set aside for it, and he has not
     handed it over himself since (a `/revise` that names the review, made after it);
+  - the branch changes none of the files a session takes rules from without being pointed at
+    them (`rules_changed`: any `AGENTS.md` or `CLAUDE.md`, `.claude/`, `.mcp.json`,
+    `.squad/skills/`, compared with `main` in the runner's own checkout). On such a branch
+    the pass does not start: the runner says so on the pull request, sets the review aside
+    (`x<number>`), and his `/revise review` starts it. A pass he asked for goes ahead on such
+    a branch and is told those files are the change under work, not its instructions;
   - fewer than two passes were started this way on the pull request (`FIX_ROUNDS` in
     `scripts/admin-feedback-pr.py`; `FEEDBACK_REVIEW_FIX_ROUNDS` in the job's environment
     changes it, 0 turns it off, and so does anything that is not one digit).
@@ -405,7 +429,9 @@ A review agent on GitHub reads each pull request and recommends what to do with 
     must. Its package cache is its own (`~lemuel/.nuget`), filled from the mirror.
   - **What it is given of the Captain's**, read-only in `/Users/Shared/sstudio-feedback`
     (owned by the Captain, rewritten before each session): the current
-    `docs/admin-feedback-fix.md`, the mirror's `NuGet.config` with its local feed pointed at
+    `docs/admin-feedback-fix.md` and `AGENTS.md` as they are on `main` (a session is told to
+    read both there, so a pass on a pull request's branch does not take its rules from a
+    copy an earlier session changed), the mirror's `NuGet.config` with its local feed pointed at
     `LocalNuGets` there, and in that folder the `.nupkg` files that are on no feed, copied from
     `~/work/LocalNuGets` and `~/work/Microsoft.SwiftUI/artifacts` (`FEEDBACK_LOCAL_FEEDS`). **A
     package that exists only in the Captain's package cache is not there:** put its `.nupkg`
