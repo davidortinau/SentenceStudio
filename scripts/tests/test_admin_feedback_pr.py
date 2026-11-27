@@ -1018,6 +1018,13 @@ class ReviewStartedPassTests(GitHubTestCase):
         self.assertEqual(pr_script.pending(self.started("v900", "v901")), [])
         self.assertEqual(pr_script.rounds_on(231, self.started("v900", "v901")), 2)
 
+    def test_a_pass_recorded_for_the_pull_request_is_not_started_again(self):
+        # The runner's record of the pass alone, without the plain id or a marker.
+        kept = pr_script.Handled()
+        kept.passes[231] = {"v900"}
+
+        self.assertEqual(pr_script.pending(kept), [])
+
     def test_passes_on_another_pull_request_are_not_counted_here(self):
         self.assertEqual(pr_script.pending(self.started("v800", "v801", pr=240))[0]["ids"], ["v900"])
 
@@ -1190,7 +1197,7 @@ class ReviewStartedPassTests(GitHubTestCase):
 
         text = pr_script.request_text(231, {"1"})
 
-        self.assertIn("edited after it was posted", text)
+        self.assertIn("edited after it was posted, or GitHub does not vouch", text)
         self.assertIn("shorten the notice", text)
         self.assertNotIn("### Must fix", text)
         with self.assertRaises(pr_script.GitHubError):

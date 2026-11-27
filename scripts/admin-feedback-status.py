@@ -227,7 +227,8 @@ def review_note(head, number):
     try:
         words = pr.review_of(head, number, OUT / "state" / "reviews-borne-out.json")
     except pr.GitHubError:
-        return ""
+        # Said, not left out: while it lasts, no pass starts on the reviewer's findings either.
+        return "**Review: could not be read.** "
     return f"**Review: {words}.** " if words else ""
 
 

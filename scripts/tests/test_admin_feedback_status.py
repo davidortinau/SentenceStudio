@@ -250,9 +250,9 @@ class ReviewNoteTests(unittest.TestCase):
             self.assertEqual(status.review_note("", 280), "")
         asked.assert_not_called()
 
-    def test_github_not_answering_leaves_the_line_as_it_was(self):
+    def test_github_not_answering_is_said(self):
         with mock.patch.object(status.pr, "review_of", side_effect=status.pr.GitHubError("HTTP 502")):
-            self.assertEqual(status.review_note("16ce7bba", 280), "")
+            self.assertEqual(status.review_note("16ce7bba", 280), "**Review: could not be read.** ")
 
 
 if __name__ == "__main__":

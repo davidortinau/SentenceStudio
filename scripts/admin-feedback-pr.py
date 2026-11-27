@@ -387,7 +387,7 @@ def review_to_fix(pr, head, reviews, requests, done, rounds, started):
         return None
     newest = theirs[-1]
     taken = f"v{newest['review']}"
-    if said(newest) != "fix first" or taken in done or f"x{newest['review']}" in done:
+    if said(newest) != "fix first" or taken in done or taken in started or f"x{newest['review']}" in done:
         return None
     # GitHub's record is the head when the review was posted; the review's text says what it read.
     if not (same_commit(newest.get("commit") or "", head) and same_commit(read_commit(newest), head)):
@@ -423,7 +423,8 @@ def pending(locally_handled, every=False, rounds=None, kinds=("request", "review
                                       started_by_review(pr["pr"], answered, locally_handled))
             except GitHubError:
                 # A check or a review's history that could not be read now is read on a later
-                # look. It must not stand in the way of his requests and the issues.
+                # look. It must not stand in the way of his requests and the issues. The status
+                # issue says "Review: could not be read" for as long as it lasts.
                 taken = None
             if taken:
                 found.append({**pr, "ids": [taken]})
@@ -481,11 +482,13 @@ def review_text(pr, review=None):
                 "request. Say so in your reply, and do the rest of what he asked."]
     if not review.get("unedited"):
         if standing:
-            raise GitHubError(f"the reviewer's review {review['id']} of pull request {pr} was edited after it was posted")
+            raise GitHubError(f"the reviewer's review {review['id']} of pull request {pr} was edited after it was posted,"
+                              " or GitHub does not vouch for it")
         return ["", "## The review", "",
                 "His request names the review. The reviewer's newest review of this pull request was",
-                "edited after it was posted, so it may no longer be the reviewer's words and is not",
-                "handed to you. Say so in your reply, and do the rest of what he asked."]
+                "edited after it was posted, or GitHub does not vouch that it was not, so it may no longer",
+                "be the reviewer's words and is not handed to you. Say so in your reply, and do the rest",
+                "of what he asked."]
     # What the review says it read; GitHub's record is the head when it was posted.
     read = read_commit(review) or review.get("commit") or ""
     head = gh_lines("pr", "view", str(pr), "--repo", REPO, "--json", "headRefOid", "--jq", ".")[0]["headRefOid"]

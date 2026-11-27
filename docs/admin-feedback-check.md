@@ -271,7 +271,8 @@ A review agent on GitHub reads each pull request and recommends what to do with 
     applies before a review is handed over on his `/revise review`, and before the status
     issue repeats a recommendation; a comment on the diff that was edited, or that GitHub
     does not list, is left out). What cannot be read of a review now is read on a later
-    look, and does not hold up his requests or the issues;
+    look, and does not hold up his requests or the issues; the status issue says "Review:
+    could not be read" on that pull request's line for as long as it lasts;
   - the check on that commit says the same, by the tests under "Reading" (`review_of`);
   - no pass was started on that review before, none was set aside for it, and he has not
     handed it over himself since (a `/revise` that names the review, made after it);
