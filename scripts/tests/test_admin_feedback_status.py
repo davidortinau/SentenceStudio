@@ -210,18 +210,27 @@ class QueueTests(unittest.TestCase):
     """What waits for a pass, as the status issue lists it."""
 
     def test_a_pass_the_reviewers_findings_start_is_named_as_one(self):
-        waiting = [{"pr": 312, "issue": 306, "ids": ["v900"]}, {"pr": 297, "issue": 290, "ids": ["41", "r7"]}]
+        waiting = [{"pr": 297, "issue": 290, "ids": ["41", "r7"]}, {"pr": 312, "issue": 306, "ids": ["v900"]}]
         with mock.patch.object(status.pr, "own_pull_requests", return_value=[]), \
              mock.patch.object(status.pr, "pending", return_value=waiting) as asked, \
-             mock.patch.object(status.pr, "waiting_issues", return_value=[(320, "follow-up")]), \
+             mock.patch.object(status.pr, "waiting_issues", return_value=[(321, "app"), (320, "follow-up")]), \
              mock.patch.object(status.pr, "gh_lines", return_value=[]), \
              mock.patch.object(status, "in_flight_number", return_value=None):
             queue, prs, waiting_on_you = status.gather([], set())
 
-        self.assertEqual(queue, ["- the reviewer's findings on #312 (issue #306)", "- `/revise` on #297 (issue #290)",
-                                 "- #320 (follow-up)"])
+        # In the order the work is taken.
+        self.assertEqual(queue, ["- `/revise` on #297 (issue #290)", "- #321 (app)",
+                                 "- the reviewer's findings on #312 (issue #306)", "- #320 (follow-up)"])
         self.assertEqual((prs, waiting_on_you), ([], []))
         asked.assert_called_once_with(set(), every=True)
+
+    def test_the_passes_the_runner_recorded_reach_the_count(self):
+        with tempfile.TemporaryDirectory() as folder:
+            kept = Path(folder) / "handled"
+            kept.write_text("v900\n312:v900\n", encoding="utf-8")
+            with mock.patch.object(status, "update") as asked:
+                self.assertEqual(status.main(["update", "--handled", str(kept)]), 0)
+        self.assertEqual(asked.call_args[0][2].passes, {312: {"v900"}})
 
 
 class ReviewNoteTests(unittest.TestCase):

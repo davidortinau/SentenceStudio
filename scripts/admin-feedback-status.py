@@ -248,13 +248,15 @@ def gather(windows, handled):
     own = pr.own_pull_requests()
     queue = []
     running = in_flight_number()
-    for found in pr.pending(handled, every=True):
-        if found["pr"] != running:
-            what = "the reviewer's findings" if found["ids"][0].startswith("v") else "`/revise`"
-            queue.append(f"- {what} on #{found['pr']} (issue #{found['issue']})")
-    for number, source in pr.waiting_issues(windows):
-        if number != running:
-            queue.append(f"- #{number} ({source})")
+    # In the order the work is taken: what he asked for, what he or a learner filed, what the
+    # reviewer says needs fixing first, what a session left for later.
+    waiting = [found for found in pr.pending(handled, every=True) if found["pr"] != running]
+    issues = [(number, source) for number, source in pr.waiting_issues(windows) if number != running]
+    by_review = [found for found in waiting if found["ids"][0].startswith("v")]
+    queue += [f"- `/revise` on #{found['pr']} (issue #{found['issue']})" for found in waiting if found not in by_review]
+    queue += [f"- #{number} ({source})" for number, source in issues if source != "follow-up"]
+    queue += [f"- the reviewer's findings on #{found['pr']} (issue #{found['issue']})" for found in by_review]
+    queue += [f"- #{number} ({source})" for number, source in issues if source == "follow-up"]
     prs = []
     for item in own:
         lines, _ = pr.checks(item["pr"], 0)

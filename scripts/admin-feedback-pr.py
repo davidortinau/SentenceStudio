@@ -354,17 +354,28 @@ def started_by_review(pr, answered, locally_handled):
     return {found for found in answered if found.startswith("v")} | passes.get(pr, set())
 
 
-def unedited(pr, review):
-    """Whether GitHub says the review with this number was never edited after it was posted.
-    The REST list of reviews does not say; an account with write access can edit another's."""
+def edits_on(pr):
+    """What GitHub says of each review of a pull request, by its number: whether it was edited
+    after it was posted, and the same for each of its comments on the diff. The REST lists do
+    not say (a comment's updated_at moves by itself), and an account with write access can
+    edit another's review."""
     owner, name = REPO.split("/")
     nodes = gh_lines(
         "api", "graphql", "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={pr}", "-f",
         "query=query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) {"
-        " pullRequest(number: $number) { reviews(last: 100) { nodes { databaseId lastEditedAt includesCreatedEdit } } } } }",
+        " pullRequest(number: $number) { reviews(last: 100) { nodes { databaseId lastEditedAt includesCreatedEdit"
+        " comments(first: 100) { nodes { databaseId lastEditedAt } } } } } } }",
         "--jq", ".data.repository.pullRequest.reviews.nodes[]"
-                " | {id: .databaseId, edited: (.lastEditedAt != null or .includesCreatedEdit == true)}")
-    return any(node.get("id") == review and node.get("edited") is False for node in nodes)
+                " | {id: .databaseId, edited: (.lastEditedAt != null or .includesCreatedEdit == true),"
+                " comments: [.comments.nodes[] | {id: .databaseId, edited: (.lastEditedAt != null)}]}")
+    return {node.get("id"): node for node in nodes}
+
+
+def unedited(pr, review, edits=None):
+    """Whether GitHub says the review with this number was never edited after it was posted.
+    A review it does not list, or says nothing of, is not taken to be."""
+    found = (edits_on(pr) if edits is None else edits).get(review) or {}
+    return found.get("edited") is False
 
 
 def review_to_fix(pr, head, reviews, requests, done, rounds, started):
@@ -376,7 +387,7 @@ def review_to_fix(pr, head, reviews, requests, done, rounds, started):
         return None
     newest = theirs[-1]
     taken = f"v{newest['review']}"
-    if said(newest) != "fix first" or taken in done or taken in started or f"x{newest['review']}" in done:
+    if said(newest) != "fix first" or taken in done or f"x{newest['review']}" in done:
         return None
     # GitHub's record is the head when the review was posted; the review's text says what it read.
     if not (same_commit(newest.get("commit") or "", head) and same_commit(read_commit(newest), head)):
@@ -384,9 +395,9 @@ def review_to_fix(pr, head, reviews, requests, done, rounds, started):
     # A request of his that names the review, made after it, already handed it over.
     if any(names_review(r) and (r.get("created_at") or "") > (newest.get("created_at") or "") for r in requests):
         return None
-    if not FIX_FIRST.fullmatch(review_of(head, pr)):
-        return None
-    return taken if unedited(pr, newest["review"]) else None
+    # The check has to say the same, and the review has to be as the reviewer posted it: both
+    # are review_of's tests (borne_out).
+    return taken if FIX_FIRST.fullmatch(review_of(head, pr)) else None
 
 
 def pending(locally_handled, every=False, rounds=None, kinds=("request", "review")):
@@ -407,8 +418,13 @@ def pending(locally_handled, every=False, rounds=None, kinds=("request", "review
             continue
         # A draft is one he parked, or one a pass is working on.
         if "review" in kinds and not pr.get("draft") and (every or not found):
-            taken = review_to_fix(pr["pr"], pr.get("head") or "", reviews, requests, done, rounds,
-                                  started_by_review(pr["pr"], answered, locally_handled))
+            try:
+                taken = review_to_fix(pr["pr"], pr.get("head") or "", reviews, requests, done, rounds,
+                                      started_by_review(pr["pr"], answered, locally_handled))
+            except GitHubError:
+                # A check or a review's history that could not be read now is read on a later
+                # look. It must not stand in the way of his requests and the issues.
+                taken = None
             if taken:
                 found.append({**pr, "ids": [taken]})
     return asked + found if every else (asked + found)[:1]
@@ -435,12 +451,15 @@ def newest_review(pr):
     newest = reviews[-1]
     inline = gh_lines(
         "api", f"repos/{REPO}/pulls/{pr}/comments", "--paginate", "--jq",
-        ".[] | {id, body, path, line: (.line // .original_line), review: .pull_request_review_id, user: .user.login,"
-        " created: .created_at, updated: .updated_at}")
+        ".[] | {id, body, path, line: (.line // .original_line), review: .pull_request_review_id, user: .user.login}")
     theirs = sorted((c for c in inline if c.get("user") == REVIEWER and c.get("review") == newest["id"]),
                     key=lambda c: c["id"])
-    # One edited after it was posted may no longer be the reviewer's words.
-    newest["inline"] = [c for c in theirs if c.get("created") == c.get("updated")]
+    # The review, or a comment of it, edited after it was posted may no longer be the
+    # reviewer's words.
+    edits = edits_on(pr)
+    newest["unedited"] = unedited(pr, newest["id"], edits)
+    as_posted = {c.get("id") for c in (edits.get(newest["id"]) or {}).get("comments") or [] if c.get("edited") is False}
+    newest["inline"] = [c for c in theirs if c["id"] in as_posted]
     newest["left_out"] = len(theirs) - len(newest["inline"])
     return newest
 
@@ -460,7 +479,7 @@ def review_text(pr, review=None):
         return ["", "## The review", "",
                 "His request names the review, and the reviewer on GitHub has left none on this pull",
                 "request. Say so in your reply, and do the rest of what he asked."]
-    if not unedited(pr, review["id"]):
+    if not review.get("unedited"):
         if standing:
             raise GitHubError(f"the reviewer's review {review['id']} of pull request {pr} was edited after it was posted")
         return ["", "## The review", "",
@@ -501,7 +520,8 @@ def review_text(pr, review=None):
         for comment in review["inline"]:
             lines += ["", f"At `{place(comment)}`:", "", fenced(comment.get("body") or "")]
     if review.get("left_out"):
-        lines += ["", f"{review['left_out']} of its comments on the diff were edited after they were posted and are left out."]
+        lines += ["", f"{review['left_out']} of its comments on the diff were edited after they were posted, or GitHub",
+                  "does not vouch for them, and are left out."]
     return lines
 
 

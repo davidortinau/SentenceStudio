@@ -245,7 +245,18 @@ decline_requests 312 {ids} "The pass could not start: the worktree of an earlier
         self.assertIn("""[ "$by_review" = no ] || printf '%s:%s\\n' "$pr" "$ids" >> "$HANDLED\"""", stage)
         self.assertIn('[ "$by_review" = no ] || rounds_note="$(review_pass_note "$pr")"', stage)
         self.assertGreater(stage.index('answer_requests "$pr" "$ids" "$closing"'), stage.index('echo "$rounds_note"'))
-        self.assertIn('name_pass "$ids"', self.stage("settle_interrupted"))
+        # Written before the session starts, so a run that dies in it has still counted it.
+        self.assertLess(stage.index("""printf '%s:%s\\n' "$pr" "$ids" >> "$HANDLED\""""), stage.index("fix_session "))
+        self.assertLess(stage.index("""for id in ${ids//,/ }; do printf '%s\\n' "$id" >> "$HANDLED"; done"""), stage.index("fix_session "))
+        cut_off = self.stage("settle_interrupted")
+        self.assertIn('name_pass "$ids"', cut_off)
+        # A pass that was cut off did start: its review stays counted, not set aside.
+        self.assertIn('answer_requests "$what" "$ids" "$note"', cut_off)
+
+    def test_the_gate_counts_either_kind_of_pass_as_work(self):
+        gate = self.stage("pass_gate")
+        self.assertIn('admin-feedback-pr.py" pending --handled "$HANDLED" 2>/dev/null', gate)
+        self.assertNotIn("--kind", gate)
 
     def test_his_requests_then_what_was_filed_then_the_reviewers_findings_then_the_follow_ups(self):
         stage = self.stage("fix_stage")

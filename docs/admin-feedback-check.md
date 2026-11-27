@@ -269,7 +269,9 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   - GitHub says nobody edited the review after it was posted (`unedited`: an account with
     write access can edit another's review, and the sessions' App has it; the same test
     applies before a review is handed over on his `/revise review`, and before the status
-    issue repeats a recommendation; a comment on the diff that was edited is left out);
+    issue repeats a recommendation; a comment on the diff that was edited, or that GitHub
+    does not list, is left out). What cannot be read of a review now is read on a later
+    look, and does not hold up his requests or the issues;
   - the check on that commit says the same, by the tests under "Reading" (`review_of`);
   - no pass was started on that review before, none was set aside for it, and he has not
     handed it over himself since (a `/revise` that names the review, made after it);

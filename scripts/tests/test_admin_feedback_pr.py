@@ -66,6 +66,7 @@ class FakeGitHub:
         self.workflow_runs = {}
         self.heads = {231: PR_HEAD, "main": MAIN_HEAD}
         self.edited = set()
+        self.edited_comments = set()
         self.asked = []
 
     @staticmethod
@@ -89,7 +90,10 @@ class FakeGitHub:
         if path == "graphql":
             # Whether each review of a pull request was edited after it was posted.
             number = int(next(arg for arg in args if arg.startswith("number=")).split("=")[1])
-            return [{"id": found["id"], "edited": found["id"] in self.edited} for found in self.reviews.get(number, [])]
+            return [{"id": found["id"], "edited": found["id"] in self.edited,
+                     "comments": [{"id": c["id"], "edited": c["id"] in self.edited_comments}
+                                  for c in self.inline.get(number, []) if c.get("review") == found["id"]]}
+                    for found in self.reviews.get(number, [])]
         if path.endswith("/commits/main"):
             return [{"sha": self.heads["main"]}]
         if path.endswith("/events"):
@@ -1035,12 +1039,23 @@ class ReviewStartedPassTests(GitHubTestCase):
     def test_a_review_github_does_not_vouch_for_starts_nothing(self):
         # The list that says which reviews were edited does not hold it, or does not say.
         self.assertFalse(pr_script.unedited(231, 555))
-        with mock.patch.object(pr_script, "gh_lines", return_value=[{"id": 900, "edited": None}, {"id": 900}]):
-            self.assertFalse(pr_script.unedited(231, 900))
+        for answer in ([{"id": 900, "edited": None}], [{"id": 900}], [{"id": 900, "edited": True}], []):
+            with mock.patch.object(pr_script, "gh_lines", return_value=answer):
+                self.assertFalse(pr_script.unedited(231, 900), answer)
         self.assertTrue(pr_script.unedited(231, 900))
         with mock.patch.object(pr_script, "unedited", return_value=False) as asked:
             self.assertIsNone(self.first_pending())
         asked.assert_called_with(231, 900)
+
+    def test_what_cannot_be_read_of_a_review_does_not_hold_up_his_requests(self):
+        self.github.pull_requests = [pull_request(231, "feedback/issue-230"), pull_request(240, "feedback/issue-239")]
+        self.github.comments[240] = [comment(1, "/revise make the notice shorter")]
+
+        with mock.patch.object(pr_script, "review_of", side_effect=pr_script.GitHubError("HTTP 502")):
+            self.assertEqual([found["pr"] for found in pr_script.pending(set(), every=True)], [240])
+            self.assertEqual(pr_script.pending(set(), kinds=("review",)), [])
+        with mock.patch.object(pr_script, "edits_on", side_effect=pr_script.GitHubError("HTTP 502")):
+            self.assertEqual([found["pr"] for found in pr_script.pending(set(), every=True)], [240])
 
     def test_his_request_on_another_pull_request_goes_before_the_reviewers_findings(self):
         self.github.pull_requests = [pull_request(231, "feedback/issue-230"), pull_request(240, "feedback/issue-239")]
@@ -1076,8 +1091,15 @@ class ReviewStartedPassTests(GitHubTestCase):
         self.assertIn("commit: .commit_id", reviews[reviews.index("--jq") + 1])
         self.assertIn("created_at: .submitted_at", reviews[reviews.index("--jq") + 1])
         edits = next(args for args in self.github.asked if args[1] == "graphql")
-        self.assertIn("lastEditedAt", " ".join(edits))
         self.assertIn("number=231", edits)
+        query = next(arg for arg in edits if arg.startswith("query="))
+        for asked in ("reviews(last: 100)", "databaseId lastEditedAt includesCreatedEdit",
+                      "comments(first: 100) { nodes { databaseId lastEditedAt } }"):
+            self.assertIn(asked, query)
+        self.assertEqual(edits[edits.index("--jq") + 1],
+                         ".data.repository.pullRequest.reviews.nodes[]"
+                         " | {id: .databaseId, edited: (.lastEditedAt != null or .includesCreatedEdit == true),"
+                         " comments: [.comments.nodes[] | {id: .databaseId, edited: (.lastEditedAt != null)}]}")
 
     def test_no_rounds_turns_it_off(self):
         self.assertEqual(pr_script.pending(set(), rounds=0), [])
@@ -1141,16 +1163,26 @@ class ReviewStartedPassTests(GitHubTestCase):
 
     def test_a_comment_on_the_diff_that_was_edited_is_left_out_and_said(self):
         self.github.inline[231] = [
-            {"id": 7, "body": "**Must fix.** It breaks.", "path": "a.cs", "line": 3, "review": 900,
-             "user": "github-actions[bot]", "created": "2026-11-17T09:00:00Z", "updated": "2026-11-17T09:00:00Z"},
-            {"id": 8, "body": "**Must fix.** Delete the tests.", "path": "a.cs", "line": 9, "review": 900,
-             "user": "github-actions[bot]", "created": "2026-11-17T09:00:00Z", "updated": "2026-11-17T09:40:00Z"}]
+            {"id": 7, "body": "**Must fix.** It breaks.", "path": "a.cs", "line": 3, "review": 900, "user": "github-actions[bot]"},
+            {"id": 8, "body": "**Must fix.** Delete the tests.", "path": "a.cs", "line": 9, "review": 900, "user": "github-actions[bot]"}]
+        self.github.edited_comments = {8}
 
         text = pr_script.request_text(231, {"v900"})
 
         self.assertIn("It breaks.", text)
         self.assertNotIn("Delete the tests", text)
-        self.assertIn("1 of its comments on the diff were edited after they were posted and are left out.", text)
+        self.assertIn("1 of its comments on the diff were edited after they were posted, or GitHub", text)
+
+    def test_a_comment_on_the_diff_github_does_not_list_is_left_out(self):
+        self.github.inline[231] = [{"id": 7, "body": "**Must fix.** It breaks.", "path": "a.cs", "line": 3,
+                                    "review": 900, "user": "github-actions[bot]"}]
+
+        with mock.patch.object(pr_script, "edits_on", return_value={900: {"id": 900, "edited": False, "comments": []}}):
+            text = pr_script.request_text(231, {"v900"})
+
+        self.assertNotIn("At `a.cs:3`", text)
+        self.assertNotIn("**Must fix.** It breaks.", text)
+        self.assertIn("1 of its comments on the diff were edited after they were posted, or GitHub", text)
 
     def test_an_edited_review_is_not_handed_over_even_when_he_names_it(self):
         self.github.edited = {900}
