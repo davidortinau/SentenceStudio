@@ -1119,6 +1119,90 @@ var cases = new (string Name, Action Test)[]
             }
         }
     }),
+    // Issue 328, the follow-up: the same words come back on the quiz's summary, one row each,
+    // both terms as stored. Seen in the app on 2026-11-27: the rows of the words stored with
+    // white space were 44 points high beside 22. The summary is drawn in a real SwiftUI host
+    // with the terms as stored and again with the same terms stored clean: it is the same
+    // height, and each row shows its words alone.
+    ("Quiz summary: a word stored with a line break or a space around it is drawn like the others (issue 328)", () =>
+    {
+        foreach (var width in new[] { 402d, 951d })
+        {
+            var quizStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+            (string Target, string Native)[] stored =
+                [("죽다\n", "to die\n"), (" 부엌", " kitchen"), ("장마", "rainy season"), ("많이\r\n", "many\r\n")];
+            double Draw((string Target, string Native)[] words, bool checkText)
+            {
+                var items = new List<SwiftView>();
+                using var footer = QuizSummaryView.Add(items,
+                    new NativeQuizState(NativePhase.Summary, NativeDestination.VocabularyQuiz,
+                        TotalTurns: words.Length, CorrectCount: words.Length, RoundsCompleted: 1,
+                        Results: [.. words.Select((word, index) =>
+                            new NativeQuizResult($"w-{index}", word.Target, word.Native, WasCorrect: true))]),
+                    false, quizStyle, QuizEnglish, () => { }, () => { }, () => { });
+                try
+                {
+                    var card = items.Single(item => Find(item, NativeAccess.QuizSummary) is not null);
+                    var height = PaintedHeight(card, width, 600);
+                    for (var index = 0; checkText && index < words.Length; index++)
+                    {
+                        var id = $"{NativeAccess.QuizSummaryResult}.{index}";
+                        var word = AllText(Find(card, $"{id}.word") ?? throw new Exception($"No {id}.word in the summary."));
+                        var meaning = AllText(Find(card, $"{id}.meaning") ?? throw new Exception($"No {id}.meaning in the summary."));
+                        if (word != words[index].Target.Trim() || meaning != words[index].Native.Trim())
+                            throw new Exception($"Row {index} shows {word.Length} and {meaning.Length} characters where its words are {words[index].Target.Trim().Length} and {words[index].Native.Trim().Length}: the white space they were stored with is drawn.");
+                    }
+                    return height;
+                }
+                finally
+                {
+                    foreach (var item in items)
+                        item.Dispose();
+                }
+            }
+            var clean = Draw([.. stored.Select(word => (word.Target.Trim(), word.Native.Trim()))], checkText: false);
+            var asStored = Draw(stored, checkText: false);
+            if (Math.Abs(asStored - clean) > 1)
+                throw new Exception($"At {width} points the summary is {asStored:0.#} points high with the words as stored and {clean:0.#} with the same words stored clean.");
+            Draw(stored, checkText: true);
+        }
+    }),
+    // Issue 328, the follow-up: "Use in a sentence" shows the target word as its heading and
+    // inside its instruction. A line break stored after the word would put an empty line under
+    // the heading and break the instruction in the middle. The card is built through the real
+    // facade and its texts read: the heading is the word alone and the instruction runs on to
+    // its full stop. (Its height is not compared: the text editor in it takes all the height
+    // a host gives, so the card is as tall as the host either way.)
+    ("Quiz sentence: a word stored with a line break after it is shown as its words alone (issue 328)", () =>
+    {
+        static string SentenceEnglish(string key) =>
+            key == "VocabQuiz_WriteOneSentence" ? "Write one or more sentences using {0}." : QuizEnglish(key);
+        foreach (var width in new[] { 402d, 951d })
+        {
+            var quizStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+            const string term = "죽다\n";
+            var items = new List<SwiftView>();
+            QuizSentenceView.Add(items,
+                new NativeQuizState(NativePhase.Ready, NativeDestination.VocabularyQuiz,
+                    Sentence: new NativeQuizSentencePrompt("w-1", term, "Korean")),
+                "", false, quizStyle, SentenceEnglish, _ => { }, () => { }, () => { }, () => { });
+            try
+            {
+                var card = items.Single(item => Find(item, "native.quiz.sentence.screen") is not null);
+                var heading = AllText(Find(card, "native.quiz.sentence.target-term")
+                    ?? throw new Exception("No target term in the sentence card."));
+                if (heading != term.Trim())
+                    throw new Exception($"The heading shows {heading.Length} characters where the word is {term.Trim().Length}: the white space it was stored with is drawn.");
+                if (!AllText(card).Contains($"using {term.Trim()}.", StringComparison.Ordinal))
+                    throw new Exception("The instruction does not run on from the word to its full stop: the white space the word was stored with is drawn inside it.");
+            }
+            finally
+            {
+                foreach (var item in items)
+                    item.Dispose();
+            }
+        }
+    }),
     // Issue 260, the Captain's follow-up: the YouTube pages' badges, Retry and Select All New
     // keep one line beside a title that truncates. The rows are put together here as ImportRow,
     // VideoRow and the count row put them together, from the views' own badges and buttons, and
