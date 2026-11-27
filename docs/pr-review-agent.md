@@ -37,7 +37,9 @@ told is in `docs/admin-feedback-fix.md`, "The review".
   "The review", "Asking again when the checks finish red").
 - **`/review`** in a comment on any pull request, by someone with write access. The comment
   gets a reaction when the run starts; the answer is the review and its check. The tool's
-  own "started" and "completed" comment is turned off (`status-comment: false`).
+  own "started" and "completed" comment is turned off (`status-comment: false`), and with it
+  the tool's note on the pull request when a run fails outright: such a run shows in the
+  Actions tab only, as it always did for a review the runner started.
 - **From the Actions tab**: "PR review", Run workflow, with the pull request's number.
 
 GitHub starts the workflow for every comment anywhere in the repository, which is how it hears
@@ -83,7 +85,7 @@ as merged. Changing that text needs no compile; changing the front matter does
 | `@copilot` at the start of the summary so the authoring agent picks it up (macios, android) | The runner hands a "Fix first" to a fix session by itself, at most twice on one pull request; `/revise review` by the Captain does it on his word. |
 | Three models and a vote (maui-labs); frozen inputs and four passes (maui) | One pinned model, one pass. A second opinion can be added if single reviews prove unreliable. |
 | Methodology in a skill file read at run time (macios, android) | In the workflow's own text, which is always read from `main`. |
-| A loop of review, fix, review, then tests, then fix (maui's autopilot) | The same loop, driven from Lilliput and stopped at two rounds. Taken from it on 2026-11-27: a fix pass reads `AGENTS.md` from `main`, a pass nobody asked for does not start on a branch that changes a session's rule files, the reviewer is asked again when the checks finish red, and `/review` posts no status comment. |
+| A loop of review, fix, review, then tests, then fix (maui's autopilot) | The same loop, driven from Lilliput and stopped at two rounds. Taken from it on 2026-11-27: a fix session is pointed at `AGENTS.md` as it is on `main`, a pass nobody asked for does not start on a branch that changes a session's rule files, the reviewer is asked again when the checks finish red, and `/review` posts no status comment. |
 | Two models each propose a fix (maui's autopilot) | Not taken: it doubles the cost of a round, and the reviewer is the second read. |
 | Labels that show the phase, older status comments hidden, one commit and one thread reply per finding (maui's autopilot) | Not built yet. |
 | Emoji severity marks | None; this project uses no emoji. |

@@ -355,8 +355,11 @@ REVIEW_ASKED="${FEEDBACK_REVIEW:-on}"
 # (2026-11-26; scripts/admin-feedback-pr.py, "The reviewer's findings, by themselves"): at most
 # FIX_ROUNDS passes on one pull request, after which it waits for him. That number lives in
 # that script; FEEDBACK_REVIEW_FIX_ROUNDS in this job's environment changes it (0 is off).
+REVIEW_REQUESTED=no
 request_review() {
   local why is
+  # Whether the reviewer was started, for a caller that has to know (it returns 0 either way).
+  REVIEW_REQUESTED=no
   [ "$REVIEW_ASKED" = on ] || return 0
   case "$1" in ""|*[!0-9]*) return 0 ;; esac
   is="$(run_here 60 gh pr view "$1" --repo "$REPO" --json state,isCrossRepository,headRefName \
@@ -365,7 +368,8 @@ request_review() {
     { echo "The reviewer on GitHub was not asked to read pull request #$1: it is not the open pull request of the branch $2 (or GitHub could not be read). Comment \`/review\` on a pull request to ask."; echo; } >> "$RUN"
     return 0
   fi
-  why="$(run_here 60 gh workflow run pr-review.lock.yml --repo "$REPO" --ref main -f pr_number="$1" 2>&1)" && return 0
+  why="$(run_here 60 gh workflow run pr-review.lock.yml --repo "$REPO" --ref main -f pr_number="$1" 2>&1)" \
+    && { REVIEW_REQUESTED=yes; return 0; }
   { echo "The reviewer on GitHub could not be asked to read pull request #$1 ($(printf '%s' "$why" | head -c 200 | tr '\n' ' ')). Comment \`/review\` on it to ask."; echo; } >> "$RUN"
 }
 
@@ -378,23 +382,30 @@ request_review() {
 # Merge": not when main fails the same check, not when the reviewer had seen the failure). The
 # reviewer reads which test failed and says "Fix first" when the change reaches it; what
 # follows from that is the fix pass above, with its count. This asks for a review and starts
-# no session. state/red-after-merge remembers the commits settled, each asked about once.
+# no session. state/red-after-merge holds the commits settled: the helper adds the ones whose
+# checks came out green or whose failures the reviewer had seen, and a commit asked about is
+# added here once the reviewer was started, so each is asked about once and a request that
+# failed is made again at the next look. What the helper could not read is in
+# state/red-look.err until a look reads everything.
 RED_LOOK="$OUT/state/last-red-look"
 RED_SEEN="$OUT/state/red-after-merge"
 RED_EVERY=600
 REVIEW_AGAIN=no
 review_again_when_red() {
-  local lines pr branch head failed
+  local lines pr branch head failed err="$OUT/state/red-look.err"
   [ "$REVIEW_ASKED" = on ] || return 0
   [ "$(seconds_since "$RED_LOOK")" -ge "$RED_EVERY" ] || return 0
   date +%s > "$RED_LOOK"
-  # GitHub not answering is left to the next look; the status issue says when it lasts.
-  lines="$(run_here 300 python3 -I "$ROOT/scripts/admin-feedback-pr.py" red-after-merge --seen "$RED_SEEN" 2>/dev/null)" || return 0
+  # GitHub not answering is left to the next look.
+  lines="$(run_here 300 python3 -I "$ROOT/scripts/admin-feedback-pr.py" red-after-merge --seen "$RED_SEEN" 2> "$err")" || return 0
+  [ -s "$err" ] || rm -f "$err"
   [ -n "$lines" ] || return 0
   while read -r pr branch head failed; do
     case "$pr" in ""|*[!0-9]*) continue ;; esac
+    case "$head" in ""|*[!0-9a-f]*) continue ;; esac
     { echo "REVIEW: pull request #$pr is read again: its checks finished red at $head after the reviewer said Merge (failed, and not failing on main: $failed)."; echo; } >> "$RUN"
     request_review "$pr" "$branch"
+    [ "$REVIEW_REQUESTED" = no ] || printf '%s:%s\n' "$pr" "$head" >> "$RED_SEEN"
     REVIEW_AGAIN=yes
   done <<< "$lines"
 }
@@ -1112,19 +1123,32 @@ decline_requests() {
 }
 
 # The files a session takes rules from without being pointed at them, or is pointed at by
-# AGENTS.md: Claude Code loads CLAUDE.md, .claude/ and .mcp.json from the worktree by itself,
-# and AGENTS.md sends a session to .squad/skills. Prints the ones a branch changes against
-# main, on one line, or "(the branch could not be compared with main)". A pass on such a
-# branch would take rules from the branch, which an earlier session wrote. Compared in the
-# runner's own checkout, from GitHub: the sessions' clone is the session user's to change.
+# AGENTS.md: Claude Code loads AGENTS.md, CLAUDE.md and .claude/ from the worktree and the
+# folders in it by itself, and AGENTS.md sends a session to .squad/skills. Whatever the case
+# of the name: Lilliput's disk does not tell AGENTS.md from agents.md. A pass on a branch that
+# changes one would take rules from the branch, which an earlier session wrote.
+RULE_FILES=(':(glob,icase)**/AGENTS.md' ':(glob,icase)**/CLAUDE.md' ':(glob,icase)**/CLAUDE.local.md'
+            ':(glob,icase)**/.claude/**' ':(glob,icase)**/.mcp.json' ':(glob,icase).squad/skills/**')
+# Which of them a branch changes against main, into RULES (empty when none), and the commit
+# that was compared into RULES_HEAD. Returns 1 when the branch could not be compared. Compared
+# in the runner's own checkout, from GitHub: the sessions' clone is the session user's to
+# change. A file's name is the branch's to choose, and RULES goes into a prompt and into a
+# comment under the Captain's login: only plain names are repeated, the rest are counted.
 # $1 the branch.
 rules_changed() {
-  local changed
-  changed="$(run_here 60 git -C "$ROOT" fetch -q origin "refs/heads/$1" 2>/dev/null \
-      && git -C "$ROOT" diff --name-only "origin/main...FETCH_HEAD" -- \
-           ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md' .claude .mcp.json .squad/skills 2>/dev/null)" \
-    || { echo "(the branch could not be compared with main)"; return 0; }
-  printf '%s' "$changed" | head -5 | tr '\n' ' ' | sed 's/ *$//'
+  local changed plain count
+  RULES=""; RULES_HEAD=""
+  run_here 60 git -C "$ROOT" fetch -q origin "refs/heads/$1" 2>/dev/null || return 1
+  RULES_HEAD="$(git -C "$ROOT" rev-parse --verify -q FETCH_HEAD 2>/dev/null)" || return 1
+  case "$RULES_HEAD" in ""|*[!0-9a-f]*) return 1 ;; esac
+  changed="$(git -C "$ROOT" diff --name-only "origin/main...$RULES_HEAD" -- "${RULE_FILES[@]}" 2>/dev/null)" || return 1
+  [ -n "$changed" ] || return 0
+  plain="$(printf '%s\n' "$changed" | grep -E '^[A-Za-z0-9._/-]+$' | head -5)"
+  count=$(( $(printf '%s\n' "$changed" | wc -l) ))
+  [ -z "$plain" ] || count=$(( count - $(printf '%s\n' "$plain" | wc -l) ))
+  RULES="$(printf '%s' "$plain" | tr '\n' ' ')"
+  [ "$count" -le 0 ] || RULES="${RULES:+$RULES and }$count more"
+  return 0
 }
 
 # A run that died while its session was running (a shutdown, a logout) wrote no summary and
@@ -1256,8 +1280,14 @@ follow_up_stage() {
     return 0
   fi
   # Rules come from main. A pass he asked for goes ahead on a branch that changes them, and is
-  # told they are the change under work; one nobody asked for does not start.
-  local rules; rules="$(rules_changed "$branch")"
+  # told they are the change under work; one nobody asked for does not start. Nothing has
+  # been spent yet, so a branch that could not be compared leaves the pass waiting.
+  if ! rules_changed "$branch"; then
+    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The branch $branch could not be compared with main (GitHub could not be read), so the pass was not started. The request is still waiting."; echo; } >> "$RUN"
+    FAILED=yes
+    return 0
+  fi
+  local rules="$RULES" compared="$RULES_HEAD"
   if [ -n "$rules" ] && [ "$by_review" = yes ]; then
     decline_requests "$pr" "$ids" "No fix pass was started on the reviewer's findings: this branch changes files a session takes its rules from ($rules), and a pass nobody asked for takes its rules from main only." \
       "The branch $branch changes files a session takes its rules from ($rules), so the reviewer's findings on pull request #$pr did not start a pass by themselves." \
@@ -1270,6 +1300,15 @@ follow_up_stage() {
   if ! why="$(sgit worktree add -q -B "$branch" "$tree" "origin/$branch" 2>&1)"; then
     decline_requests "$pr" "$ids" "The follow-up pass could not start: a worktree for this branch could not be made on Lilliput (the branch may be checked out there)." \
       "The worktree for $branch could not be made: ${why:-no error text}"
+    return 0
+  fi
+  # The tree comes from the sessions' clone, which is the session user's to change: it has to
+  # be at the commit GitHub showed when the rule files were compared.
+  if [ "$(as_session git -C "$tree" rev-parse HEAD 2>/dev/null)" != "$compared" ]; then
+    # Nothing has run in it, so it holds nothing to keep.
+    sgit worktree remove --force "$tree" >/dev/null 2>&1
+    { echo "FIX RESULT: failed pull request #$pr"; echo; echo "The worktree for $branch is not at the commit GitHub shows for the branch (${compared:0:8}), so the session was not started. The request is still waiting."; echo; } >> "$RUN"
+    FAILED=yes
     return 0
   fi
   # His request, and what earlier passes logged and proved as the Captain's macOS user (before

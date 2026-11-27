@@ -240,16 +240,20 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   every check on the head has finished, one failed, and the reviewer's review of that commit
   says Merge. The reviewer is then asked once more for that commit, and the summary has a
   line starting `REVIEW:`. Not when:
-  - `main` fails the same check (it is not held against the change), or `main`'s run of it
-    has not finished (the next look decides);
-  - the failed check had finished fifteen minutes or more before the review was posted: the
-    reviewer saw it and said Merge all the same;
+  - `main` fails the same check, or `main`'s run of it has not finished: it is not held
+    against the change for now, and a later look decides, once `main`'s run of it has passed;
+  - the failed check had finished thirty minutes or more before the review was posted (the
+    reviewer's time limit): the reviewer saw it and said Merge all the same;
   - the pull request is a draft.
 
-  Each commit is asked about once (`state/red-after-merge` holds the commits settled). The
-  reviewer reads which test failed and whether `main` fails it too, and says "Fix first" when
-  the change reaches it; what follows from that is "Fixing what it found, by itself", with
-  its count of rounds. Asking again starts no session.
+  Each commit is asked about once. `state/red-after-merge` holds the commits settled: those
+  whose checks came out green, those whose failures the reviewer had seen, and those the
+  reviewer was asked about, written once the request went through. A request that fails is
+  said in the summary and made again at the next look. What could not be read of a pull
+  request is in `state/red-look.err` until a look reads everything. The reviewer reads which
+  test failed and whether `main` fails it too, and says "Fix first" when the change reaches
+  it; what follows from that is "Fixing what it found, by itself", with its count of rounds.
+  Asking again starts no session.
 - **Reading.** The recommendation is the check named `Merge recommendation` on the pull
   request's head commit, read by name and only when GitHub Actions posted it. The status
   issue leads each pull request's line with it: "Review: merge", "Review: fix first (2 to
@@ -295,11 +299,16 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   - no pass was started on that review before, none was set aside for it, and he has not
     handed it over himself since (a `/revise` that names the review, made after it);
   - the branch changes none of the files a session takes rules from without being pointed at
-    them (`rules_changed`: any `AGENTS.md` or `CLAUDE.md`, `.claude/`, `.mcp.json`,
-    `.squad/skills/`, compared with `main` in the runner's own checkout). On such a branch
-    the pass does not start: the runner says so on the pull request, sets the review aside
+    them (`rules_changed`, `RULE_FILES`: an `AGENTS.md`, `CLAUDE.md`, `CLAUDE.local.md`,
+    `.claude/` or `.mcp.json` in any folder, and `.squad/skills/`, in any case of the name,
+    compared with `main` in the runner's own checkout from what GitHub holds). Claude Code
+    loads the worktree's `AGENTS.md` and `.claude/` by itself, whatever the prompt points
+    at, so on such a branch the pass does not start: the runner says so on the pull request
+    (repeating only plain file names, and counting the rest), sets the review aside
     (`x<number>`), and his `/revise review` starts it. A pass he asked for goes ahead on such
-    a branch and is told those files are the change under work, not its instructions;
+    a branch and is told those files are the change under work, not its instructions. For
+    either kind of pass, a branch that could not be compared leaves the pass waiting, and
+    the worktree has to be at the commit that was compared or the session is not started;
   - fewer than two passes were started this way on the pull request (`FIX_ROUNDS` in
     `scripts/admin-feedback-pr.py`; `FEEDBACK_REVIEW_FIX_ROUNDS` in the job's environment
     changes it, 0 turns it off, and so does anything that is not one digit).
@@ -326,6 +335,12 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   agent's text becomes a session's task only on his word. What bounds it: only he merges, the
   reviewer reads the result again, the session may answer a finding "not a fault" and change
   nothing, and the rounds are counted in two places.
+
+  Known and not closed, about where a session's rules come from: the documents `AGENTS.md`
+  points at (`docs/engineering-guide-full.md`, `docs/deploy-runbook.md`, files under
+  `.squad/decisions/`) are read from the branch; and the session user's home and its clone
+  of the repository last from one session to the next, so what a misled session left there
+  (a git hook, Claude Code's own memory files) is there for the next one.
 
   Known and accepted: the reviewer reads text nobody vetted (the pull request, the failed
   tests' output, and for an issue from the app's feedback button the learner's own words),
@@ -430,8 +445,9 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   - **What it is given of the Captain's**, read-only in `/Users/Shared/sstudio-feedback`
     (owned by the Captain, rewritten before each session): the current
     `docs/admin-feedback-fix.md` and `AGENTS.md` as they are on `main` (a session is told to
-    read both there, so a pass on a pull request's branch does not take its rules from a
-    copy an earlier session changed), the mirror's `NuGet.config` with its local feed pointed at
+    read both there; Claude Code also loads the worktree's own `AGENTS.md`, which is why a
+    pass nobody asked for does not start on a branch that changes it: "The review"), the
+    mirror's `NuGet.config` with its local feed pointed at
     `LocalNuGets` there, and in that folder the `.nupkg` files that are on no feed, copied from
     `~/work/LocalNuGets` and `~/work/Microsoft.SwiftUI/artifacts` (`FEEDBACK_LOCAL_FEEDS`). **A
     package that exists only in the Captain's package cache is not there:** put its `.nupkg`

@@ -41,7 +41,8 @@ report checks. A fix session uses `checks` after it pushes (docs/admin-feedback-
       The pull requests the reviewer should read again, one line each (pull request, branch,
       the head's first eight characters, then the failed checks): its checks finished red on
       the commit the reviewer said "Merge" for. See "Red after a Merge". FILE remembers the
-      commits already settled, so each is asked about once.
+      commits already settled; the runner adds a commit to it once the reviewer has been
+      asked, so each is asked about once.
 
 Whose words count: the repository is public, so anyone can comment on a pull request. Only a
 comment or review by the owner is a request, a pull request from a fork is never one of the
@@ -103,11 +104,14 @@ are usually still running, so a test the change broke could finish red beside "R
 When every check on the head has finished, one of them failed, and the reviewer's review of
 that commit says Merge, the reviewer is asked once more for that commit, unless:
 
-- main fails the same check (it is then not held against the change), or main's run of it has
-  not finished (the next look decides);
+- main fails the same check, or main's run of it has not finished: it is not held against the
+  change for now, and a later look decides, when main's own run of it has passed;
 - the failed check had finished REVIEW_TAKES before the review was posted: the reviewer saw
   it and said Merge all the same;
 - the pull request is a draft, or the commit was settled before (--seen).
+
+A commit is settled when its checks finished green, when the reviewer had seen every failure
+held against it, or when the reviewer has been asked.
 
 The reviewer already reads which test failed and whether main fails it too, and says "Fix
 first" when the change reaches it; from there "The reviewer's findings, by themselves" applies,
@@ -174,10 +178,11 @@ NAMES_REVIEW = re.compile(
 READ_COMMIT = re.compile(r"^Reviewed commit ([0-9a-f]{8})\b", re.MULTILINE)
 # How long a check found borne out by the reviewer's review is not asked about again.
 BORNE_OUT_SECONDS = 600
-# A review is posted some minutes after its run read the checks (about six, measured). A
-# check that finished within this many seconds before the review was posted may not have been
-# seen by it ("Red after a Merge").
-REVIEW_TAKES = 900
+# A review is posted some minutes after its run read the checks: about six, measured, and
+# never more than the workflow's time limit (timeout-minutes: 30). A check that finished
+# within this many seconds before the review was posted may not have been seen by it ("Red
+# after a Merge").
+REVIEW_TAKES = 1800
 # The title the reviewer is told to give its check. Anything else is not repeated.
 REVIEW_TITLE = re.compile(r"^(?:Merge|Fix first: (\d{1,3}) to fix|Your call: (\d{1,3}) to decide) \(at ([0-9a-f]{8})\)$")
 # How many passes the reviewer's findings may start on one pull request with no request of
@@ -858,17 +863,19 @@ def seen_commits(path):
         return set()
 
 
-def red_after_merge(seen):
+def red_after_merge(seen, problems=None):
     """Which of the check's own pull requests the reviewer should read again, and which
     commits are settled ("Red after a Merge"). seen: the commits settled before, as
     <pr>:<eight characters>. Returns the ones to ask about, each with its failed checks, and
-    the set to remember: what was settled before for a pull request still open, what this look
-    settled, and what it asks about (asked once, whatever comes of the asking). A pull request
-    GitHub could not be read for is left for the next look."""
+    the set to remember: what was settled before for a pull request still open, and what this
+    look settled. A commit to ask about is not in it: the runner adds it once the reviewer
+    has been asked. A pull request that could not be read is left for the next look, and
+    why goes into problems."""
     asks, keep = [], set()
     on_main = None
     for item in own_pull_requests():
         key = f"{item['pr']}:{item['head'][:8]}"
+        # Before anything else: a commit settled while the pull request was ready stays so.
         if key in seen:
             keep.add(key)
             continue
@@ -886,14 +893,15 @@ def red_after_merge(seen):
             if not finished or not verdicts or any(v["verdict"] == "running" for v in verdicts.values()):
                 continue
             failed = sorted(name for name, v in verdicts.items() if v["verdict"] == "failed")
-            if failed and on_main is None:
+            if not failed:
+                keep.add(key)
+                continue
+            if on_main is None:
                 on_main = verdicts_for(gh_lines("api", f"repos/{REPO}/commits/main", "--jq", "{sha}")[0]["sha"])
-            there = {name: (on_main or {}).get(name, {}).get("verdict") for name in failed}
-            held = [name for name in failed if there[name] not in ("failed", "running")]
+            held = [name for name in failed if on_main.get(name, {}).get("verdict") not in ("failed", "running")]
             if not held:
-                # Main's own run of a failed check decides once it has finished.
-                if not any(verdict == "running" for verdict in there.values()):
-                    keep.add(key)
+                # Main is red or still running for every one of them. Not settled: a later
+                # look decides, when main's own run of the check has passed.
                 continue
             reviews = reviewers_reviews(item["pr"])
             posted = moment(reviews[-1].get("at")) if reviews else None
@@ -905,11 +913,14 @@ def red_after_merge(seen):
                 if (posted is None or not ended or None in ended
                         or max(ended) + timedelta(seconds=REVIEW_TAKES) > posted):
                     unseen.append(name)
-        except GitHubError:
+        except (GitHubError, KeyError, IndexError, TypeError, ValueError) as error:
+            if problems is not None:
+                problems.append(f"pull request #{item['pr']}: {type(error).__name__} {error}")
             continue
-        keep.add(key)
         if unseen:
             asks.append({**item, "failed": unseen})
+        else:
+            keep.add(key)
     return asks, keep
 
 
@@ -1011,15 +1022,16 @@ def main(args):
             if not kept:
                 print(__doc__)
                 return 2
-            before = seen_commits(kept)
-            asks, keep = red_after_merge(before)
-            # Remembered before anything is asked: a commit is asked about once.
+            before, problems = seen_commits(kept), []
+            asks, keep = red_after_merge(before, problems)
             if keep != before:
                 with open(kept + ".tmp", "w", encoding="utf-8") as target:
                     target.write("".join(f"{key}\n" for key in sorted(keep)))
                 os.replace(kept + ".tmp", kept)
             for ask in asks:
                 print(ask["pr"], ask["branch"], ask["head"][:8], "; ".join(ask["failed"]))
+            for problem in problems:
+                print(f"not read: {problem}", file=sys.stderr)
             return 0
     except (GitHubError, KeyError, IndexError, TypeError, ValueError, OSError) as error:
         why = str(error) if isinstance(error, GitHubError) else f"an unexpected answer: {type(error).__name__} {error}"
