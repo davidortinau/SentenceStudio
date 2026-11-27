@@ -1110,8 +1110,10 @@ var cases = new (string Name, Action Test)[]
     ("Minimum height: a link button and an image-and-title button are painted as wide with it as without (issue 278)", () =>
     {
         const double width = 330;
-        var largeBrite = new SourceUiStyle(SourceUiAppearance.FromSelection(new AppearanceSelection(
-            "brite", AppearanceSelection.Default.Mode, AppearanceSelection.MaxFontScale)), width);
+        // The two themes in which the link button's label does not fill, at the largest text.
+        SourceUiStyle Large(string theme) => new(SourceUiAppearance.FromSelection(new AppearanceSelection(
+            theme, AppearanceSelection.Default.Mode, AppearanceSelection.MaxFontScale)), width);
+        var (largeBrite, largeSketchy) = (Large("brite"), Large("sketchy"));
         double PaintedWidth(SwiftView view)
         {
             var rows = PaintedRows(view, width, 400);
@@ -1119,9 +1121,9 @@ var cases = new (string Name, Action Test)[]
                 throw new Exception($"Expected one painted row, found {rows.Count}.");
             return rows[0].Right - rows[0].Left;
         }
-        SwiftView Link(bool minimum)
+        SwiftView Link(SourceUiStyle large, bool minimum)
         {
-            var link = largeBrite.TextLinkButton("Report this response", "flag", () => { }, "link");
+            var link = large.TextLinkButton("Report this response", "flag", () => { }, "link");
             if (!minimum)
             {
                 link.WithMinimumHeight(0);
@@ -1133,12 +1135,17 @@ var cases = new (string Name, Action Test)[]
         SwiftView Toggle(bool minimum)
         {
             var label = Views.HStack(Views.Image("chevron.right"), Views.Image("lightbulb"),
-                style.Text(Views.Text("Show a hint for this number"), SourceTextRole.Body2, SourceTextTone.Secondary));
+                largeBrite.Text(Views.Text("Show a hint for this number"), SourceTextRole.Body2, SourceTextTone.Secondary));
             label.Spacing = 4;
             var toggle = Views.Button(label, () => { }).WithButtonStyle(SwiftButtonStyle.Plain);
             return minimum ? toggle.WithMinimumHeight(SourceUiLayout.MinimumTouchHeight) : toggle;
         }
-        foreach (var (what, build) in new (string, Func<bool, SwiftView>)[] { ("The link button", Link), ("The hint toggle", Toggle) })
+        foreach (var (what, build) in new (string, Func<bool, SwiftView>)[]
+        {
+            ("The link button in the brite theme", minimum => Link(largeBrite, minimum)),
+            ("The link button in the sketchy theme", minimum => Link(largeSketchy, minimum)),
+            ("The hint toggle", Toggle),
+        })
         {
             using var with = build(true);
             using var without = build(false);
