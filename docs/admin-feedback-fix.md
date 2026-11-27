@@ -213,6 +213,13 @@ Then:
     checked": one line for each finding, by its number, saying fixed (and how), not a fault
     (and why, with the code that shows it), or waiting on him. The reviewer reads that section
     when it looks again.
+- **A pass the review started.** When the reviewer says "Fix first" and no request of his
+  waits, the runner starts you without one: he has set it to (2026-11-26). The file in your
+  prompt then holds no request, only the review, under "The review to work". Treat it as
+  above (check each finding, fix what holds, say why for what does not, write "The review" in
+  the description), with two differences: do nothing the findings do not need, because he did
+  not ask for this pass, and leave alone anything the review leaves to him. At most two such
+  passes start on one pull request.
 - The pull request is a draft while you work, so that it cannot be merged under you (he
   merged one five minutes into a pass, and the pass's work had to go into a new pull
   request). Leave it a draft: the runner makes it ready again when you end.
@@ -277,8 +284,9 @@ required for a decision that is the Captain's).
   verify, exactly; a claim the diff contradicts becomes a finding.
 - It reads the checks. If one failed that your change cannot have caused, say so under "How it
   was checked" with the failing test's name, so it is not held against the change.
-- You do nothing about a review until the Captain asks (`/revise review`, under "A follow-up
-  pass"). Do not answer it, resolve its comments or re-request it yourself.
+- You do nothing about a review inside the session that it reviews. A "Fix first" starts a
+  later pass by itself, and he may ask for one (`/revise review`): both are under "A follow-up
+  pass". Do not answer the review, resolve its comments or re-request it yourself.
 - `Merge recommendation` is not a CI check: leave it out when you report the checks.
 
 ## How far to go

@@ -250,7 +250,8 @@ def gather(windows, handled):
     running = in_flight_number()
     for found in pr.pending(handled, every=True):
         if found["pr"] != running:
-            queue.append(f"- `/revise` on #{found['pr']} (issue #{found['issue']})")
+            what = "the reviewer's findings" if found["ids"][0].startswith("v") else "`/revise`"
+            queue.append(f"- {what} on #{found['pr']} (issue #{found['issue']})")
     for number, source in pr.waiting_issues(windows):
         if number != running:
             queue.append(f"- #{number} ({source})")

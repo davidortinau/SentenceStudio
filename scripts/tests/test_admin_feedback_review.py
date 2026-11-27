@@ -126,6 +126,88 @@ RUN={self.root}/run.md; REPO=someone/app
         self.assertGreater(later.index('request_review "$pr" "$branch"'), later.index('answer_requests "$pr" "$ids" "$closing"'))
 
 
+class ReviewStartedPassTests(unittest.TestCase):
+    """The reviewer's "Fix first" starts a pass with no request: the runner's words for it."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name).resolve()
+        (self.root / "bin").mkdir()
+        self.text = CHECK.read_text(encoding="utf-8")
+
+    def step(self, starts_with):
+        start = self.text.index(starts_with)
+        return self.text[start:self.text.index("\n}\n", start) + 3]
+
+    def bash(self, script, setting=""):
+        harness = f"set -uo pipefail\nexport STUB={self.root} PATH={self.root}/bin:/usr/bin:/bin {setting}\n{script}\n"
+        return subprocess.run(["/bin/bash", "-c", harness], capture_output=True, text=True, timeout=60)
+
+    def test_two_rounds_unless_the_setting_is_a_small_number(self):
+        start = self.text.index('REVIEW_FIX_ROUNDS="${FEEDBACK_REVIEW_FIX_ROUNDS:-2}"')
+        setting = self.text[start:self.text.index("\n", self.text.index("export FEEDBACK_REVIEW_FIX_ROUNDS", start))]
+        for asked, rounds in ((None, "2"), ("0", "0"), ("1", "1"), ("7", "7"), ("", "2"), ("many", "2"), ("-1", "2"), ("123", "2")):
+            given = "" if asked is None else f"FEEDBACK_REVIEW_FIX_ROUNDS='{asked}'"
+            done = self.bash(f'{setting}\n/usr/bin/env | grep ^FEEDBACK_REVIEW_FIX_ROUNDS=', given)
+            self.assertEqual(done.stdout, f"FEEDBACK_REVIEW_FIX_ROUNDS={rounds}\n", (asked, done.stderr))
+
+    def note(self, answer):
+        stub = self.root / "bin" / "python3"
+        stub.write_text(f"#!/bin/bash\nprintf '%s\\n' \"$*\" >> \"$STUB/asked\"\n{answer}\n", encoding="utf-8")
+        stub.chmod(0o755)
+        done = self.bash(f'ROOT=/checkout; HANDLED={self.root}/handled\n{self.step("review_pass_note() {")}\nreview_pass_note 312')
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done.stdout
+
+    def test_the_closing_comment_says_which_pass_it_was(self):
+        said = self.note("echo 1 2")
+
+        self.assertIn("Nobody asked for this pass", said)
+        self.assertIn("It was pass 1 of at most 2 started that way on this pull request.", said)
+        self.assertNotIn("No more start", said)
+        self.assertEqual((self.root / "asked").read_text(encoding="utf-8"),
+                         f"-I /checkout/scripts/admin-feedback-pr.py rounds 312 --handled {self.root}/handled\n")
+
+    def test_the_last_one_says_that_no_more_start_by_themselves(self):
+        said = self.note("echo 2 2")
+
+        self.assertIn("It was pass 2 of at most 2", said)
+        self.assertIn("No more start by themselves", said)
+        self.assertIn("comment `/revise review` for another pass, or merge it as it is.", said)
+
+    def test_a_count_that_cannot_be_read_is_left_out(self):
+        for answer in ("exit 3", "echo 'STOP: GitHub could not be read'", "echo 2"):
+            said = self.note(answer)
+            self.assertEqual(said, 'Nobody asked for this pass: the reviewer said "Fix first" and the check handed its findings over.\n')
+
+    def decline(self, ids):
+        script = f"""RUN={self.root}/run.md; OUT={self.root}; STAMP=now; mkdir -p "$OUT/state"
+answer_requests() {{ cat "$3" > "$STUB/said"; echo "$1 $2" > "$STUB/answered"; }}
+{self.step("decline_requests() {")}
+decline_requests 312 {ids} "The pass could not start: the worktree of an earlier pass is still on Lilliput." "The worktree is still there."
+"""
+        done = self.bash(script)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual((self.root / "answered").read_text(encoding="utf-8"), f"312 {ids}\n")
+        return (self.root / "said").read_text(encoding="utf-8")
+
+    def test_a_pass_that_could_not_start_says_how_to_ask_for_it(self):
+        self.assertIn("Comment `/revise review` once that is cleared.", self.decline("v900"))
+        self.assertIn("Comment `/revise` again once that is cleared.", self.decline("41,r7"))
+
+    def test_the_stage_tells_a_pass_the_review_started_from_one_he_asked_for(self):
+        start = self.text.index("\nfollow_up_stage() {\n")
+        stage = self.text[start:self.text.index("\n}\n", start)]
+        self.assertIn('case "$ids" in v*) by_review=yes ;; esac', stage)
+        # The session is told whose word made it the task, and the closing comment is not
+        # addressed to a request he never made.
+        self.assertIn("the Captain has set the check to hand you such a review without waiting for his word", stage)
+        self.assertNotIn("on your \\`/revise\\` request has finished", stage)
+        self.assertIn('rounds_note="$(review_pass_note "$pr")"', stage)
+        self.assertGreater(stage.index('answer_requests "$pr" "$ids" "$closing"'), stage.index('echo "$rounds_note"'))
+
+
 class GatherStepTests(unittest.TestCase):
     """The step of the workflow that gathers the pull request, taken out of the workflow and run
     with stand-ins for gh, git and curl."""

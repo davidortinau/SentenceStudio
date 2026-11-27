@@ -370,13 +370,14 @@ Reviewed commit <first 8 characters of head-sha>.
 ### Notes
 - ...
 
-**To act.** <one of the three lines below>
+**To act.** <one of the lines below>
 ```
 
 Leave out a section that has nothing in it. Keep to this shape: no greeting, no closing `Verified:` line (that rule in `AGENTS.md` is for a session's report, not for this review), and at most five short notes. With more than five things to note, keep the ones he has to know (an older fault a learner would meet, what you could not read or follow) and join the rest into one. The last line is one of:
 
 - Merge: `Merge when the checks are green. Nothing here needs a fix session.`
-- Fix first: ``Comment `/revise review` and a fix session works every Must fix and Should fix item above, then this review runs again.``
+- Fix first, when the head branch in `pr.json` is named `feedback/issue-<number>`: ``A fix session works every Must fix and Should fix item above by itself, then this review runs again (at most twice on one pull request). Comment `/revise review` to hand them over yourself.``
+- Fix first, on any other branch: ``Nothing starts by itself on this branch. The findings above are for whoever works it.``
 - Your call: ``Answer the decision in a comment that starts with `/revise` (for example `/revise decision 1: yes, and fix the rest of the review`), or merge if you accept it as it is.``
 
 **3. The check**, with `create_check_run`:

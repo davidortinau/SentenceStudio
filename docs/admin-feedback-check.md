@@ -258,8 +258,34 @@ A review agent on GitHub reads each pull request and recommends what to do with 
   the diff, as literal text marked as the reviewer's, not his (`review_text`), and with a
   warning when that review read an earlier commit. Only a review posted by
   `github-actions[bot]` that starts with "## Merge recommendation:" is taken. When the pass
-  ends, the runner asks for a review again. Nothing starts a pass from a review by itself: it
-  takes his comment.
+  ends, the runner asks for a review again.
+- **Fixing what it found, by itself** (Captain, 2026-11-26: "is there a good reason I
+  shouldn't just let Lem address it automatically?"). A "Fix first" starts a fix pass with no
+  comment from him. `pending` in `scripts/admin-feedback-pr.py` takes the review in a request's
+  place (its id written `v<number>`) when all of this holds:
+  - no request of his waits on the pull request (his go first, and alone), and it is not a
+    draft;
+  - the review is the reviewer's newest on it, says "Fix first", and both GitHub's record and
+    the review's own text say it read the head commit;
+  - the check on that commit says the same, by the tests under "Reading" (`review_of`);
+  - no pass was started on that review before, and he has not handed it over himself since
+    (a `/revise` that names the review, made after it);
+  - fewer than two passes were started this way on the pull request
+    (`FEEDBACK_REVIEW_FIX_ROUNDS`, default 2; 0 turns it off).
+
+  The session is handed the review as literal text marked as the reviewer's, with the
+  sentence that the Captain's standing instruction, not a request, made it the task
+  (`findings_text`). The pass is a follow-up pass in every other way: the pull request is a
+  draft while it runs, it counts against the day's cap, its closing comment marks the review
+  as answered, and the reviewer is asked again when it ends. That comment says which pass it
+  was ("pass 1 of at most 2 started that way") and, on the last, that no more start by
+  themselves. The status issue's queue names it "the reviewer's findings on #n".
+
+  "Your call" starts nothing: those decisions are his. What this gives up is the rule that an
+  agent's text becomes a session's task only on his word. What bounds it: only he merges, the
+  reviewer reads the result again, the session may answer a finding "not a fault" and change
+  nothing, and the rounds are counted in two places (the markers on the pull request and
+  `state/handled-requests` on Lilliput).
 
 ## Where and when it runs
 

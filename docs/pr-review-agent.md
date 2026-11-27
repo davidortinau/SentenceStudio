@@ -14,7 +14,7 @@ told is in `docs/admin-feedback-fix.md`, "The review".
 | Recommendation | Where it shows | What he does |
 | --- | --- | --- |
 | **Merge** | Check `Merge recommendation` passed; review starts "## Merge recommendation: Merge"; status issue line starts "Review: merge" | Merge when the other checks are green. |
-| **Fix first** | Check failed, titled "Fix first: 2 to fix"; the review lists each fault; status issue "Review: fix first (2 to fix)" | Comment `/revise review`. A fix session works every item, then the reviewer reads the result. |
+| **Fix first** | Check failed, titled "Fix first: 2 to fix"; the review lists each fault; status issue "Review: fix first (2 to fix)" | Nothing: on a fix session's pull request a fix session works every item by itself, then the reviewer reads the result, at most twice. After that, or on a pull request of his own, `/revise review` starts a pass. |
 | **Your call** | Check "action required", titled "Your call: 1 to decide"; the review states each choice | Answer in a comment that starts with `/revise` (`/revise decision 1: yes, and fix the rest of the review`), or merge as it is. |
 | Not reviewed | Check neutral, titled "Not reviewed", with the reason | Nothing, or `/review` once the cause is gone. |
 
@@ -75,7 +75,7 @@ as merged. Changing that text needs no compile; changing the front matter does
 | Comment-only review, never approve (all four) | Same. |
 | A verdict in the summary: LGTM, needs changes, reject (macios, android); a recommendation and labels (maui) | A verdict in the summary and as a check. A check, not a label: the sessions' App can set labels, it cannot write checks. |
 | Read whole files, verify the description's claims, read CI (macios, android) | Same, and the gather step hands over the failed tests by name. |
-| `@copilot` at the start of the summary so the authoring agent picks it up (macios, android) | `/revise review` by the Captain hands the review to a fix session. Nothing starts from the review by itself. |
+| `@copilot` at the start of the summary so the authoring agent picks it up (macios, android) | The runner hands a "Fix first" to a fix session by itself, at most twice on one pull request; `/revise review` by the Captain does it on his word. |
 | Three models and a vote (maui-labs); frozen inputs and four passes (maui) | One pinned model, one pass. A second opinion can be added if single reviews prove unreliable. |
 | Methodology in a skill file read at run time (macios, android) | In the workflow's own text, which is always read from `main`. |
 | Emoji severity marks | None; this project uses no emoji. |
@@ -95,9 +95,13 @@ as merged. Changing that text needs no compile; changing the front matter does
   held to the owner's and collaborators' text (`min-integrity: approved`).
 - **It cannot change anything.** The model's job holds read-only tokens. The posting job can
   only post the three things listed above.
-- **Whose word starts a fix.** The review is an agent's text. It reaches a fix session only
-  when the Captain comments `/revise` and names it, and then as literal text marked as the
-  reviewer's. Only a review posted by `github-actions[bot]` is taken.
+- **Whose word starts a fix.** The review is an agent's text. Since 2026-11-26 a "Fix first"
+  reaches a fix session without the Captain's comment, on his standing instruction, at most
+  twice on one pull request (`docs/admin-feedback-check.md`, "The review", has the
+  conditions); a "Your call" never does. Either way it is handed over as literal text marked
+  as the reviewer's, and only a review posted by `github-actions[bot]` whose check on the same
+  commit agrees is taken. A review talked into a false finding can therefore cost a pass on a
+  branch only he merges, which the reviewer then reads again.
 - **Can the recommendation be forged, or be about the wrong commit?** Two ways are known,
   and the status issue guards against both; GitHub's own pages do not.
   - GitHub hangs a check on whatever the pull request's head is when the check is posted. A
@@ -173,6 +177,9 @@ that read, with the files read named in the review.
   live reviews"). The check on the reviewer's output before posting keeps the tool's small
   model (`safe-outputs.threat-detection.engine`).
 - **Stop the runner asking**: `FEEDBACK_REVIEW=off` for the check. `/review` still works.
+- **Stop a "Fix first" starting a fix pass**: `FEEDBACK_REVIEW_FIX_ROUNDS=0` for the check (or
+  change the default in `scripts/admin-feedback-check.sh`; the job runs what is on `main`).
+  The number is how many such passes one pull request gets.
 - **`gh aw` on Lilliput**: `gh extension install github/gh-aw` fails there twice over: the
   signed-in token is refused by the `github` organization until single sign-on is authorized
   for it, and `~/.local` belongs to root. The release binary (checksum verified against the
@@ -180,9 +187,6 @@ that read, with the files read named in the review.
 
 ## Not built, and why
 
-- **A fix pass that starts from a "Fix first" by itself**, without his `/revise review`. It
-  would close the loop (review, fix, review again, up to a limit) and would make an agent's
-  text a task with nobody's word in between. His decision.
 - **An approving review.** GitHub can let Actions approve pull requests (a repository
   setting). The check says the same thing without that setting and is tied to the commit.
 - **Reading the app.** The reviewer builds nothing and sees no screen. What a change looks
