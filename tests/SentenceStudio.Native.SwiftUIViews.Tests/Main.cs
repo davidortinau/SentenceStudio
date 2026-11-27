@@ -1073,6 +1073,9 @@ var cases = new (string Name, Action Test)[]
     // width, they are painted in one row at those widths; where they do not, "I was correct" is
     // painted under Submit, each as wide and as high as it is by itself, so neither label wraps.
     // (Squeezed into one row at 330 points, the row was one block of paint with wrapped labels.)
+    // The quiz page keeps 16 points each side of its content (QuizPage), so on a phone the row is
+    // offered the screen's width less 32: the last two drawings are that row on a 375-point and
+    // on a 402-point phone, with the style the page builds for that screen.
     ("Quiz correction: at the largest text size Submit and I was correct stack on a phone when they do not fit one row, in English and Korean (issue 279)", () =>
     {
         const double room = 1200;
@@ -1080,7 +1083,7 @@ var cases = new (string Name, Action Test)[]
         var (stacked, sideBySide) = (0, 0);
         foreach (var language in new[] { "en", "ko" })
         foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
-        foreach (var width in new[] { 330d, 402d, 951d })
+        foreach (var (page, width) in new[] { (330d, 330d), (402d, 402d), (951d, 951d), (375d, 343d), (402d, 370d) })
         {
             var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
             string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
@@ -1088,7 +1091,7 @@ var cases = new (string Name, Action Test)[]
             if (title == NativeText.QuizOverride || (language == "ko") != title.Any(letter => letter >= '가'))
                 throw new Exception($"The app's {language} strings were not read: the button beside Submit is \"{title}\".");
             var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
-                AppearanceSelection.Default.WithFontScale(scale)), width);
+                AppearanceSelection.Default.WithFontScale(scale)), page);
             SwiftView SubmitRow(SwiftView? besideSubmit)
             {
                 var items = new List<SwiftView>();
@@ -1116,7 +1119,7 @@ var cases = new (string Name, Action Test)[]
             using var pairAgain = SubmitRow(QuizFeedbackView.Override(look, Words, () => { }));
             var rows = PaintedRows(pair, width, 600);
             var high = PaintedHeight(pairAgain, width, 600);
-            var at = $"{language}, text size {scale:0.##}, {width} points";
+            var at = $"{language}, text size {scale:0.##}, {width} points{(page == width ? "" : $" on a {page}-point screen")}";
             var drawn = $"painted {string.Join(" and ", rows.Select(row => $"{row.Right - row.Left:0.#} wide"))}, {high:0.#} high; Submit needs {submit.Width:0.#} by {submit.Height:0.#}, \"{title}\" {beside.Width:0.#} by {beside.Height:0.#}, one row {oneRow:0.#}";
             if (oneRow <= width)
             {
