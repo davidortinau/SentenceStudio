@@ -340,12 +340,8 @@ A review agent on GitHub reads each pull request and recommends what to do with 
 
   Known and not closed, about where a session's rules come from: the documents `AGENTS.md`
   points at (`docs/engineering-guide-full.md`, `docs/deploy-runbook.md`, files under
-  `.squad/decisions/`) are read from the branch; and the session user's home and its clone
-  of the repository last from one session to the next, and a pass's worktree is made from
-  that clone, so what a misled session left there (a git hook, a replaced object, Claude
-  Code's own memory files) is there for the next one. The rule files are compared from what
-  GitHub holds, which says nothing about a clone that was tampered with. Closing this needs
-  a fresh clone and a clean home for each session.
+  `.squad/decisions/`) are read from the branch. What a session left in its home or its
+  clone no longer reaches the next one: see "A clean start" under "Where and when it runs".
 
   Known and accepted: the reviewer reads text nobody vetted (the pull request, the failed
   tests' output, and for an issue from the app's feedback button the learner's own words),
@@ -441,12 +437,70 @@ A review agent on GitHub reads each pull request and recommends what to do with 
     sessions and memory, this check's folder with the app's key cache and the feedback key. It
     has no sudo, and no use of the Captain's Docker (the socket is in his home) or of his
     simulators; it has its own of each (below).
-  - **What it has:** under `~lemuel/sstudio/` a clone of the repository (`repo`, public, fetched
-    without a login), the worktrees (`trees/feedback-issue-<n>`), each issue's activity log and
-    proof file and each request handed to a follow-up pass (`fix`), and the app's token while a
-    session runs (`gh`). Its Claude sign-in is a long-lived token in `~lemuel/.claude-token`
-    (mode 600), made by the Captain with `claude setup-token`; the session can read it, as it
-    must. Its package cache is its own (`~lemuel/.nuget`), filled from the mirror.
+  - **What it has:** under `~lemuel/sstudio/` the worktrees (`trees/feedback-issue-<n>`), each
+    in a clone of its own made for that session (`clones/feedback-issue-<n>`), each issue's
+    activity log and proof file and each request handed to a follow-up pass (`fix`), and the
+    app's token while a session runs (`gh`). Its Claude sign-in is a long-lived token in
+    `~lemuel/.claude-token` (mode 600), made by the Captain with `claude setup-token`; the
+    session can read it, as it must. Its package cache is its own (`~lemuel/.nuget`), filled
+    from the mirror.
+  - **A clean start** (Captain, 2026-11-27: "address the clean home issue so we don't pollute
+    future sessions"). Until then that user's home and its one clone lasted from session to
+    session, so whatever a session left there was there for every session after it: Claude
+    Code's own memory and state, a shell profile, a git configuration or hook, a tool it had
+    installed or updated. Before every session the runner now does this (`clean_start`,
+    `scripts/session-clean.sh`, run as that user with nothing of its own running):
+    - **The home is put back to its image.** The Captain's side keeps an image of that home's
+      tool folders (`~/sstudio-feedback-check/home-image`, taken with
+      `scripts/admin-feedback-check.sh --home-image`; the one before is kept beside it as
+      `home-image.previous`). Whatever is at the top level of the home and is neither kept in
+      place nor in the image is moved to `~lemuel/sstudio/set-aside/<stamp>/`: Claude Code's
+      state and memory (`.claude`, `.claude.json`) every time, and anything else a session or
+      a tool left (`.zshrc`, `.gitconfig`, a sign-in). The image's folders are then made equal
+      to it, file for file by content and permissions, so a tool a session changed is the
+      Captain's copy again. Without an image no session starts.
+    - **Kept in place, never looked into:** `.claude-token`, `Library` (what macOS keeps: the
+      keychain, preferences, the simulators), `sstudio`, the account's empty standard
+      folders, and three large caches inside the tool folders: `.nuget/packages`,
+      `.local/share/NuGet` and the Docker machine's disk `.colima/_lima`.
+    - **Never part of an image**, whatever is there when one is taken: Claude Code's state,
+      shell profiles, git's own files, `CLAUDE.md` and `AGENTS.md`, sign-ins (`.azure`,
+      `.azd`, `.netrc`), `.config/git`.
+    - **Where a session's files load from:** `~lemuel/sstudio`, `trees`, `clones` and `fix`
+      lose any `CLAUDE.md`, `AGENTS.md`, `.claude` or `.mcp.json` lying in them (Claude Code
+      reads those from the folders above its worktree and from a folder it is given), and
+      `fix` anything that is not one of the check's own `issue-<n>-...` files.
+    - **The temporary folder** of that user is emptied. The runner names it; the script
+      never works one out. (It did once, on 2026-11-27, and a test run as the Captain emptied
+      his own.) It empties only that user's own per-user temporary folder, and only when run
+      for that user's real home; a test hands it a stand-in it has marked.
+    - **Whose home.** The script moves nothing in a home the runner has not marked as a
+      session user's (`~lemuel/sstudio/.session-home`, written by `clean_start`, which never
+      runs for the runner's own user), and nothing in the real home of an administrator or
+      of root. Run by hand against the Captain's home, it refuses.
+    - **A clone of its own.** The runner keeps the repository as GitHub has it in
+      `/Users/Shared/sstudio-feedback/repo.git` (`mirror_ready`: the Captain's, read-only to
+      that user, fetched before each session). A session's worktree is made in a clone made
+      for it from that copy (`session_clone`), with GitHub as its origin, and the clone is
+      removed with the worktree. A worktree that is kept keeps its clone.
+    - **The SwiftUI bridge's clone** is kept for its build output (a build from nothing takes
+      minutes), so before each session its hooks, replaced objects, grafts and attributes are
+      removed and its configuration rewritten to name the origin and nothing else
+      (`bridge_git_plain`). Sessions' branches stay in it.
+    - **Nothing is deleted outright** except temporary files, what the image replaces inside
+      the tool folders, and set-aside folders after 14 days. `state/session-clean.log` has
+      what the last clean start set aside and put back; a summary says so when something
+      other than Claude Code's state was set aside.
+      `scripts/admin-feedback-check.sh --home-check` says what the next one would do and
+      changes nothing.
+    - **Take a new image** after installing or updating a tool for that user on purpose, when
+      its home is as a session should find it; until then the next clean start undoes the
+      change. Look at what `--home-image` lists: it is what every session will start from.
+    - **Still a session's to change for the next one**, because each is too large to restore
+      or is macOS's own: the package cache (a changed package would be built into a later
+      session's test run), the Docker machine's disk and images, `~lemuel/Library`, the
+      bridge's working files and build output, and the check's own files in `fix`, which are
+      handed from one pass on an issue to the next on purpose.
   - **What it is given of the Captain's**, read-only in `/Users/Shared/sstudio-feedback`
     (owned by the Captain, rewritten before each session): the current
     `docs/admin-feedback-fix.md` and `AGENTS.md` as they are on `main` (a session is told to
@@ -614,14 +668,19 @@ A review agent on GitHub reads each pull request and recommends what to do with 
     visudo -cf /tmp/sstudio-lemuel && sudo install -o root -g wheel -m 440 /tmp/sstudio-lemuel
     /etc/sudoers.d/sstudio-lemuel`; run `claude setup-token` and store what it prints with
     `read -s "t?Token: " && print -r -- "$t" | sudo -H -u lemuel sh -c 'umask 077; cat >
-    /Users/lemuel/.claude-token'; unset t`. The runner makes the clone and the folders itself.
+    /Users/lemuel/.claude-token'; unset t`. The runner makes the clones and the folders itself;
+    the image of the home is taken once with `scripts/admin-feedback-check.sh --home-image`.
     The token lasts a year (made 2026-11-24); when it stops working, sessions fail at once and
     the summary says so: make a new one the same way.
   - **A worktree that was kept** (uncommitted or unpushed work, or a run that died) belongs to
-    that user. Look at it with `sudo -H -u lemuel git -C /Users/lemuel/sstudio/trees/feedback-issue-<n>
-    status`, and remove it with `sudo -H -u lemuel git -C /Users/lemuel/sstudio/repo worktree
-    remove --force /Users/lemuel/sstudio/trees/feedback-issue-<n>` (and `branch -D
-    feedback/issue-<n>` there to have the issue worked from scratch).
+    that user, and its clone is kept with it. Look at it with `sudo -H -u lemuel git -C
+    /Users/lemuel/sstudio/trees/feedback-issue-<n> status`, and remove both with `sudo -H -u
+    lemuel rm -rf /Users/lemuel/sstudio/trees/feedback-issue-<n>
+    /Users/lemuel/sstudio/clones/feedback-issue-<n>`. One kept before 2026-11-27 belongs to
+    the old shared clone instead: `sudo -H -u lemuel git -C /Users/lemuel/sstudio/repo worktree
+    remove --force /Users/lemuel/sstudio/trees/feedback-issue-<n>`. That clone
+    (`~lemuel/sstudio/repo`) is no longer used for anything else and can go once no such
+    worktree is left.
 - To rotate the key: generate a new one on the app's page, copy it as base64 (`base64 -i
   <file>.pem | pbcopy`), replace the keychain item with `security add-generic-password -U -a
   sstudio-fix-agent -s sstudio-fix-agent-key -w` and paste at its prompt (a value on the
