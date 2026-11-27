@@ -1067,6 +1067,58 @@ var cases = new (string Name, Action Test)[]
             }
         }
     }),
+    // Issue 328 (Captain, 2026-11-27): one answer of four was a text line taller than the
+    // others, and another began a space to the right. SwiftUI draws the white space a term
+    // was stored with (a line break after it is an empty second line), where the web page
+    // collapses it. The options are drawn in a real SwiftUI host: each is as tall as the
+    // others, shows its words alone, and still answers with the term as it is stored, which
+    // is what the turn is graded and saved by.
+    ("Quiz choices: an answer stored with a line break or a space around it is drawn like the others (issue 328)", () =>
+    {
+        foreach (var width in new[] { 402d, 951d })
+        {
+            var quizStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+            var stored = new[] { "to die\n", " kitchen", "rainy season", "many\r\n" };
+            var picked = new List<string>();
+            var items = new List<SwiftView>();
+            QuizQuestionView.Add(items,
+                new NativeQuizState(NativePhase.Ready, NativeDestination.VocabularyQuiz,
+                    Prompt: new NativeQuizPrompt("w-1", "맑아요", "Korean", null, null,
+                        IsTargetLanguagePrompt: true, ShowWrittenPrompt: true, CanPlayPromptAudio: false,
+                        ShowPhoto: false, TargetLanguageEngaged: true),
+                    Choices: [.. stored.Select(term => new NativeQuizChoice(term))],
+                    Mode: "MultipleChoice", CanSubmit: true, CurrentTurn: 1, TurnsInRound: 10, TurnId: "t-1"),
+                "", false, false, quizStyle, QuizEnglish,
+                _ => { }, _ => { }, false, picked.Add, () => { }, _ => { }, () => { }, () => { },
+                () => { }, () => { }, _ => { }, (_, _) => { }, () => { }, () => { });
+            try
+            {
+                var heights = new List<double>();
+                var shown = new List<string>();
+                for (var index = 0; index < stored.Length; index++)
+                {
+                    var id = $"{NativeAccess.QuizChoice}.{index}";
+                    var option = items.Single(item => Find(item, id) is not null);
+                    shown.Add(AllText(option));
+                    // Before it is drawn: a view taken out of its host cannot act again.
+                    Find(option, id)!.InvokeAction();
+                    heights.Add(PaintedHeight(option, width, 300));
+                }
+                if (heights.Max() - heights.Min() > 1)
+                    throw new Exception($"At {width} points the one-line options are {string.Join(", ", heights.Select(height => height.ToString("0.#")))} points high: they are not one height.");
+                for (var index = 0; index < stored.Length; index++)
+                    if (shown[index] != stored[index].Trim())
+                        throw new Exception($"Option {index} shows {shown[index].Length} characters where its words are {stored[index].Trim().Length}: the white space it was stored with is drawn.");
+                if (!picked.SequenceEqual(stored))
+                    throw new Exception("An option did not answer with the term as it is stored, so the turn could not be graded or saved by it.");
+            }
+            finally
+            {
+                foreach (var item in items)
+                    item.Dispose();
+            }
+        }
+    }),
     // Issue 260, the Captain's follow-up: the YouTube pages' badges, Retry and Select All New
     // keep one line beside a title that truncates. The rows are put together here as ImportRow,
     // VideoRow and the count row put them together, from the views' own badges and buttons, and
