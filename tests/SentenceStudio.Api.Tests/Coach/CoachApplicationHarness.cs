@@ -43,7 +43,8 @@ internal sealed class CoachApplicationHarness : IDisposable
         bool withUnboundAnswerDetector = false,
         IPracticeHistoryQueries? practiceHistory = null,
         ICoachVocabularySetGenerator? vocabularySets = null,
-        CoachVocabularySetApplicationService? vocabularySetApplications = null)
+        CoachVocabularySetApplicationService? vocabularySetApplications = null,
+        SentenceStudio.Api.Coach.Operations.CoachWriteTurnScope? writeTurn = null)
     {
         // Real loggers only when a test asks for them, so the default harness stays quiet and a
         // leak test can prove what was never written.
@@ -188,7 +189,7 @@ internal sealed class CoachApplicationHarness : IDisposable
             Messages,
             Conversations,
             MemoryCoordinator,
-            writeTurn: null,
+            writeTurn: writeTurn,
             writeLedger: null,
             opportunities: Opportunities,
             unboundAnswers: UnboundAnswers,

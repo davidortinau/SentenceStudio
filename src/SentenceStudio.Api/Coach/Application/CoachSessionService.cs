@@ -1821,10 +1821,17 @@ public sealed class CoachSessionService : ICoachSessionService
             return false;
         }
 
-        // Rows or a card the server shows under the reply are the announced content.
-        return _writeTurn?.ListedWords is not { Words.Count: > 0 }
-            && !await HasProposalThisTurnAsync(session, cancellationToken).ConfigureAwait(false);
+        return !await ShowsRowsOrACardAsync(session, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// True when the server shows something under this turn's reply whatever the reply says: the
+    /// words a list tool read, as rows, or a proposal a tool recorded, as a card. Either is the
+    /// content an announcement could mean.
+    /// </summary>
+    private async Task<bool> ShowsRowsOrACardAsync(CoachSession session, CancellationToken cancellationToken) =>
+        _writeTurn?.ListedWords is { Words.Count: > 0 }
+        || await HasProposalThisTurnAsync(session, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asks the model once more for the same message, from the conversation as it was before the
@@ -1857,13 +1864,20 @@ public sealed class CoachSessionService : ICoachSessionService
                 Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome.SecondCallFailed);
         }
 
+        // Whether the second reply holds content is the same question the first reply was asked,
+        // with the same answer for rows and cards: a tool the second call ran may have read the
+        // words or recorded the proposal the message announces. A blank message with nothing
+        // beside it holds nothing either, though it announces nothing (issue 306).
         var announcedAgain = CoachEmptyAnnouncement.IsOne(retried);
-        if (announcedAgain)
+        var heldNothing = (announcedAgain || CoachEmptyAnnouncement.IsBlank(retried))
+            && !await ShowsRowsOrACardAsync(session, cancellationToken).ConfigureAwait(false);
+        if (heldNothing)
         {
             _logger.LogWarning(
-                "[Coach] Session {SessionId}: the reply announced content and held none, and so did the "
-                + "second one. Kind={IntentKind}. The second reply is shown as it is.",
-                session.Id, retried.Kind);
+                "[Coach] Session {SessionId}: the reply announced content and held none, and the second "
+                + "one held none either. Kind={IntentKind} AnnouncedAgain={AnnouncedAgain}. The second "
+                + "reply is shown as it is.",
+                session.Id, retried.Kind, announcedAgain);
         }
         else
         {
@@ -1874,8 +1888,8 @@ public sealed class CoachSessionService : ICoachSessionService
         }
 
         return (second with { Usage = usage },
-            announcedAgain
-                ? Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome.SecondReplyAnnouncedAgain
+            heldNothing
+                ? Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome.SecondReplyHeldNothing
                 : Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome.SecondReplyHeldContent);
     }
 

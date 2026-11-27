@@ -231,6 +231,68 @@ public class CoachEmptyAnnouncementRetryTests
     }
 
     [Fact]
+    public async Task A_blank_second_reply_is_counted_as_empty_not_as_content()
+    {
+        // The review of pull request 312: a second reply that is not an announcement was counted
+        // as content whatever it held, a blank one included.
+        using var ledger = new CoachOpportunityHarness(userProfileId: CoachConversationHarness.OwnerUserId);
+        using var harness = new CoachConversationHarness(opportunities: ledger.Recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(Reply("Here are three example sentences:"));
+        harness.Coach.Script.Enqueue(Reply(""));
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        harness.Coach.RunCount.Should().Be(2);
+        turn.Value!.Result!.Messages.Select(message => message.Text).Should().Equal(
+            new[] { string.Empty }, "the second reply is the turn's reply whatever it holds");
+        turn.Value.Result.WordList.Should().BeNull();
+        var row = (await ledger.RowsAsync()).Should().ContainSingle().Subject;
+        ((int)row.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        row.CapabilityCode.Should().Be("empty_announcement_second_reply_empty");
+    }
+
+    [Fact]
+    public async Task A_second_reply_that_announces_the_rows_a_list_tool_read_is_counted_as_content()
+    {
+        // The review of pull request 312: the second call ran the list tool, so the words reach
+        // the learner as rows the server builds under "Here are your words:". That reply holds
+        // what it announces, exactly as a first reply with rows does.
+        var writeTurn = new SentenceStudio.Api.Coach.Operations.CoachWriteTurnScope();
+        using var ledger = new CoachOpportunityHarness(userProfileId: CoachConversationHarness.OwnerUserId);
+        using var harness = new CoachConversationHarness(opportunities: ledger.Recorder, writeTurn: writeTurn);
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(Reply("Here are the words in your plan:"));
+        harness.Coach.Script.Enqueue(Reply("Here are your words:"));
+        harness.Coach.OnRun = _ =>
+        {
+            if (harness.Coach.RunCount == 2)
+            {
+                // What get_plan_vocabulary leaves on the turn when the model calls it.
+                writeTurn.ListedWords = new SentenceStudio.Api.Coach.Tools.SamTools.CoachListedWords(
+                    WeakestFirst: false,
+                    [
+                        new SentenceStudio.Api.Coach.Tools.PlanVocabularyEntry("word-1", "차다", "to kick", 40, 2),
+                        new SentenceStudio.Api.Coach.Tools.PlanVocabularyEntry("word-2", "공", "ball", null, null)
+                    ]);
+            }
+
+            return Task.CompletedTask;
+        };
+
+        var turn = await harness.TurnAsync(conversationId, "show me the words in my plan");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        harness.Coach.RunCount.Should().Be(2);
+        turn.Value!.Result!.Messages.Select(message => message.Text).Should().Equal("Here are your words:");
+        turn.Value.Result.WordList!.Rows.Select(word => word.WordId).Should().Equal("word-1", "word-2");
+        var row = (await ledger.RowsAsync()).Should().ContainSingle().Subject;
+        ((int)row.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        row.CapabilityCode.Should().Be("empty_announcement_second_reply_held_content");
+    }
+
+    [Fact]
     public async Task A_second_call_that_fails_is_counted_under_its_own_code()
     {
         var (_, signals) = await ObservedTurnAsync(

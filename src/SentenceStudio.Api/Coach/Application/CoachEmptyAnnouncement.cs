@@ -68,6 +68,27 @@ public static class CoachEmptyAnnouncement
         return Announces(intent.CoachMessage);
     }
 
+    /// <summary>
+    /// True when <paramref name="intent"/> is a reply of the same kinds whose message is blank and
+    /// which carries nothing else at all: the learner is shown an empty reply. Read for the second
+    /// reply of a turn asked for twice, so that the ledger does not count a blank reply as
+    /// content (issue 306). It announces nothing, so <see cref="IsOne"/> is false for it.
+    /// </summary>
+    public static bool IsBlank(CoachTurnIntent intent)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+
+        return intent.Kind is (CoachIntentKind.NoChange or CoachIntentKind.GeneralAnswer
+                or CoachIntentKind.OffTopic or CoachIntentKind.PedagogicalAnswer)
+            && string.IsNullOrWhiteSpace(intent.CoachMessage)
+            && string.IsNullOrWhiteSpace(intent.ClarifyingQuestion)
+            && intent.VocabularySet is null
+            && intent.ActivityLaunch is null
+            && intent.MemoryProposal is null
+            && !(intent.PedagogicalAnswer?.Blocks ?? []).Any(block => block?.Spans is { } spans
+                && spans.Any(span => span is not null && !string.IsNullOrWhiteSpace(span.Text)));
+    }
+
     /// <summary>True when <paramref name="message"/> ends by announcing content and stops there.</summary>
     public static bool Announces(string? message)
     {

@@ -94,12 +94,14 @@ public static class CoachOpportunityCapabilityCodes
     // ---------------------------------------------------------------- empty announcement
 
     /// <summary>
-    /// A reply announced content and held none; the second reply held content and was shown.
+    /// A reply announced content and held none; the second reply held content (its own text, or
+    /// rows or a card the server shows under it) and was shown.
     /// </summary>
     public const string EmptyAnnouncementSecondReplyHeldContent = "empty_announcement_second_reply_held_content";
 
     /// <summary>
-    /// A reply announced content and held none, and so did the second one, which was shown as it is.
+    /// A reply announced content and held none, and the second one held none either (it announced
+    /// again, or its message was blank), and was shown as it is.
     /// </summary>
     public const string EmptyAnnouncementSecondReplyEmpty = "empty_announcement_second_reply_empty";
 
