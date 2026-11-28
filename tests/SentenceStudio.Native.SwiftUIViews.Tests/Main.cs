@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using AppKit;
 using CoreGraphics;
@@ -251,8 +252,15 @@ var cases = new (string Name, Action Test)[]
                      ("native.vocabulary.edit.lemma", "VocabWordEdit_EncodingMemoryAids"),
                      ("native.vocabulary.edit.resources.count", "VocabWordEdit_ResourceAssociations") })
         {
-            var section = Parent(page, row) ?? throw new Exception($"{row} is missing.");
-            Assert(section.Kind == "section" && section.Text == title);
+            var parent = Parent(page, row) ?? throw new Exception($"{row} is missing.");
+            // A text field's ID is on its input, the content of its labeled row (NativeForm.Field,
+            // the native form pattern); every other row here is the Section's own child.
+            var holder = row == "native.vocabulary.edit.lemma" ? "labeledContent" : "section";
+            if (parent.Kind != holder)
+                throw new Exception($"{row} is in a {parent.Kind}, not a {holder}.");
+            var section = SectionOf(page, row);
+            if (section?.Text != title)
+                throw new Exception($"{row} is in the Section '{section?.Text}', not '{title}'.");
         }
         using var withHistory = VocabularyWordEditView.Page(WordState(history: true), style, key => key, WordActions());
         Assert(Parent(withHistory, "native.vocabulary.edit.history.count")?.Text == "VocabWordEdit_HistoryTitle");
@@ -499,8 +507,13 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(page, "native.vocabulary.edit.resource.res-s") is not null);
         Assert(Find(page, "native.vocabulary.edit.resource.res-b") is null);
         Assert(Find(page, "native.vocabulary.edit.resource.res-s.remove") is null);
+        // Captain 2026-11-13 (the native pattern): Remove is the row's swipe action, a Button
+        // named by its own Label, not an icon button with an accessibility label.
         var remove = Find(page, "native.vocabulary.edit.resource.res-a.remove")!;
-        Assert(remove.AccessibilityLabel == "VocabWordEdit_RemoveFromResource");
+        Assert(Parent(page, "native.vocabulary.edit.resource.res-a.remove") is {
+            Kind: "swipeRow", AccessibilityIdentifier: "native.vocabulary.edit.resource.res-a" });
+        Assert(remove.Kind == "button" && remove.Children[0].Text == "VocabWordEdit_RemoveFromResource"
+            && remove.Children[0].SystemImageName == "minus.circle");
         remove.InvokeAction();
         var add = Find(page, "native.vocabulary.edit.resources.add")!;
         Assert(add.Kind == "menu");
@@ -537,8 +550,11 @@ var cases = new (string Name, Action Test)[]
         var sections = new Dictionary<VocabularyEditSection, SwiftView>();
         using var page = VocabularyWordEditView.Page(state, style, key => key,
             WordActions(registerSection: (section, view) => sections[section] = view));
+        // Progress since 2026-11-14: a status action refills its Section in place, so the editor
+        // keeps its place.
         Assert(sections.Keys.OrderBy(key => key).SequenceEqual(
-            [VocabularyEditSection.Examples, VocabularyEditSection.Resources, VocabularyEditSection.EncodingLabel]));
+            [VocabularyEditSection.Examples, VocabularyEditSection.Resources,
+                VocabularyEditSection.EncodingLabel, VocabularyEditSection.Progress]));
         Assert(Parent(page, "native.vocabulary.edit.examples.generate")?.Text == "RefSentences_Title");
         Assert(Find(page, "native.vocabulary.edit.examples.generate")?.IsEnabled == true);
         // Add needs a sentence (source); the empty text is not shown beside sentences.
@@ -632,10 +648,12 @@ var cases = new (string Name, Action Test)[]
         var resultsContent = Find(results, "native.vocabulary.results.content")!;
         Assert(resultsContent.Children[0].AccessibilityIdentifier == "native.vocabulary.results.header");
         var stats = Find(results, "native.vocabulary.stats")!;
-        Assert(stats.Kind == "horizontalGrid" && stats.Children.Count == 1
-            && stats.Children[0].Children.Count == 5);
-        foreach (var id in new[] { "total", "unknown", "learning", "known" })
-            Assert(Find(stats, $"native.vocabulary.stats.{id}") is not null);
+        // The total and the three statuses a word has since the Known marks (2026-11-14), which
+        // took the Familiar count out.
+        Assert(stats.Kind == "horizontalGrid" && stats.Children.Count == 1);
+        Assert(stats.Children[0].Children.Select(badge => badge.AccessibilityIdentifier).SequenceEqual([
+            "native.vocabulary.stats.total", "native.vocabulary.stats.unknown",
+            "native.vocabulary.stats.learning", "native.vocabulary.stats.known"]));
         Assert(Find(results, "native.vocabulary.chips") is null);
         var cards = Find(Find(results, "native.vocabulary.results.scroll")!, "native.vocabulary.cards")!;
         Assert(cards.GridColumns == 2 && cards.Children.Count == 3);
@@ -1494,6 +1512,21 @@ static SwiftView? Parent(SwiftView node, string id)
     return null;
 }
 
+// The nearest Section around the view with this ID.
+static SwiftView? SectionOf(SwiftView node, string id, SwiftView? section = null)
+{
+    if (node.Kind == "section")
+        section = node;
+    foreach (var child in node.Children)
+    {
+        if (child.AccessibilityIdentifier == id)
+            return section;
+        if (SectionOf(child, id, section) is { } match)
+            return match;
+    }
+    return null;
+}
+
 static string AllText(SwiftView node) =>
     (node.Text ?? string.Empty) + string.Concat(node.Children.Select(AllText));
 
@@ -1670,10 +1703,15 @@ static double HeightOffCanvas(SwiftView root, double width, double height)
     }
 }
 
-static void Assert(bool condition)
+// A failure names the line and the expression that was false, on one line (issue 295: four
+// cases failed from 2026-11-13 with "Assertion failed." and nothing to say which expectation).
+static void Assert(bool condition,
+    [CallerArgumentExpression(nameof(condition))] string expression = "",
+    [CallerLineNumber] int line = 0)
 {
     if (!condition)
-        throw new Exception("Assertion failed.");
+        throw new Exception($"Assertion failed at line {line}: "
+            + string.Join(' ', expression.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
 }
 
 static void Throws<T>(Action action) where T : Exception
