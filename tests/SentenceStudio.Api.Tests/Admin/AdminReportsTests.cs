@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SentenceStudio.Api.Admin;
 using SentenceStudio.Api.Admin.Persistence;
 using SentenceStudio.Api.Coach.Opportunities;
@@ -664,10 +666,11 @@ public sealed class AdminReportsTests : IDisposable
         DateTime lastUtc,
         CoachOpportunityDisposition disposition = CoachOpportunityDisposition.AggregateOnly,
         string? conversationId = null,
-        string? turnId = null)
+        string? turnId = null,
+        AdminApiFactory? factory = null)
     {
         var id = Guid.NewGuid().ToString("n");
-        await _factory.WithCoachDbAsync(async db =>
+        await (factory ?? _factory).WithCoachDbAsync(async db =>
         {
             db.CoachOpportunities.Add(new CoachOpportunity
             {
@@ -700,8 +703,8 @@ public sealed class AdminReportsTests : IDisposable
     public async Task The_counts_add_up_what_the_server_counted_about_its_own_turns_across_learners_by_kind_and_code()
     {
         var admin = await _factory.SeedAdminAsync(AdminEmail);
-        var a = await _factory.SeedAccountAsync("a@admin-tests.local");
-        var b = await _factory.SeedAccountAsync("b@admin-tests.local");
+        var a = await _factory.SeedAccountAsync();
+        var b = await _factory.SeedAccountAsync();
         var now = _factory.Time.GetUtcNow().UtcDateTime;
         const string heldContent = "empty_announcement_second_reply_held_content";
 
@@ -749,8 +752,8 @@ public sealed class AdminReportsTests : IDisposable
     public async Task The_counts_name_no_learner_conversation_turn_or_row()
     {
         var admin = await _factory.SeedAdminAsync(AdminEmail);
-        var a = await _factory.SeedAccountAsync("a@admin-tests.local");
-        var b = await _factory.SeedAccountAsync("b@admin-tests.local");
+        var a = await _factory.SeedAccountAsync();
+        var b = await _factory.SeedAccountAsync();
         var now = _factory.Time.GetUtcNow().UtcDateTime;
 
         // More than the recorder would leave on such a row, to show the answer takes none of it.
@@ -790,8 +793,8 @@ public sealed class AdminReportsTests : IDisposable
     public async Task The_counts_since_a_day_leave_out_the_days_before_it()
     {
         var admin = await _factory.SeedAdminAsync(AdminEmail);
-        var a = await _factory.SeedAccountAsync("a@admin-tests.local");
-        var b = await _factory.SeedAccountAsync("b@admin-tests.local");
+        var a = await _factory.SeedAccountAsync();
+        var b = await _factory.SeedAccountAsync();
         var today = _factory.Time.GetUtcNow().UtcDateTime.Date;
 
         await SeedCounterAsync(a, CoachOpportunityKind.CapacityOrBudgetRefusal, "turn_timeout", 7,
@@ -807,6 +810,40 @@ public sealed class AdminReportsTests : IDisposable
         LinesOf(sinceToday.RootElement)[("capacity_or_budget_refusal", "turn_timeout")].Should().Be((2, 1));
         sinceToday.RootElement.GetProperty("sinceUtc").GetDateTime().Should().Be(today);
         LinesOf(everything.RootElement)[("capacity_or_budget_refusal", "turn_timeout")].Should().Be((10, 2));
+    }
+
+    [Fact]
+    public async Task Counters_kept_from_before_capture_was_turned_off_are_still_counted()
+    {
+        // The setting stops the recorder writing (CoachOpportunityDedupTests.CaptureOffRecordsNothing).
+        // It does not hide what was written while it was on: those rows stay until they age out.
+        using var factory = new AdminApiFactory { OpportunityCapture = false };
+        var admin = await factory.SeedAdminAsync();
+        var a = await factory.SeedAccountAsync();
+        var b = await factory.SeedAccountAsync();
+        factory.Services.GetRequiredService<IOptionsMonitor<CoachOpportunityOptions>>()
+            .CurrentValue.Enabled.Should().BeFalse("this host has capture turned off");
+        var today = factory.Time.GetUtcNow().UtcDateTime.Date;
+
+        await SeedCounterAsync(a, CoachOpportunityKind.OutOfScopeRequest, "off_topic", 3,
+            today.AddDays(-1).AddHours(9), today.AddDays(-1).AddHours(10), factory: factory);
+        await SeedCounterAsync(b, CoachOpportunityKind.OutOfScopeRequest, "off_topic", 2,
+            today.AddDays(-2), today.AddDays(-2), factory: factory);
+
+        using var client = factory.CreateClientFor(admin);
+        using var everything = JsonDocument.Parse(await client.GetStringAsync(CountsRoute));
+        using var sinceToday = JsonDocument.Parse(await client.GetStringAsync($"{CountsRoute}?since={today:yyyy-MM-dd}"));
+
+        LinesOf(everything.RootElement).Should().BeEquivalentTo(new Dictionary<(string, string), (long, int)>
+        {
+            [("out_of_scope_request", "off_topic")] = (5, 2)
+        });
+        var line = everything.RootElement.GetProperty("items")[0];
+        line.GetProperty("firstObservedAtUtc").GetDateTime().Should().Be(today.AddDays(-2));
+        line.GetProperty("lastObservedAtUtc").GetDateTime().Should().Be(today.AddDays(-1).AddHours(10));
+
+        // Nothing was counted today, with rows still kept: an empty window does not say why.
+        sinceToday.RootElement.GetProperty("items").GetArrayLength().Should().Be(0);
     }
 
     [Theory]

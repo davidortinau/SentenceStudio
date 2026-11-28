@@ -189,9 +189,9 @@ public sealed class AdminReportsPostgresTests : IAsyncLifetime
     public async Task The_counts_are_grouped_summed_and_windowed_by_PostgreSQL()
     {
         using var factory = new AdminApiFactory(_connectionString) { ReportsOnPostgres = true };
-        var admin = await factory.SeedAdminAsync("captain@admin-tests.local");
-        var a = await factory.SeedAccountAsync("a@admin-tests.local");
-        var b = await factory.SeedAccountAsync("b@admin-tests.local");
+        var admin = await factory.SeedAdminAsync();
+        var a = await factory.SeedAccountAsync();
+        var b = await factory.SeedAccountAsync();
         var now = factory.Time.GetUtcNow().UtcDateTime;
         await factory.SeedFlaggedAnswerAsync(a, "the question", "the answer");
         await factory.WithCoachDbAsync(async db =>

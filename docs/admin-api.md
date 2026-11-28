@@ -264,8 +264,14 @@ turn or message on it) and this adds them up across learners, the largest count 
   list above), nor are the rows the server recorded to be reviewed one by one.
 - `kind` describes, like `stopReason`: the stored kind's name in lowercase with underscores.
   `capabilityCode` is the ledger's own code, as stored.
-- An empty `items` means nothing was counted in that window. It is also what a server with
-  `Coach:Opportunities:Enabled` off returns, because nothing is written there.
+- An empty `items` means only that no counter is kept for that window. It does not say why:
+  nothing may have happened, or the server may not have been recording.
+- `Coach:Opportunities:Enabled` decides whether the server records, not whether this route
+  answers. Turned off, it stops new counts being written; the counters written while it was on
+  are still kept and still read here until the retention sweep ages them out. So neither an
+  empty answer nor a full one says how the setting stands now. What the answer does say is
+  when anything was last recorded: the newest `lastObservedAtUtc` across its lines. The setting
+  itself is read from the server's configuration.
 - No learner id, name, email, conversation id, turn id or row id is in the answer, for an admin
   or a token.
 
