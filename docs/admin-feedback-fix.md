@@ -411,6 +411,18 @@ How:
    database on your Docker, and prints `API=` and `WEBAPP=`. It waits for your Docker if it
    is still starting, and takes 20 seconds to three minutes. Every secret on it is made up.
    If it stops with a message, run `scripts/session-stack.sh down` and try once more.
+   - **"/home does not open on this Mac"** is the one stop a second try does not help, and
+     the one behind issue 318: `dotnet run`, which starts the api, the web app and the
+     workers, opens `/home` and waits for it, and when the Mac's automounter does not answer
+     that open never returns. The script reads `/home` first and stops in seconds. It is the
+     Captain's to mend (the automounter, or a restart of the Mac): write "App run: no, /home
+     does not open on this Mac" in the pull request, under "Left undone" too, and go on
+     without the app.
+   - A build or a test run of your own beside it was not what stopped it (it stopped the same
+     way alone), though each slows the other.
+   - When the api or the web app is not ready in 300 s, the message names a folder with that
+     project's own output, the database's and the AppHost's log. It is kept through `down`;
+     read it before the second try.
 2. `scripts/session-sim.sh up` boots your simulator ("Session iPad"; its first boot ever takes
    two minutes), builds the app with the Ailoha agent against that API (about a minute and a
    half), starts it signed out and empty, and prints `UDID=` and `AILOHA_AGENT_PORT=`. Then

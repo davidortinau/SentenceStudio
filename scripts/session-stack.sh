@@ -9,6 +9,11 @@
 #   scripts/session-stack.sh urls              prints API=<address> and WEBAPP=<address>
 #   scripts/session-stack.sh down              stops it and removes its containers and volumes
 #
+# It cannot start on a Mac whose /home does not open (see home_opens), and says so before it
+# builds anything. When a start stops later, what there is to read (the AppHost's log, and the
+# output of the api, the web app and the database, which ends with the stack) is put in a
+# folder that `down` leaves, and the message names it.
+#
 # Everything it needs that is a secret on the Captain's stack is made up here: the database
 # login, the token and feedback keys, and placeholders for the ElevenLabs key and the GitHub
 # token. So sign-in, plans, activities and sync work; voice does not, and neither does Sam or
@@ -26,6 +31,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APPHOST="$ROOT/src/SentenceStudio.AppHost/SentenceStudio.AppHost.csproj"
 # Outside the worktree, so the worktree stays as git has it.
 STATE="${TMPDIR:-/tmp}/sstudio-session-stack-$(printf '%s' "$ROOT" | shasum | cut -c1-12)"
+# What a start that stopped left to read. `down` removes $STATE and leaves this; the next `up`
+# replaces it.
+KEPT="$STATE-stopped"
 WAIT=300
 
 say() { printf '%s\n' "$*" >&2; }
@@ -41,6 +49,29 @@ within() {
     sleep 1; waited=$((waited + 1))
   done
   wait "$running"
+}
+
+# `dotnet run`, which starts the api, the web app and the workers, opens /home and waits for
+# it. On a Mac /home is the automounter's (auto_home), and when that does not answer the open
+# never returns: each `dotnet run` sits without starting its project, and the start stops two
+# minutes later with nothing to read (issue 318). Reading the folder shows it in seconds.
+home_opens() {
+  within 5 ls /home/ >/dev/null 2>&1
+  [ $? -ne 124 ]
+}
+
+# Puts what a start that stopped wrote where `down` leaves it. $@: the resources whose own
+# output to save; it is held by the stack and ends with it.
+keep() {
+  local resource log
+  mkdir -p "$KEPT" || return
+  cp "$STATE"/start.err "$STATE"/wait-*.log "$KEPT"/ 2>/dev/null
+  # aspire names the AppHost's log where it reports a failure.
+  log="$(cat "$STATE"/start.err "$STATE"/wait-*.log 2>/dev/null | grep -Eo '/[^ ]*detach-child[^ ]*\.log' | tail -1)"
+  [ -n "$log" ] && [ -f "$log" ] && cp "$log" "$KEPT/apphost.log"
+  for resource in "$@"; do
+    within 30 aspire logs "$resource" --apphost "$APPHOST" --non-interactive > "$KEPT/$resource.log" 2>&1
+  done
 }
 
 addresses() {
@@ -66,6 +97,7 @@ up() {
   local build=yes
   [ "${1:-}" = --no-build ] && build=no
   command -v aspire >/dev/null || stop "there is no aspire command on PATH."
+  home_opens || stop "/home does not open on this Mac (ls /home/ did not return in 5 s: its automounter does not answer). The stack cannot start: every dotnet run that starts a project waits on that folder. A second try will not help; an administrator has to restart the automounter (or the Mac). Nothing was started."
   # A fix session's Docker is started as the session starts and takes about half a minute.
   local tries=0
   until within 10 docker info >/dev/null 2>&1; do
@@ -75,6 +107,7 @@ up() {
     sleep 5
   done
   [ -e "$STATE/name" ] && stop "a stack of this worktree is already recorded in $STATE: run $0 down first."
+  rm -rf "$KEPT"
   mkdir -p "$STATE/data" || stop "$STATE could not be made."
   local name="sstack-$(date +%Y%m%d%H%M%S)-$$"
   printf '%s\n' "$name" > "$STATE/name"
@@ -99,12 +132,14 @@ up() {
   say "starting the stack"
   within 120 aspire start --apphost "$APPHOST" --isolated -lp http --no-build --non-interactive --format Json \
       > "$STATE/start.json" 2> "$STATE/start.err" \
-    || { tail -5 "$STATE/start.err" >&2; stop "aspire start failed; run $0 down to clear what it left."; }
+    || { tail -5 "$STATE/start.err" >&2; keep; stop "aspire start failed. What it wrote, the AppHost's log with it: $KEPT. Run $0 down to clear what it left."; }
   local resource
   for resource in api webapp; do
     say "waiting for $resource"
-    within "$WAIT" aspire wait "$resource" --apphost "$APPHOST" > "$STATE/wait-$resource.log" 2>&1 \
-      || { tail -3 "$STATE/wait-$resource.log" >&2; stop "$resource was not ready in $WAIT s; run $0 down to clear what was started."; }
+    # aspire wait gives up by itself after 120 s unless told how long; the watch is the backstop.
+    within $((WAIT + 30)) aspire wait "$resource" --timeout "$WAIT" --apphost "$APPHOST" > "$STATE/wait-$resource.log" 2>&1 \
+      || { tail -3 "$STATE/wait-$resource.log" >&2; keep api webapp db
+           stop "$resource was not ready in $WAIT s. Its own output is $KEPT/$resource.log (the AppHost's log, the api's and the database's are beside it). Run $0 down to clear what was started."; }
   done
   addresses || stop "the stack is up but its addresses could not be read (aspire describe)."
 }
