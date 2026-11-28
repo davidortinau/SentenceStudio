@@ -262,12 +262,13 @@ internal static class YouTubeChannelView
             style.Text(Views.Text(video.Title), SourceTextRole.Body2).WithLineLimit(1).WithFlexibleWidth(),
         };
         // The switch, the badge and Retry keep their own width, so only the title can give way.
-        // On an iPhone a failed video's row has no room for all four: an iPhone's switch is 51
-        // points wide or more, and drawn with the room that leaves, a 375-point page's row left
-        // the title 61.5 points at the largest app text size, and 28 while the retry ran and
-        // Retry had its spinner (issue 308). There the badge and Retry go on a second line, at
-        // the trailing edge, and the title has the first line beside the switch (as
-        // YouTubeImportView.ImportRow does since issue 292).
+        // On an iPhone a failed video's row has no room for all four: the system switch is 63
+        // points wide (measured in the running app on an iOS 27.2 simulator, issue 353), and
+        // drawn with the room that leaves, a 375-point page's row left the title 53 points at
+        // the largest app text size, and 13.5 while the retry ran and Retry had its spinner
+        // (issue 308). There the badge and Retry go on a second line, at the trailing edge, and
+        // the title has the first line beside the switch (as YouTubeImportView.ImportRow does
+        // since issue 292).
         var second = video.IsFailed && FailedOnTwoLines(style) ? new List<SwiftView>() : null;
         var trailing = second ?? cells;
         if (video.IsCompleted)
