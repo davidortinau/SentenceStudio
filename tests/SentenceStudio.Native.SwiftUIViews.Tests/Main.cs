@@ -1611,11 +1611,12 @@ var cases = new (string Name, Action Test)[]
     // whose retry is running (Retry has a spinner too), one being imported, an imported one and
     // a new one. ISSUE_308_DRAWN prints every row's measurements.
     // The row's toggle is not what an iPhone draws: this host is macOS, where a Toggle is a
-    // checkbox (measured below), and on an iPhone it is a switch, 51 points wide or more. So
-    // the row is drawn in its width less the difference: the room an iPhone's switch leaves.
-    // (At the full width every one-line row passed. With an iPhone's room, a failed video's
-    // row whose retry was running showed 28 to 30.5 points of its title on a 375-point page.
-    // This host's spinner is 32 points and an iPhone's 20, so a phone has 12 points more there.)
+    // checkbox (measured below), and on an iPhone it is a switch, 63 points wide (phoneSwitch
+    // below says where that was measured). So the row is drawn in its width less the
+    // difference: the room an iPhone's switch leaves. (At the full width every one-line row
+    // passed. With an iPhone's room, a failed video's row whose retry was running showed 13.5
+    // to 30.5 points of its title on a 375-point page while it was still one line. This host's
+    // spinner is 32 points and an iPhone's 20, so a phone has 12 points more there.)
     ("YouTube channel video row: on an iPhone at the largest app text size nothing is painted past the row and the title shows (issue 308)", () =>
     {
         const double margin = 100;
@@ -1636,7 +1637,12 @@ var cases = new (string Name, Action Test)[]
             [.. kinds.Select((kind, index) => new YouTubeDiscoveredVideo($"v{index}", name, $"https://youtu.be/v{index}", kind.Status))],
             System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null,
             retrying, retrying ? "v1" : null, []);
-        const double phoneSwitch = 51;
+        // The system switch, measured in the running app (issue 353): the Ailoha tree gave each
+        // of the five switches of Settings, Voice & Quiz a frame of 63x28 points, and a
+        // screenshot agreed. That was the session simulator, an iPad Pro 11-inch (M5) on iOS
+        // 27.2 (build 24B8117), the only iOS that machine has; it was not read on an iPhone.
+        // (51, used until then, was never measured.)
+        const double phoneSwitch = 63;
         double hostToggle;
         using (var alone = Views.HStack(Views.Toggle("Select", false, _ => { }).WithLabelsHidden()))
         {
@@ -1710,7 +1716,8 @@ var cases = new (string Name, Action Test)[]
     {
         const double margin = 100;
         const double high = 400;
-        const double phoneSwitch = 51;
+        // The system switch, as measured for the case above (issue 353).
+        const double phoneSwitch = 63;
         const string title = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
         var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
         using var channel = new YouTubeChannelCoordinator(null!, null!,
