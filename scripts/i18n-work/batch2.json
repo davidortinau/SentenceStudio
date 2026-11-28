@@ -73,7 +73,7 @@
     {"key": "VocabQuiz_LearningDetails", "en": "Learning Details", "ko": "학습 세부 정보", "comment": "Info panel header"},
     {"key": "VocabQuiz_IsKnown", "en": "IsKnown", "ko": "숙지 여부", "comment": "Status field label"},
     {"key": "VocabQuiz_Yes", "en": "Yes", "ko": "예", "comment": "Yes value"},
-    {"key": "VocabQuiz_No", "en": "No", "ko": "아니오", "comment": "No value"},
+    {"key": "VocabQuiz_No", "en": "No", "ko": "아니요", "comment": "No value"},
     {"key": "VocabQuiz_ListenLookAnswer", "en": "Listen and look, then answer", "ko": "듣고 보고 답하세요", "comment": "Audio+photo prompt title"},
     {"key": "VocabQuiz_LookAndAnswer", "en": "Look and answer", "ko": "보고 답하세요", "comment": "Photo-only prompt title"},
     {"key": "VocabQuiz_ListenAndAnswer", "en": "Listen and answer", "ko": "듣고 답하세요", "comment": "Audio-only prompt title"},

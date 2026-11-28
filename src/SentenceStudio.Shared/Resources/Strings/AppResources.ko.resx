@@ -1182,7 +1182,7 @@
     <comment>Failed to associate vocabulary error message with exception</comment>
   </data>
   <data name="No" xml:space="preserve">
-    <value>아니오</value>
+    <value>아니요</value>
     <comment>No button text</comment>
   </data>
   <data name="ResetProfileConfirmation" xml:space="preserve">
@@ -3111,7 +3111,7 @@
     <comment>Yes value</comment>
   </data>
   <data name="VocabQuiz_No" xml:space="preserve">
-    <value>아니오</value>
+    <value>아니요</value>
     <comment>No value</comment>
   </data>
   <data name="VocabQuiz_ListenLookAnswer" xml:space="preserve">
@@ -6475,7 +6475,7 @@
     <comment>Yes value</comment>
   </data>
   <data name="DebugHealth_No" xml:space="preserve">
-    <value>아니오</value>
+    <value>아니요</value>
     <comment>No value</comment>
   </data>
   <data name="MinimalPair_Create" xml:space="preserve">
