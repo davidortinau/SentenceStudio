@@ -1509,6 +1509,71 @@ var cases = new (string Name, Action Test)[]
                 throw new Exception($"At {width} points Submit and I was correct take {apart:0.#} points at their own widths with the gap, but {string.Join("; ", wrong)}.");
         }
     }),
+    // Issue 334, the review of pull request 367: the shadowing waveform is the one row in the
+    // app that sets a minimum height (ShadowingScreen.Waveform), and its bars are empty stacks
+    // that are only as high as their own minimum height. The screen needs generated sentences
+    // and audio, so this draws the row as that method builds it (its 80 bars from
+    // NativeShadowingWaveform, put together here because the screen is not part of this
+    // project) at a width where each bar is four points wide: every bar is painted, as wide as
+    // its share, as high as its minimum height, and centred in the row. Run with bridge
+    // 0.1.0-preview.71 only: it pins what the waveform needs of a minimum height, not the fault.
+    ("Minimum height: the shadowing waveform's bars are as high as their minimum heights and share the row's width (issue 334)", () =>
+    {
+        var appearance = SourceUiAppearance.FromSelection(AppearanceSelection.Default);
+        var color = appearance.TertiaryText;
+        var count = NativeShadowingWaveform.BarCount;
+        var heights = Enumerable.Range(0, count)
+            .Select(i => Math.Max(0.04, NativeShadowingWaveform.Bars[i]) * 60).ToArray();
+        var bars = heights.Select(height => Views.VStack()
+            .WithMinimumHeight(height)
+            .WithFlexibleWidth()
+            .WithRoundedSurface(color.Light, color.Dark, 1)).ToArray();
+        using var row = Views.HStack(bars).WithMinimumHeight(60).WithFlexibleWidth();
+        row.Spacing = 2;
+        const double barWidth = 4;
+        var width = count * barWidth + (count - 1) * 2;
+        var mask = PaintedMask(row, width, 120);
+        var scale = mask[0].Length / width;
+        // Each run of painted pixel columns is a bar: its width, and the top and bottom of its
+        // tallest column.
+        var painted = new List<(double Width, double Top, double Bottom)>();
+        (int Left, int Top, int Bottom)? run = null;
+        for (var x = 0; x <= mask[0].Length; x++)
+        {
+            int top = -1, bottom = -1;
+            if (x < mask[0].Length)
+                for (var y = 0; y < mask.Length; y++)
+                    if (mask[y][x])
+                    {
+                        top = top < 0 ? y : top;
+                        bottom = y;
+                    }
+            if (top >= 0)
+                run = (run?.Left ?? x, Math.Min(run?.Top ?? top, top), Math.Max(run?.Bottom ?? bottom, bottom));
+            else if (run is { } ended)
+            {
+                painted.Add(((x - ended.Left) / scale, ended.Top / scale, (ended.Bottom + 1) / scale));
+                run = null;
+            }
+        }
+        if (painted.Count != count)
+            throw new Exception($"The waveform row paints {painted.Count} bars of its {count} at {width} points.");
+        var centre = (painted.Min(bar => bar.Top) + painted.Max(bar => bar.Bottom)) / 2;
+        var wrong = new List<string>();
+        for (var i = 0; i < count; i++)
+        {
+            var (wide, top, bottom) = painted[i];
+            if (Math.Abs(wide - barWidth) > 0.5)
+                wrong.Add($"bar {i} is {wide:0.#} points wide, not {barWidth}");
+            if (Math.Abs(bottom - top - heights[i]) > 1)
+                wrong.Add($"bar {i} is {bottom - top:0.#} points high, not its minimum height of {heights[i]:0.#}");
+            if (Math.Abs((top + bottom) / 2 - centre) > 1)
+                wrong.Add($"bar {i} is centred at {(top + bottom) / 2:0.#}, not at the row's {centre:0.#}");
+        }
+        Console.WriteLine($"     {count} bars at {width} points: {painted.Min(bar => bar.Width):0.#} to {painted.Max(bar => bar.Width):0.#} points wide, {painted.Min(bar => bar.Bottom - bar.Top):0.#} to {painted.Max(bar => bar.Bottom - bar.Top):0.#} high (minimum heights {heights.Min():0.#} to {heights.Max():0.#}).");
+        if (wrong.Count > 0)
+            throw new Exception($"The waveform row is not drawn as built: {string.Join("; ", wrong.Take(6))}{(wrong.Count > 6 ? $" and {wrong.Count - 6} more" : "")}.");
+    }),
     // Issue 277: the case above draws rows it puts together itself, 330 points wide, in English,
     // at the default text size, and only "Failed" and "Retry", which fit in an equal share of
     // the row. This one draws the pages' own rows (History's and Discovery's, from a state made
