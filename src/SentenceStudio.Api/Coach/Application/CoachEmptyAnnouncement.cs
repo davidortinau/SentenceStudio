@@ -189,6 +189,7 @@ public static class CoachEmptyAnnouncement
     /// off part of a sentence is a quotation that closes with the same run (issue 331). One that
     /// opens where a sentence starts is not: a model puts a whole announcement in bold
     /// ("**Here are three example sentences.**"), and that one must still be asked for again.
+    /// Nor is one that goes on in small Latin letters, which is the reply's own sentence.
     /// </remarks>
     private static bool InsideQuotation(string text, int from, int at)
     {
@@ -241,8 +242,13 @@ public static class CoachEmptyAnnouncement
                 {
                     standing = '\0';
                 }
-                else if (opens && !StartsSentence(text, from, start))
+                else if (opens
+                    && !StartsSentence(text, from, start)
+                    && !(IsLatinLetter(after) && char.IsLower(after)))
                 {
+                    // A sentence that is given starts with a capital, or in Korean. Emphasis
+                    // that goes on in small letters ("Sure, **here are three example
+                    // sentences.**") is the reply's own sentence, and still an announcement.
                     closer = mark;
                     closerLength = length;
                 }

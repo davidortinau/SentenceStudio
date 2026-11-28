@@ -74,6 +74,8 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("* Here are three example sentences.")]
     [InlineData("The plural is **kick**s, and here are three example sentences.")]
     [InlineData("See the note below*. Here are three example sentences.")]
+    [InlineData("Sure, **here are three example sentences.**")]
+    [InlineData("Good question, and *here's a set of example sentences for you.*")]
     [InlineData("In English you say *Hello.* **Here are three example sentences.**")]
     public async Task An_announcement_with_nothing_after_it_is_asked_for_once_more_and_the_answer_is_shown(
         string announcement)
