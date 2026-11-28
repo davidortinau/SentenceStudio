@@ -46,7 +46,8 @@ public sealed class NativeVocabularyRouteTests
         var browser = Flat(SharedSource("Features/Vocabulary/VocabularyBrowser.cs"));
         var reload = browser[browser.IndexOf("internal async Task ReloadAsync()",
                 StringComparison.Ordinal)
-            ..browser.IndexOf("internal async Task OpenWordAsync(",
+            // OpenWordAsync says whether the word opened since 2026-11-17 (Sam's word lists).
+            ..browser.IndexOf("internal async Task<bool> OpenWordAsync(",
                 StringComparison.Ordinal)];
         Assert.Contains("_catalog = catalog;", reload);
         var completion = reload[reload.IndexOf("finally", StringComparison.Ordinal)..];

@@ -173,8 +173,12 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(".WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))",
             dashboard);
         Assert.Contains("SourceUiLayout.ActivityColumns(style.ViewportWidth, style.TextScale)", chooseOwn);
-        Assert.Contains("var tiles = Views.LazyVGrid(style.ViewportWidth < 768 ? 2 : 5,",
+        // Four tiles since the Familiar tile was removed (2026-11-14): New, Learning, Review
+        // and Known, two to a row on a phone and one row of four when wide.
+        Assert.Contains("var tiles = Views.LazyVGrid(style.ViewportWidth < 768 ? 2 : 4,",
             progress);
+        Assert.Equal(4, progress.Split("VocabularyTile(summary.",
+            StringSplitOptions.None).Length - 1);
         Assert.Contains(".WithPadding(SourceUiLayout.CardInset)", card);
         Assert.Contains("ActivitySymbol(card.Activity)", card);
         Assert.Contains("native.plan.progress.row", today);
@@ -355,8 +359,14 @@ public sealed class NativeSourceStylingContractTests
         Assert.Equal(2, style.Split("WithButtonEllipticalCornerRadii(",
             StringSplitOptions.None).Length - 1);
         Assert.Contains("internal SwiftView QuizPromptIconButton(", style);
-        Assert.Equal(5, style.Split("WithButtonBorderWidth(",
+        // Five source button borders and the composer's round icon button (2026-11-06), whose
+        // one-point border matches the composer capsule beside it.
+        Assert.Equal(6, style.Split("WithButtonBorderWidth(",
             StringSplitOptions.None).Length - 1);
+        var composerButton = style[style.IndexOf("internal SwiftView ComposerIconButton(",
+            StringComparison.Ordinal)..];
+        Assert.Contains(".WithButtonBorderWidth(1)\n            .WithButtonCircle(ComposerHeight)",
+            composerButton);
         Assert.Contains(".WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)",
             button);
         Assert.DoesNotContain(".WithRoundedSurface(", button);
@@ -369,8 +379,11 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("var paddingX = horizontalPadding", style);
 
         var project = Source("SentenceStudio.Native.iOS.csproj");
-        Assert.Contains(
-            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.43\" />",
+        // The buttons draw through one pinned bridge version. Which one is
+        // NativeHeadContractTests' to state: a second copy of the number here was left at
+        // preview.43 by the next version (2026-11-06) and failed from then on.
+        Assert.Matches(
+            "<PackageVersion Include=\"Microsoft\\.SwiftUI\" Version=\"0\\.1\\.0-preview\\.\\d+\" />",
             project);
         Assert.Contains("SentenceStudio.Native.SourceAtBuildSha", project);
     }

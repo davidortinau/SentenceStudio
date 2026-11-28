@@ -54,7 +54,9 @@ public sealed class NativeVocabularyListContractTests
         var coordinator = Source("SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyCoordinator.cs");
         Assert.Contains("CancelDelete: CancelListDeleteLater,", coordinator);
         Assert.Contains("DispatchQueue.MainQueue.DispatchAsync(() =>\n        {\n            if (!IsDisposed && PendingListDeleteId == id)", coordinator);
-        Assert.Contains("PageWidth, ListDeleteMessage);", coordinator);
+        // The page takes the row delete's message first; the messages of select mode's two
+        // dialogs (Start Over, bulk Delete) follow it in the same call since 2026-11-14.
+        Assert.Contains("PageWidth, ListDeleteMessage,", coordinator);
         Assert.Contains("_vocabulary.StudyRequested += StudyResources;",
             Source("SentenceStudio.Native.iOS/App/ApplicationController.Vocabulary.cs"));
         Assert.Contains("internal void StudyResource(string resourceId) => StudyResources([resourceId]);",
@@ -70,16 +72,23 @@ public sealed class NativeVocabularyListContractTests
         // 2026-11-12: 4,466 words and 2,908 lemmas held Duotopia past the background redraw
         // watchdog (0x8BADF00D) on every switch away.
         var view = ListView;
-        Assert.Contains("state.ShownWords.Select(word =>\n                ListRow(", view);
-        Assert.Contains("state.ShownWords.Select(word =>\n                    Card(", view);
-        Assert.DoesNotContain("state.FilteredWords.Select(word =>", view);
+        // Select mode (2026-11-14) draws a checkbox row in place of the row or the card, still
+        // from the shown words only: nothing builds a view for every word that matches.
+        Assert.Contains("children.AddRange(state.ShownWords.Select(word => state.Selecting\n"
+            + "                ? SelectRow(word, state.Selected.Contains(word.Id), style, text, actions)\n"
+            + "                : ListRow(word, style, text, actions)));", view);
+        Assert.Contains("state.ShownWords.Select(word => state.Selecting\n"
+            + "                    ? style.Card(SelectRow(word, state.Selected.Contains(word.Id), style, text, actions)\n"
+            + "                        .WithPadding(SourceUiLayout.CardInset))\n"
+            + "                    : Card(word, style, text, actions.OpenWord)).ToArray())", view);
+        Assert.DoesNotContain("FilteredWords.Select(", view);
         Assert.Contains("internal const int InlineValueLimit = 30;", view);
         Assert.Contains("? ChooserMenuItem(filter, state, text, actions.ChooseFilterValue!)", view);
         Assert.Contains("matches.Take(ChooserRowLimit)", view);
         Assert.Contains("Views.Searchable(rows, text(\"Common_Search\"), query, search)", view);
         Assert.Contains("return Views.NavigationStack(page);", view);
         var coordinator = Source("SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyCoordinator.cs");
-        Assert.Contains("ChooseFilterValue: OpenChooser),", coordinator);
+        Assert.Contains("ChooseFilterValue: OpenChooser,", coordinator);
         Assert.Contains("ShowMoreRows: ShowMoreRows,", coordinator);
     }
 
