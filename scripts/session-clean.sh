@@ -29,8 +29,10 @@
 #          folder (/var/folders/../../T) when HOME is that user's real home, or a stand-in
 #          that holds a file named .sstudio-session-tmp (what a test makes);
 #       5. set-aside folders older than 14 days are deleted.
-#       Prints "aside <name>" for each thing moved, "changed <path>" for each file put back
-#       (the first 200) and "restored <count>". With --dry-run it changes nothing.
+#       Prints "aside <name>" for each thing moved, "respelled <name>" for a kept thing
+#       given its own spelling back, "changed <path>" for each file put back (the first 200),
+#       "restored <count>", and "left-in-temporary-folder <count>" when something there could
+#       not be removed. With --dry-run it changes nothing.
 #
 # Whose home: only one the runner marked as a session user's (~/sstudio/.session-home, written
 # by clean_start in scripts/admin-feedback-check.sh, which never runs it for its own user),
@@ -54,7 +56,18 @@ MARK=".sstudio-home-image"
 
 fail() { echo "$1" >&2; exit 1; }
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-kept() { case " $KEEP " in *" $1 "*) return 0 ;; esac; return 1; }
+kept() { case "$1" in *[[:space:]]*) return 1 ;; esac; case " $KEEP " in *" $1 "*) return 0 ;; esac; return 1; }
+# The kept name that $1 is another spelling of: the disk does not tell "library" from
+# "Library", so a kept thing that was renamed by case alone is still the kept thing, and is
+# neither taken into an image nor set aside.
+respelled() {
+  local k
+  for k in $KEEP; do
+    [ "$1" != "$k" ] && [ "$(lower "$1")" = "$(lower "$k")" ] && [ "$HOME/$1" -ef "$HOME/$k" ] \
+      && { printf '%s' "$k"; return 0; }
+  done
+  return 1
+}
 
 # Never part of an image, whatever is there when one is taken: Claude Code's state and
 # memory, sign-ins, and the files a shell, git or Claude Code reads as configuration or
@@ -88,6 +101,7 @@ if [ "$mode" = image ]; then
   while IFS= read -r -d '' path; do
     name="${path##*/}"
     kept "$name" && continue
+    respelled "$name" >/dev/null && continue
     never_taken "$name" && continue
     names+=("./$name")
   done < <(entries "$HOME")
@@ -106,10 +120,7 @@ home="$(cd "$HOME" && pwd -P)" || fail "$HOME could not be read"
 own_home="$(perl -e 'print((getpwuid($<))[7] // "")' 2>/dev/null)"
 own_home="$(cd "${own_home:-/nonexistent}" 2>/dev/null && pwd -P)" || own_home=""
 [ -d "$HOME/sstudio" ] && [ ! -L "$HOME/sstudio" ] || fail "$HOME/sstudio is not a plain folder: nothing was moved"
-# What is set aside must land in the home's own folder for it, not wherever a link points.
-for part in "$HOME/sstudio/set-aside" "$HOME/sstudio/set-aside/${2:-}"; do
-  [ ! -L "$part" ] || fail "$part is a link: nothing was moved"
-done
+case "$stamp" in ""|*[!A-Za-z0-9]*) fail "the stamp has to be letters and digits" ;; esac
 [ -f "$HOME/sstudio/.session-home" ] && [ ! -L "$HOME/sstudio/.session-home" ] \
   || fail "$HOME is not marked as a session user's home (no sstudio/.session-home): nothing was moved"
 if [ "$home" = "$own_home" ]; then
@@ -135,7 +146,6 @@ if [ "$tmp" != - ]; then
     [ "$home" = "$own_home" ] || fail "the temporary folder $tmp is a real one and $HOME is not this user's real home: not emptied"
   fi
 fi
-case "$stamp" in ""|*[!A-Za-z0-9]*) fail "the stamp has to be letters and digits" ;; esac
 [ -d "$image" ] && [ ! -L "$image" ] || fail "the image folder $image is not there"
 [ -f "$image/$MARK" ] || fail "the image in $image is not complete (no $MARK)"
 while IFS= read -r name; do
@@ -146,7 +156,18 @@ done < "$image/$MARK"
 # The token is the one thing in the home a session needs that the image does not hold.
 [ -f "$HOME/.claude-token" ] && [ ! -L "$HOME/.claude-token" ] || fail "$HOME/.claude-token is not a plain file"
 
-aside="$HOME/sstudio/set-aside/$stamp"
+# What is set aside must land in the home's own folder for it, not wherever a link points. A
+# link or a file a session put where that folder goes is moved out of the way under a name
+# that says so (a link is moved as the link it is), so that it cannot stop every later start.
+asides="$HOME/sstudio/set-aside"
+if [ -L "$asides" ] || { [ -e "$asides" ] && [ ! -d "$asides" ]; }; then
+  echo "aside sstudio-set-aside"
+  if [ "$dry" = no ]; then
+    mv "$asides" "$HOME/sstudio/set-aside-was-$stamp" || fail "$asides is not a folder and could not be moved out of the way"
+  fi
+fi
+aside="$asides/$stamp"
+[ ! -L "$aside" ] || fail "$aside is a link: nothing was moved"
 # Moves one thing to the set-aside folder under a name that says where it was. $1 the path,
 # $2 the name to give it.
 set_aside() {
@@ -168,7 +189,21 @@ unmoved=""
 while IFS= read -r -d '' path; do
   name="${path##*/}"
   kept "$name" && continue
-  { [ -e "$image/$name" ] || [ -L "$image/$name" ]; } && continue
+  # A kept thing under another spelling gets its own back, where the rules below know it.
+  if own="$(respelled "$name")"; then
+    echo "respelled $(plain "$name")"
+    if [ "$dry" = no ]; then
+      mv "$HOME/$name" "$HOME/$own" || fail "$(plain "$name") could not be given its name $own back"
+    else
+      unmoved="$unmoved/$name
+"
+    fi
+    continue
+  fi
+  # The image's own mark is not something a home holds, and the rules below would keep it.
+  if [ "$(lower "$name")" != "$MARK" ]; then
+    { [ -e "$image/$name" ] || [ -L "$image/$name" ]; } && continue
+  fi
   set_aside "$path" "$name"
   # A dry run leaves it where it is, and step 2 must not count it as something to delete.
   [ "$dry" = no ] || unmoved="$unmoved/$name
@@ -188,6 +223,18 @@ chmod "$(stat -f %Lp "$HOME")" "$image" || fail "the image folder could not be g
 # shellcheck disable=SC2086
 changes="$(rsync $options --exclude-from="$rules" "$image/" "$HOME/" 2>"$rules.err")"
 code=$?
+if [ "$code" -ne 0 ] && [ "$dry" = no ]; then
+  # A file its owner locked, or a folder it closed to itself, stops rsync and is still its
+  # owner's to replace: the image's folders are opened (rsync then gives them the image's
+  # permissions) and it is asked once more.
+  while IFS= read -r name; do
+    [ -n "$name" ] && [ -e "$HOME/$name" ] && [ ! -L "$HOME/$name" ] || continue
+    chflags -R nouchg,nouappnd "$HOME/$name" 2>/dev/null; chmod -R u+rwX "$HOME/$name" 2>/dev/null
+  done < "$image/$MARK"
+  # shellcheck disable=SC2086
+  changes="$(rsync $options --exclude-from="$rules" "$image/" "$HOME/" 2>"$rules.err")"
+  code=$?
+fi
 rm -f "$rules"
 if [ "$code" -ne 0 ]; then
   why="$(head -c 400 "$rules.err" | tr '\n' ' ')"; rm -f "$rules.err"
@@ -234,14 +281,21 @@ if [ -d "$HOME/sstudio/gh" ] && [ ! -L "$HOME/sstudio/gh" ]; then
 fi
 
 # 4. The temporary folder the runner named. Nothing of this user's is running, so nothing in
-# it is in use.
+# it is in use. What its owner locked or closed is opened first; what is still there after
+# that is the system's own (macOS keeps protected folders there) and is counted, not fought.
 if [ "$tmp" != - ] && [ "$dry" = no ]; then
+  # (One find for each: with several "-exec ... +" in one, the system's find runs the last
+  # first, and the removal would come before what makes it possible.)
+  find "$tmp" -mindepth 1 -maxdepth 1 ! -name .sstudio-session-tmp -exec chflags -R nouchg,nouappnd {} + 2>/dev/null
+  find "$tmp" -mindepth 1 -maxdepth 1 ! -name .sstudio-session-tmp -exec chmod -R u+rwX {} + 2>/dev/null
   find "$tmp" -mindepth 1 -maxdepth 1 ! -name .sstudio-session-tmp -exec rm -rf {} + 2>/dev/null
+  left=$(( $(find "$tmp" -mindepth 1 -maxdepth 1 ! -name .sstudio-session-tmp 2>/dev/null | wc -l) ))
+  [ "$left" -eq 0 ] || echo "left-in-temporary-folder $left"
 fi
 
 # 5. Old set-aside folders.
 if [ "$dry" = no ] && [ -d "$HOME/sstudio/set-aside" ]; then
-  find "$HOME/sstudio/set-aside" -mindepth 1 -maxdepth 1 -type d -mtime +14 \
-    -exec chmod -R u+rwX {} + -exec rm -rf {} + 2>/dev/null
+  find "$HOME/sstudio/set-aside" -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec chmod -R u+rwX {} + 2>/dev/null
+  find "$HOME/sstudio/set-aside" -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} + 2>/dev/null
 fi
 exit 0

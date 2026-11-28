@@ -187,7 +187,7 @@ fail() {
 LOCK="$OUT/.lock"
 BUSY=0; [ "$MODE" = --pass ] && BUSY=10
 if ! mkdir "$LOCK" 2>/dev/null; then
-  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +$(((BRIDGE_LIMIT + TRIAGE_LIMIT + FIX_LIMIT + 2 * PROOF_LIMIT + CHECKS_WAIT) / 60 + 10)) 2>/dev/null)" ]; then
+  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +$(((BRIDGE_LIMIT + TRIAGE_LIMIT + FIX_LIMIT + 2 * PROOF_LIMIT + CHECKS_WAIT) / 60 + 25)) 2>/dev/null)" ]; then
     rmdir "$LOCK" 2>/dev/null; mkdir "$LOCK" 2>/dev/null || { rm -f "$RUN"; exit "$BUSY"; }
   else
     case "$MODE" in --home-*) echo "Another run of the check holds the lock. Try again when it has ended." >&2; rm -f "$RUN"; exit 1 ;; esac
@@ -813,6 +813,8 @@ session_docker_state() {
 # issue to the next on purpose).
 # Without an image no session starts: the home cannot be told from one a session changed.
 HOME_IMAGE="$OUT/home-image"
+# The longest putting the home back may take (it takes seconds; the image is under a gigabyte).
+CLEAN_LIMIT=900
 CLEAN_NOTE=""
 # Marks the home as a session user's and makes the folder the image is unpacked into, with what
 # an earlier run left of such a folder removed first. Nothing is written through a link: a
@@ -825,7 +827,14 @@ mark_session_home() {
       { [ -e "$old" ] || [ -L "$old" ]; } || continue
       chmod -R u+rwX "$old" 2>/dev/null; rm -rf "$old"
     done
-    rm -f "$d/.session-home" && : > "$d/.session-home" && [ ! -L "$d/.session-home" ] && mkdir "$1"' sh "$1"
+    rm -rf "$d/.session-home" && : > "$d/.session-home" && [ ! -L "$d/.session-home" ] && mkdir "$1"' sh "$1"
+}
+# Removes the folder the image was unpacked into and what the script left beside it. An image
+# may hold a folder its owner cannot write, which rm alone would leave for the session to find.
+drop_staging() {
+  as_session /bin/sh -c 'case "$1" in */sstudio/.home-image-*) ;; *) exit 1 ;; esac
+    [ ! -e "$1" ] || [ -L "$1" ] || chmod -R u+rwX "$1" 2>/dev/null
+    rm -rf "$1" "$1.rules" "$1.rules.err"' sh "$1" 2>/dev/null
 }
 clean_start() {
   local staging="$SESSION_HOME/sstudio/.home-image-$STAMP" out code aside odd err="$OUT/state/session-clean.err"
@@ -839,12 +848,13 @@ clean_start() {
   /usr/bin/tar -cf - -C "$HOME_IMAGE" . 2>/dev/null | as_session /usr/bin/tar -xf - -C "$staging" 2>/dev/null
   case "${PIPESTATUS[*]}" in
     "0 0") ;;
-    *) as_session /bin/rm -rf "$staging"
+    *) drop_staging "$staging"
        SESSION_ERROR="the image of $SESSION_USER's home could not be unpacked for that user"; return 1 ;;
   esac
-  out="$(as_session /bin/bash -s clean "$STAMP" "$staging" "${SESSION_TMP:--}" < "$ROOT/scripts/session-clean.sh" 2> "$err")"
+  out="$(as_session /usr/bin/perl -e 'alarm shift; exec @ARGV or exit 127' "$CLEAN_LIMIT" \
+    /bin/bash -s clean "$STAMP" "$staging" "${SESSION_TMP:--}" < "$ROOT/scripts/session-clean.sh" 2> "$err")"
   code=$?
-  as_session /bin/rm -rf "$staging" "$staging.rules" "$staging.rules.err"
+  drop_staging "$staging"
   # What was set aside and put back, for whoever wants to know what a session left.
   printf '%s\n' "$out" > "$OUT/state/session-clean.log"
   if [ "$code" -ne 0 ]; then
@@ -852,6 +862,10 @@ clean_start() {
     rm -f "$err"; return 1
   fi
   rm -f "$err"
+  # A temporary folder that could not be found was not emptied, which is worth a line: what
+  # a session left there is then still there.
+  [ -n "${SESSION_TMP:-}" ] \
+    || { echo "$SESSION_USER's temporary folder could not be found (getconf DARWIN_USER_TEMP_DIR), so it was not emptied before this session."; echo; } >> "$RUN"
   # Claude Code's state is there after every session. Anything else is said, by name when the
   # name is a plain one: it is that user's to choose.
   aside="$(printf '%s\n' "$out" | sed -n 's/^aside //p' | grep -vxE '\.claude|\.claude\.json.*' || true)"
@@ -896,7 +910,13 @@ session_clone() {
   # One left by a pass whose worktree is gone: removed when GitHub has all of it, kept aside
   # when it does not (drop_clone).
   drop_clone
-  there "$CLONE" && { SESSION_ERROR="the clone $CLONE of an earlier pass is still there and could not be moved"; return 1; }
+  # Still there: it is the earlier pass's, kept because it holds work, so nothing the caller
+  # does next (it removes the branch and clone it just made) may be done to it.
+  if there "$CLONE"; then
+    SESSION_ERROR="the clone $CLONE of an earlier pass is still there and could not be moved"
+    CLONE="$CLONES/none"
+    return 1
+  fi
   # (The mirror is the Captain's, so git wants to be told that reading it is meant. No tags:
   # every ref the clone then holds is a branch of GitHub's or the session's own, which is what
   # drop_clone asks about.)
@@ -905,6 +925,29 @@ session_clone() {
     && sgit remote set-url origin "https://github.com/$REPO.git" 2>/dev/null \
     || { as_session /bin/rm -rf "$CLONE" 2>/dev/null; SESSION_ERROR="a clone for the session could not be made in $CLONE from $MIRROR"; return 1; }
 }
+# Whether GitHub has every commit the session's clone names. The clone is only asked what its
+# refs point at; whether GitHub has those commits is asked of the runner's own mirror, brought
+# up to date first, because the clone's own record of GitHub (its remotes and what they are
+# said to hold) is the session's to write. A mirror that could not be brought up to date is
+# asked as it is, and a commit it lacks keeps the clone. Returns 1 for "no" and "could not be
+# asked" alike.
+clone_on_github() {
+  local tips sha ahead
+  as_session /bin/test -d "$CLONE/.git" || return 1
+  tips="$(as_session git --git-dir="$CLONE/.git" for-each-ref --format='%(objectname)' 2>/dev/null)" || return 1
+  sha="$(as_session git --git-dir="$CLONE/.git" rev-parse -q --verify HEAD 2>/dev/null)" && tips="$tips
+$sha"
+  tips="$(printf '%s\n' "$tips" | sort -u | grep -v '^$')" || return 1
+  for sha in $tips; do
+    case "$sha" in *[!0-9a-f]*) return 1 ;; esac
+    [ "${#sha}" -eq 40 ] || [ "${#sha}" -eq 64 ] || return 1
+  done
+  [ -d "$MIRROR" ] && [ -O "$MIRROR" ] || return 1
+  run_here 300 git -C "$MIRROR" fetch -q --prune origin '+refs/heads/*:refs/heads/*' >/dev/null 2>&1
+  # (An object the mirror does not have makes rev-list fail, which is a "no" too.)
+  # shellcheck disable=SC2086
+  ahead="$(git -C "$MIRROR" rev-list -n 1 $tips --not --branches 2>/dev/null)" && [ -z "$ahead" ]
+}
 # Removes the session's clone: only ever a folder this script made for an issue, never while
 # its worktree is still there, and never with anything in it that GitHub does not have. A
 # clone that holds a commit no branch on GitHub has (a second branch, a stash, a detached
@@ -912,11 +955,11 @@ session_clone() {
 # under ~/sstudio/kept/ and said in the summary.
 KEPT_NOTE=""
 drop_clone() {
-  local ahead to
+  local to
   case "$CLONE" in "$CLONES"/feedback-issue-[0-9]*) ;; *) return 0 ;; esac
   there "$CLONE" || return 0
   there "$WORKTREES/${CLONE##*/}" && return 0
-  if ahead="$(sgit rev-list --all --not --remotes -n 1 2>/dev/null)" && [ -z "$ahead" ]; then
+  if clone_on_github; then
     as_session /bin/rm -rf "$CLONE" 2>/dev/null
     return 0
   fi
@@ -940,6 +983,9 @@ SESSION_READY=no
 session_ready() {
   [ "$SESSION_READY" = yes ] && return 0
   session_places || return 1
+  # Asked first: without an image no session starts, and nothing below is then worth doing.
+  [ -f "$HOME_IMAGE/.sstudio-home-image" ] \
+    || { SESSION_ERROR="there is no image of $SESSION_USER's home for a session to start from (scripts/admin-feedback-check.sh --home-image takes one)"; return 1; }
   as_session /usr/bin/true 2>/dev/null \
     || { SESSION_ERROR="this user cannot run commands as $SESSION_USER without a password (sudo -n -u $SESSION_USER; the rule is in /etc/sudoers.d)"; return 1; }
   as_session /bin/test -s "$SESSION_HOME/.claude-token" \
@@ -988,7 +1034,10 @@ bridge_git_plain() {
     [ -d "$g" ] && [ ! -L "$g" ] || exit 1
     rm -rf "$g/hooks" "$g/info/attributes" "$g/info/grafts" "$g/refs/replace" "$g/config.worktree" "$g/commondir" || exit 1
     if [ -f "$g/packed-refs" ] && [ ! -L "$g/packed-refs" ]; then
-      grep -v " refs/replace/" "$g/packed-refs" > "$g/packed-refs.plain"; mv "$g/packed-refs.plain" "$g/packed-refs" || exit 1
+      grep -v " refs/replace/" "$g/packed-refs" > "$g/packed-refs.plain"
+      # 0 and 1 are grep having read all of it (1: no line was left); anything else, a full
+      # disk among it, would put a short file where the branches and tags of the clone are.
+      case $? in 0|1) mv "$g/packed-refs.plain" "$g/packed-refs" || exit 1 ;; *) rm -f "$g/packed-refs.plain"; exit 1 ;; esac
     fi
     rm -f "$g/config" && printf "%s\n" "[core]" "	repositoryformatversion = 0" "	filemode = true" "	bare = false" \
       "	logallrefupdates = true" "	ignorecase = true" "	precomposeunicode = true" \
@@ -1827,9 +1876,9 @@ home_check() {
   staging="$SESSION_HOME/sstudio/.home-image-$STAMP"
   mark_session_home "$staging" || exit 1
   /usr/bin/tar -cf - -C "$HOME_IMAGE" . | as_session /usr/bin/tar -xf - -C "$staging"
-  case "${PIPESTATUS[*]}" in "0 0") ;; *) as_session /bin/rm -rf "$staging"; echo "The image could not be unpacked." >&2; exit 1 ;; esac
+  case "${PIPESTATUS[*]}" in "0 0") ;; *) drop_staging "$staging"; echo "The image could not be unpacked." >&2; exit 1 ;; esac
   out="$(as_session /bin/bash -s clean "$STAMP" "$staging" - --dry-run < "$ROOT/scripts/session-clean.sh")"; code=$?
-  as_session /bin/rm -rf "$staging" "$staging.rules" "$staging.rules.err"
+  drop_staging "$staging"
   printf '%s\n' "$out"
   exit "$code"
 }

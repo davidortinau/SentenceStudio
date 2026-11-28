@@ -458,11 +458,14 @@ A review agent on GitHub reads each pull request and recommends what to do with 
       state and memory (`.claude`, `.claude.json`) every time, and anything else a session or
       a tool left (`.zshrc`, `.gitconfig`, a sign-in). The image's folders are then made equal
       to it, file for file by content and permissions, so a tool a session changed is the
-      Captain's copy again. Without an image no session starts.
+      Captain's copy again (a file or folder its owner locked or closed is opened first).
+      Without an image no session starts, and that is asked before anything else is done.
     - **Kept in place, never looked into:** `.claude-token`, `Library` (what macOS keeps: the
       keychain, preferences, the simulators), `sstudio`, the account's empty standard
       folders, and three large caches inside the tool folders: `.nuget/packages`,
-      `.local/share/NuGet` and the Docker machine's disk `.colima/_lima`.
+      `.local/share/NuGet` and the Docker machine's disk `.colima/_lima`. One of these
+      renamed by case alone (`library`: the disk does not tell the two apart) is still the
+      kept thing and gets its spelling back.
     - **Never part of an image**, whatever is there when one is taken: Claude Code's state,
       shell profiles, git's own files, `CLAUDE.md` and `AGENTS.md`, sign-ins (`.azure`,
       `.azd`, `.netrc`), `.config/git`.
@@ -475,7 +478,9 @@ A review agent on GitHub reads each pull request and recommends what to do with 
     - **The temporary folder** of that user is emptied. The runner names it; the script
       never works one out. (It did once, on 2026-11-27, and a test run as the Captain emptied
       his own.) It empties only that user's own per-user temporary folder, and only when run
-      for that user's real home; a test hands it a stand-in it has marked.
+      for that user's real home; a test hands it a stand-in it has marked. What macOS itself
+      keeps there and protects stays, and the log counts it (`left-in-temporary-folder`). If
+      the folder cannot be found, the summary says it was not emptied.
     - **Whose home.** The script moves nothing in a home the runner has not marked as a
       session user's (`~lemuel/sstudio/.session-home`, written by `clean_start`, which never
       runs for the runner's own user), and nothing in the real home of an administrator or
@@ -487,7 +492,9 @@ A review agent on GitHub reads each pull request and recommends what to do with 
       and the clone is removed with the worktree. A worktree that is kept keeps its clone.
       A clone is only ever removed when GitHub has every commit in it (`drop_clone`): one
       that holds a second branch, a stash or a detached commit, or that cannot be asked, is
-      moved to `~lemuel/sstudio/kept/` and the summary says so.
+      moved to `~lemuel/sstudio/kept/` and the summary says so. Whether GitHub has them is
+      asked of the runner's own copy, fetched at that moment (`clone_on_github`), never of
+      the clone: what a clone says GitHub holds is the session's to write.
     - **The SwiftUI bridge's clone** is kept for its build output (a build from nothing takes
       minutes), so before each session its hooks, replaced objects, grafts and attributes are
       removed and its configuration rewritten to name the origin and nothing else
@@ -496,6 +503,10 @@ A review agent on GitHub reads each pull request and recommends what to do with 
       still carry a configuration git obeys. The runner's own git commands in that clone
       therefore run before the home is cleaned, and what remains is that a session's own
       git, in this one clone, can be steered by an earlier session.
+    - **A session cannot stop the next start** by what it leaves where the script writes: a
+      link or a file where the set-aside folder goes is moved out of the way
+      (`set-aside-was-<stamp>`), a mark made into a folder is replaced, and the clean has a
+      time limit of 15 minutes (it takes seconds).
     - **Nothing is deleted outright** except temporary files, a sign-in left in `gh`, what
       the image replaces inside the tool folders, a session's clone once GitHub has all of
       it, and set-aside folders after 14 days. `state/session-clean.log` has what the last

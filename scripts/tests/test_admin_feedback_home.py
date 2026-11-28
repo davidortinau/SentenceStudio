@@ -10,6 +10,7 @@ Run: python3 -I scripts/tests/test_admin_feedback_home.py
 """
 
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -55,6 +56,7 @@ class HomeTestCase(unittest.TestCase):
         self.a_home()
 
     def unlock_and_remove(self, holder):
+        subprocess.run(["chflags", "-R", "nouchg", str(self.root)], capture_output=True)
         subprocess.run(["chmod", "-R", "u+rwX", str(self.root)], capture_output=True)
         holder.cleanup()
 
@@ -361,7 +363,6 @@ class CleanTests(HomeTestCase):
         elsewhere = self.root / "elsewhere"
         elsewhere.mkdir()
         for make, why in (
-                (lambda: (self.home / "sstudio/set-aside").symlink_to(self.home / ".dotnet"), "set-aside is a link"),
                 (lambda: ((self.home / "sstudio/set-aside").mkdir(), (self.aside()).symlink_to(elsewhere)), f"{STAMP} is a link"),
                 (lambda: ((self.home / "sstudio/.session-home").unlink(),
                           (self.home / "sstudio/.session-home").symlink_to(self.home / ".claude-token")), "is not marked")):
@@ -378,6 +379,100 @@ class CleanTests(HomeTestCase):
             write(self.home / "sstudio/.session-home", "")
         self.assertEqual(list(elsewhere.iterdir()), [])
         self.assertTrue((self.home / ".dotnet/tools/aspire").exists())
+
+    def test_a_link_or_a_file_where_the_set_aside_folder_goes_is_moved_out_of_the_way(self):
+        # A session that put one there must not stop every start after it, and nothing may be
+        # set aside through it.
+        was = self.home / f"sstudio/set-aside-was-{STAMP}"
+        for make in (lambda: (self.home / "sstudio/set-aside").symlink_to(self.home / ".dotnet"),
+                     lambda: write(self.home / "sstudio/set-aside", "not a folder\n")):
+            with self.subTest():
+                write(self.home / ".zshrc")
+                make()
+
+                said = self.cleaned()
+
+                self.assertIn("aside sstudio-set-aside", said)
+                self.assertTrue(was.is_symlink() or was.is_file())
+                self.assertTrue((self.aside() / ".zshrc").is_file())
+                self.assertFalse((self.home / "sstudio/set-aside").is_symlink())
+                self.assertEqual(sorted(path.name for path in (self.home / ".dotnet").iterdir()), ["tools"])
+                was.unlink()
+                subprocess.run(["rm", "-rf", str(self.home / "sstudio/set-aside")], check=True)
+
+    def test_a_name_made_of_two_kept_names_is_not_taken_for_kept(self):
+        write(self.home / "Library sstudio/file", "a session's\n")
+
+        said = self.cleaned()
+
+        self.assertIn("aside Library sstudio", said)
+        self.assertEqual((self.aside() / "Library sstudio/file").read_text(encoding="utf-8"), "a session's\n")
+
+    def test_the_images_own_mark_is_not_something_a_home_keeps(self):
+        write(self.home / ".sstudio-home-image/planted", "for the next session\n")
+
+        said = self.cleaned()
+
+        self.assertIn("aside .sstudio-home-image", said)
+        self.assertFalse((self.home / ".sstudio-home-image").exists())
+        self.assertTrue((self.aside() / ".sstudio-home-image/planted").is_file())
+
+    def test_a_kept_thing_renamed_by_case_alone_is_still_kept_and_gets_its_name_back(self):
+        (self.home / "Library").rename(self.home / "library")
+        if (self.home / "Library").exists() is False:
+            self.skipTest("this disk tells upper case from lower")
+        (self.home / ".claude-token").rename(self.home / ".Claude-Token")
+
+        taken = subprocess.run(["/bin/bash", "-s", "image"], input=CLEAN.read_bytes(), capture_output=True, timeout=120,
+                               env={"HOME": str(self.home), "PATH": "/usr/bin:/bin"})
+        names = subprocess.run(["/usr/bin/tar", "-tf", "-"], input=taken.stdout, capture_output=True).stdout.decode().lower()
+        self.assertNotIn("keychain", names)
+        self.assertNotIn("claude-token", names)
+
+        dry = self.cleaned("--dry-run")
+        self.assertIn("respelled library", dry)
+        self.assertNotIn("changed library", "\n".join(dry))
+        self.assertIn("library", [path.name for path in self.home.iterdir()])
+
+        said = self.cleaned()
+
+        self.assertIn("respelled library", said)
+        self.assertIn("respelled .Claude-Token", said)
+        names = [path.name for path in self.home.iterdir()]
+        self.assertIn("Library", names)
+        self.assertIn(".claude-token", names)
+        self.assertEqual((self.home / "Library/Keychains/login.keychain-db").read_text(encoding="utf-8"), "keychain\n")
+        self.assertFalse(self.aside().exists())
+
+    def test_a_tool_file_its_owner_locked_is_put_back_all_the_same(self):
+        tool = self.home / ".dotnet/tools/aspire"
+        write(tool, "changed by a session\n", 0o755)
+        subprocess.run(["chflags", "uchg", str(tool)], check=True)
+        closed = self.home / ".dotnet/tools/closed"
+        write(closed / "extra")
+        closed.chmod(0o500)
+
+        said = self.cleaned()
+
+        self.assertEqual(tool.read_text(encoding="utf-8"), "the aspire tool\n")
+        self.assertFalse(closed.exists())
+        self.assertIn("changed .dotnet/tools/aspire", said)
+
+    def test_what_its_owner_closed_in_the_temporary_folder_goes_and_a_link_there_is_not_followed(self):
+        write(self.tmp / "closed/inside/file")
+        (self.tmp / "closed/inside").chmod(0o500)
+        (self.tmp / "closed").chmod(0o500)
+        elsewhere = self.root / "elsewhere"
+        write(elsewhere / "read-only", "not a session's to open\n", 0o400)
+        elsewhere.chmod(0o500)
+        (self.tmp / "link").symlink_to(elsewhere)
+
+        said = self.cleaned()
+
+        self.assertEqual([path.name for path in self.tmp.iterdir()], [".sstudio-session-tmp"])
+        self.assertNotIn("left-in-temporary-folder", "\n".join(said))
+        self.assertEqual(stat.S_IMODE(elsewhere.stat().st_mode), 0o500)
+        self.assertEqual(stat.S_IMODE((elsewhere / "read-only").stat().st_mode), 0o400)
 
     def test_a_folder_of_the_check_that_is_a_link_stops_it(self):
         real = self.root / "real-sstudio"
@@ -463,6 +558,9 @@ class CleanTests(HomeTestCase):
     def test_set_aside_folders_are_kept_two_weeks(self):
         old, recent = self.aside("20261101T000000Z"), self.aside("20261120T000000Z")
         write(old / ".zshrc")
+        # What was set aside may be closed to its owner (it was moved as it was).
+        write(old / ".locked/inside/file")
+        (old / ".locked/inside").chmod(0o500)
         write(recent / ".zshrc")
         day = 24 * 3600
         os.utime(old, (time.time() - 15 * day,) * 2)
@@ -537,6 +635,7 @@ stop_session_processes() {{ echo "a test reached stop_session_processes" >&2; ex
 class CleanStartTests(RunnerTestCase):
     def start(self, more=""):
         script = f"""{self.step('HOME_IMAGE="$OUT/home-image"')}
+{self.step("drop_staging() {")}
 {self.step("clean_start() {")}
 {more}
 clean_start; echo "code=$?"; echo "error=$SESSION_ERROR"; echo "note=$CLEAN_NOTE"
@@ -644,6 +743,45 @@ clean_start; echo "code=$?"; echo "error=$SESSION_ERROR"; echo "note=$CLEAN_NOTE
         # What a run that died left of an unpacked image is gone.
         self.assertFalse(left.exists())
 
+    def test_a_mark_a_session_made_a_folder_of_does_not_stop_the_next_start(self):
+        self.an_image()
+        mark = self.home / "sstudio/.session-home"
+        mark.unlink()
+        write(mark / "inside")
+
+        said = self.start()
+
+        self.assertEqual((said["code"], said["error"]), ("0", ""))
+        self.assertTrue(mark.is_file())
+
+    def test_an_image_with_a_folder_its_owner_cannot_write_leaves_no_copy_for_the_session(self):
+        write(self.home / ".dotnet/closed/file")
+        (self.home / ".dotnet/closed").chmod(0o500)
+        self.an_image()
+
+        said = self.start()
+
+        self.assertEqual((said["code"], said["error"]), ("0", ""))
+        self.assertEqual([path.name for path in (self.home / "sstudio").iterdir() if path.name.startswith(".home-image")], [])
+        # Only ever a folder of this kind.
+        self.assertIn('case "$1" in */sstudio/.home-image-*) ;; *) exit 1 ;; esac', self.step("drop_staging() {"))
+
+    def test_a_temporary_folder_that_could_not_be_found_is_said(self):
+        self.an_image()
+        write(self.tmp / "must-stay")
+
+        said = self.start("SESSION_TMP=")
+
+        self.assertEqual(said["code"], "0")
+        self.assertIn("temporary folder could not be found", (self.out / "run.md").read_text(encoding="utf-8"))
+        self.assertTrue((self.tmp / "must-stay").exists())
+
+    def test_the_clean_has_a_time_limit_and_the_image_is_asked_about_before_anything_else(self):
+        start = self.stage("clean_start")
+        self.assertIn("""as_session /usr/bin/perl -e 'alarm shift; exec @ARGV or exit 127' "$CLEAN_LIMIT" \\\n    /bin/bash -s clean""", start)
+        ready = self.stage("session_ready")
+        self.assertLess(ready.index('[ -f "$HOME_IMAGE/.sstudio-home-image" ]'), ready.index("as_session"))
+
     def test_a_folder_of_the_check_that_is_a_link_starts_no_session(self):
         self.an_image()
         real = self.root / "real-sstudio"
@@ -660,6 +798,7 @@ clean_start; echo "code=$?"; echo "error=$SESSION_ERROR"; echo "note=$CLEAN_NOTE
 class HomeImageTests(RunnerTestCase):
     def take(self, mode="home_image"):
         script = f"""{self.step('HOME_IMAGE="$OUT/home-image"')}
+{self.step("drop_staging() {")}
 session_places() {{ return 0; }}
 : > "$RUN"
 {self.step("home_image() {")}
@@ -739,7 +878,7 @@ class CloneTests(RunnerTestCase):
         subprocess.run(["git", "clone", "-q", "--bare", str(self.github), str(self.mirror)], check=True, timeout=60, env=GIT_ENV)
 
     def functions(self):
-        return "\n".join(self.step(start) for start in ('MIRROR="$SHARED/repo.git"', "session_clone() {", 'KEPT_NOTE=""',
+        return "\n".join(self.step(start) for start in ('MIRROR="$SHARED/repo.git"', "session_clone() {", "clone_on_github() {", 'KEPT_NOTE=""',
                                                          "remove_tree() {"))
 
     def run_steps(self, script):
@@ -809,6 +948,14 @@ sgit worktree add -q -B feedback/issue-12 "$WORKTREES/feedback-issue-12" origin/
                 'commit-tree -m detached "origin/main^{tree}" -p origin/main | xargs git -C "$CLONE" update-ref refs/heads/second',
                 'git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid commit-tree -m stashed "origin/main^{tree}" '
                 '-p origin/main | xargs git -C "$CLONE" update-ref refs/stash',
+                # The clone's own record of GitHub is the session's to write: a branch it says
+                # GitHub has, and a second remote it pushed to.
+                'git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid commit-tree -m claimed "origin/main^{tree}" '
+                '-p origin/main | xargs git -C "$CLONE" update-ref refs/remotes/origin/claimed',
+                'git init -q --bare "$SESSION_HOME/other.git" && git -C "$CLONE" remote add other "$SESSION_HOME/other.git" '
+                '&& git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m elsewhere '
+                '&& git -C "$CLONE" push -q other HEAD:refs/heads/elsewhere && git -C "$CLONE" fetch -q other '
+                '&& git -C "$CLONE" reset -q --hard origin/main',
                 'rm -rf "$CLONE/.git/objects"')):
             with self.subTest(leave[:60]):
                 self.setUp()
@@ -880,6 +1027,37 @@ remove_tree "$WORKTREES/feedback-issue-12"
         self.assertIn("code=1 a clone for the session could not be made", out)
         self.assertFalse((self.home / "sstudio/clones/feedback-issue-12").exists())
 
+    def test_a_clone_that_could_not_be_moved_is_not_the_new_passes_to_touch(self):
+        # fix_stage removes the branch and the clone it has just made when a step after them
+        # fails: neither may be the earlier pass's, which holds the only copy of its work.
+        clone = self.home / "sstudio/clones/feedback-issue-12"
+        out = self.run_steps("""session_clone 12
+git -C "$CLONE" checkout -q -b feedback/issue-12 origin/feedback/issue-12
+git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m "not pushed"
+: > "$SESSION_HOME/sstudio/kept"
+session_clone 12; echo "code=$? clone=${CLONE##*/} $SESSION_ERROR"
+remove_tree "$WORKTREES/feedback-issue-12"
+sgit branch -D feedback/issue-12 >/dev/null 2>&1
+drop_clone
+""")
+        self.assertIn("code=1 clone=none ", out)
+        self.assertIn("is still there and could not be moved", out)
+        self.assertEqual(self.git(clone, "log", "-1", "--format=%s", "feedback/issue-12"), "not pushed\n")
+        failed = self.stage("fix_stage")
+        self.assertIn('remove_tree "$tree"\n      sgit branch -D "$branch" >/dev/null 2>&1\n      drop_clone', failed)
+
+    def test_a_folder_that_is_not_a_repository_is_not_asked_through_one_above_it(self):
+        # git walks up from a folder with no repository in it, and the one it finds above has
+        # nothing of its own to lose.
+        out = self.run_steps("""session_clone 12
+git -C "$CLONE" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m "not pushed"
+git init -q "$CLONES"
+mv "$CLONE/.git" "$CLONE/.git-moved"
+drop_clone; echo "note=$KEPT_NOTE"
+""")
+        self.assertIn("was kept:", out)
+        self.assertTrue((self.home / f"sstudio/kept/feedback-issue-12-{STAMP}/.git-moved").is_dir())
+
     def test_the_stages_ask_the_mirror_what_github_has_and_clone_only_when_nothing_is_in_the_way(self):
         later = self.stage("follow_up_stage")
         kept = later.index('if there "$tree"; then\n    decline_requests')
@@ -950,6 +1128,11 @@ bridge_git_plain; echo "code=$?"
                                   text=True, env={**GIT_ENV, "HOME": str(self.home)})
         self.assertEqual(checkout.returncode, 0, checkout.stderr)
         self.assertFalse((self.home / "hook-ran").exists())
+
+    def test_a_list_of_refs_that_could_not_be_read_whole_is_never_put_in_place(self):
+        plain = self.step("bridge_git_plain() {")
+        self.assertIn('case $? in 0|1) mv "$g/packed-refs.plain" "$g/packed-refs" || exit 1 ;; '
+                      '*) rm -f "$g/packed-refs.plain"; exit 1 ;; esac', plain)
 
     def test_a_clone_whose_git_folder_is_not_a_plain_folder_is_left_alone_and_said(self):
         (self.bridge / ".git").rename(self.root / "moved-git")
