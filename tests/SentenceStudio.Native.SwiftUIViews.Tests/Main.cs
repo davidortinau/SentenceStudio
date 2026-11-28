@@ -1107,13 +1107,18 @@ var cases = new (string Name, Action Test)[]
     // does not fill: the link button in the brite and sketchy themes, the plan's resource link
     // and the number drill's hint toggle. Each has one title beside its images, and is painted
     // as wide with the minimum height as without it, at the largest text on a narrow phone too.
+    // "Without" clears the two frames the link button sets, on the button and on its label row,
+    // and the brite button, whose border is drawn around both, must come out lower for it: a
+    // comparison that left a frame in place fails there.
     ("Minimum height: a link button and an image-and-title button are painted as wide with it as without (issue 278)", () =>
     {
         const double width = 330;
         // The two themes in which the link button's label does not fill, at the largest text.
-        SourceUiStyle Large(string theme) => new(SourceUiAppearance.FromSelection(new AppearanceSelection(
-            theme, AppearanceSelection.Default.Mode, AppearanceSelection.MaxFontScale)), width);
+        SourceUiStyle Themed(string theme, double scale) => new(SourceUiAppearance.FromSelection(
+            new AppearanceSelection(theme, AppearanceSelection.Default.Mode, scale)), width);
+        SourceUiStyle Large(string theme) => Themed(theme, AppearanceSelection.MaxFontScale);
         var (largeBrite, largeSketchy) = (Large("brite"), Large("sketchy"));
+        var (plainBrite, plainSketchy) = (Themed("brite", 1), Themed("sketchy", 1));
         double PaintedWidth(SwiftView view)
         {
             var rows = PaintedRows(view, width, 400);
@@ -1124,11 +1129,18 @@ var cases = new (string Name, Action Test)[]
         SwiftView Link(SourceUiStyle large, bool minimum)
         {
             var link = large.TextLinkButton("Report this response", "flag", () => { }, "link");
-            if (!minimum)
-            {
-                link.WithMinimumHeight(0);
-                link.Children[0].WithMinimumHeight(0);
-            }
+            if (minimum)
+                return link;
+            // In these two themes the link button comes inside a row that fills and centres it
+            // (SourceUiStyle.TextLinkButton returns Views.HStack(button)). The minimum heights
+            // are on the button and on the row that is its label; the wrapper sets none and
+            // stays as it is.
+            if (link.Kind != "hstack" || link.Children.Count != 1 || link.Children[0].Kind != "button"
+                || link.Children[0].Children.Count != 1 || link.Children[0].Children[0].Kind != "hstack")
+                throw new Exception("TextLinkButton is no longer a row around a button whose label is a row: clear the minimum heights where it sets them now.");
+            var button = link.Children[0];
+            button.WithMinimumHeight(0);
+            button.Children[0].WithMinimumHeight(0);
             return link;
         }
         // Put together as NumberDrillScreen puts its hint toggle together.
@@ -1142,8 +1154,10 @@ var cases = new (string Name, Action Test)[]
         }
         foreach (var (what, build) in new (string, Func<bool, SwiftView>)[]
         {
-            ("The link button in the brite theme", minimum => Link(largeBrite, minimum)),
-            ("The link button in the sketchy theme", minimum => Link(largeSketchy, minimum)),
+            ("The link button in the brite theme at the largest text", minimum => Link(largeBrite, minimum)),
+            ("The link button in the sketchy theme at the largest text", minimum => Link(largeSketchy, minimum)),
+            ("The link button in the brite theme", minimum => Link(plainBrite, minimum)),
+            ("The link button in the sketchy theme", minimum => Link(plainSketchy, minimum)),
             ("The hint toggle", Toggle),
         })
         {
@@ -1152,7 +1166,16 @@ var cases = new (string Name, Action Test)[]
             var (framed, free) = (PaintedWidth(with), PaintedWidth(without));
             if (Math.Abs(framed - free) > 1)
                 throw new Exception($"{what} is painted {framed:0.#} points wide with its minimum height and {free:0.#} without: the frame squeezes its label.");
+            Console.WriteLine($"     {what}: {framed:0.#} points wide with its minimum height, {free:0.#} without.");
         }
+        // That "without" is without: at the default text size the brite link button's border is
+        // held 44 points apart by the minimum heights and closes on the label when both are gone.
+        using var tall = Link(plainBrite, true);
+        using var low = Link(plainBrite, false);
+        var (held, natural) = (PaintedHeight(tall, width, 400), PaintedHeight(low, width, 400));
+        if (natural > held - 2)
+            throw new Exception($"The brite link button is painted {natural:0.#} points high with its minimum heights cleared and {held:0.#} with them: a minimum height frame is still in place, so the widths above compare nothing.");
+        Console.WriteLine($"     The brite link button: {held:0.#} points high with its minimum heights, {natural:0.#} without.");
     }),
     // Issue 277: the case above draws rows it puts together itself, 330 points wide, in English,
     // at the default text size, and only "Failed" and "Retry", which fit in an equal share of
