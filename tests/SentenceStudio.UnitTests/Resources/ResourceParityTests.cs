@@ -177,20 +177,43 @@ public class ResourceParityTests
         offenders.Should().BeEmpty("iconography is Bootstrap Icons only; use bi-* instead of an emoji");
     }
 
+    // ---------------------------------------------------------------- removed keys
+
+    /// <summary>
+    /// Keys that lost their last reader when the MauiReactor pages went and were removed for
+    /// issue 342. The screens read <c>VocabQuiz_Mastered</c> and
+    /// <c>Settings_AutoAdvanceDurationLabel</c>; nothing replaced the other two. Each of these was
+    /// once defined twice (issue 296), so a merge can bring one back: a key nothing reads is
+    /// translated and reviewed for nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("Mastered")]
+    [InlineData("AutoAdvanceDuration")]
+    [InlineData("ScenarioCreated")]
+    [InlineData("ExportData")]
+    public void RemovedUnreadKeyIsNotShipped(string key)
+    {
+        Strings(Neutral).Keys.Should().NotContain(key, "nothing reads it by that name");
+        Strings(Korean).Keys.Should().NotContain(key, "a key removed from the neutral file leaves the Korean file too");
+
+        ResourcesType.GetProperty(key, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+            .Should().BeNull("the generated accessor goes with the key");
+    }
+
     // ---------------------------------------------------------------- plumbing
 
     /// <summary>
     /// AppResources is internal to SentenceStudio.Shared, so the ResourceManager is reached by
     /// reflection rather than by widening its visibility for a test.
     /// </summary>
+    private static Type ResourcesType => typeof(LocalizationManager).Assembly
+        .GetType("SentenceStudio.Resources.Strings.AppResources", throwOnError: true)!;
+
     private static ResourceManager ResourceManager
     {
         get
         {
-            var type = typeof(LocalizationManager).Assembly
-                .GetType("SentenceStudio.Resources.Strings.AppResources", throwOnError: true)!;
-
-            var property = type.GetProperty("ResourceManager",
+            var property = ResourcesType.GetProperty("ResourceManager",
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!;
 
             return (ResourceManager)property.GetValue(null)!;

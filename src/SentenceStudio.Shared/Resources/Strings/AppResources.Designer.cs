@@ -742,15 +742,6 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Auto-Advance Duration.
-        /// </summary>
-        internal static string AutoAdvanceDuration {
-            get {
-                return ResourceManager.GetString("AutoAdvanceDuration", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Time in seconds before automatically moving to next question after correct answer..
         /// </summary>
         internal static string AutoAdvanceDurationDescription {
@@ -7582,15 +7573,6 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Export Data.
-        /// </summary>
-        internal static string ExportData {
-            get {
-                return ResourceManager.GetString("ExportData", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Export all your learning data as CSV files in a ZIP archive. This includes vocabulary, progress, and settings..
         /// </summary>
         internal static string ExportDataDescription {
@@ -10413,15 +10395,6 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Manual {
             get {
                 return ResourceManager.GetString("Manual", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Mastered.
-        /// </summary>
-        internal static string Mastered {
-            get {
-                return ResourceManager.GetString("Mastered", resourceCulture);
             }
         }
 
@@ -17550,15 +17523,6 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ScenarioConfirmation {
             get {
                 return ResourceManager.GetString("ScenarioConfirmation", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Scenario created!.
-        /// </summary>
-        internal static string ScenarioCreated {
-            get {
-                return ResourceManager.GetString("ScenarioCreated", resourceCulture);
             }
         }
 
