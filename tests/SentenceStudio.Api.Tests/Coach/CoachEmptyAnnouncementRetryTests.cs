@@ -77,6 +77,19 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("Sure, **here are three example sentences.**")]
     [InlineData("Good question, and *here's a set of example sentences for you.*")]
     [InlineData("In English you say *Hello.* **Here are three example sentences.**")]
+    // The review of pull request 348: emphasis after a comma, a semicolon or a dash is the
+    // reply's own clause, in a capital or in Korean as much as in small letters.
+    [InlineData("Sure, **Here are three example sentences.**")]
+    [InlineData("좋아요, **다음은 예문 세 개입니다.**")]
+    [InlineData("Sure, *Here are three example sentences.*")]
+    [InlineData("네， __아래는 예문 세 개입니다.__")]
+    [InlineData("Good question; **Here's a set of example sentences for you.**")]
+    [InlineData("Sure - **Here are three example sentences.**")]
+    [InlineData("좋아요 – **다음은 예문 세 개입니다.**")]
+    [InlineData("**Sure**, **Here are three example sentences.**")]
+    [InlineData("**Sure,** *Here are three example sentences.*")]
+    [InlineData("For **차다**, **Here are three example sentences.**")]
+    [InlineData("In English you say *Hello.* Sure, **The following are three example sentences.**")]
     public async Task An_announcement_with_nothing_after_it_is_asked_for_once_more_and_the_answer_is_shown(
         string announcement)
     {
@@ -135,6 +148,10 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("In English you say **\"Here is your coffee.\"**")]
     [InlineData("In English you say **_Here is your coffee._**")]
     [InlineData("한국어로는 **다음은 제 차례예요**라고 해요.")]
+    // The review of pull request 348: a comma earlier in the lead does not cut the lead off.
+    [InlineData("In English, you say **Here is your coffee.**")]
+    [InlineData("Sure, in English you say **Here is your coffee.**")]
+    [InlineData("네, 한국어로는 **다음은 제 차례예요**라고 해요.")]
     public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(string reply)
     {
         var (harness, shown) = await TurnAsync(Reply(reply), Reply("This second reply must never be asked for."));
@@ -232,6 +249,9 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("Here are three example sentences:", "Here are three example sentences:")]
     [InlineData("Here are three Korean-only example sentences that use it without giving away the quiz choice.", "")]
     [InlineData("다음은 예문 세 개입니다.", "")]
+    // The review of pull request 348, through the answer path.
+    [InlineData("Sure, **Here are three example sentences.**", "")]
+    [InlineData("좋아요, **다음은 예문 세 개입니다.**", "")]
     public async Task An_answer_whose_only_part_is_an_announcement_is_asked_for_once_more_and_the_answer_is_shown(
         string announcement, string message)
     {

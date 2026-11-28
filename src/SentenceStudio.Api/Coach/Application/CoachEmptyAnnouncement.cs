@@ -37,6 +37,12 @@ public static class CoachEmptyAnnouncement
 
     private static readonly char[] ContentLeads = [':', '：', '—'];
 
+    /// <summary>
+    /// Marks that end a clause inside a sentence. What follows one is the reply going on in its
+    /// own voice ("Sure, ..."), not a sentence the words before it introduce ("you say ...").
+    /// </summary>
+    private static readonly char[] ClauseEnds = [',', '，', '、', ';', '；', '-', '–', '—'];
+
     /// <summary>Closing marks a message can end with after its last word: quotes, brackets, emphasis.</summary>
     private static readonly char[] Closers = ['"', '\'', '”', '’', ')', ']', '*', '_', '`'];
 
@@ -189,7 +195,11 @@ public static class CoachEmptyAnnouncement
     /// off part of a sentence is a quotation that closes with the same run (issue 331). One that
     /// opens where a sentence starts is not: a model puts a whole announcement in bold
     /// ("**Here are three example sentences.**"), and that one must still be asked for again.
-    /// Nor is one that goes on in small Latin letters, which is the reply's own sentence.
+    /// Nor is one that opens where a clause starts, after a comma, a semicolon or a dash
+    /// ("Sure, **Here are three example sentences.**", "좋아요, **다음은 예문 세 개입니다.**"):
+    /// a sentence that is given is led into by the words before it ("you say **Here is your
+    /// coffee.**"), and a clause mark cuts that lead off. Nor is one that goes on in small
+    /// Latin letters, which is the reply's own sentence.
     /// </remarks>
     private static bool InsideQuotation(string text, int from, int at)
     {
@@ -198,8 +208,9 @@ public static class CoachEmptyAnnouncement
         var closer = '\0';
         var closerLength = 1;
 
-        // Emphasis that opened where a sentence starts and is still open. It hides nothing; it
-        // is kept so that its closing run is not read as an opening one ("**차다**를 ...").
+        // Emphasis that opened where a sentence or a clause starts and is still open. It hides
+        // nothing; it is kept so that its closing run is not read as an opening one
+        // ("**차다**를 ...").
         var standing = '\0';
         var standingLength = 0;
 
@@ -243,12 +254,14 @@ public static class CoachEmptyAnnouncement
                     standing = '\0';
                 }
                 else if (opens
-                    && !StartsSentence(text, from, start)
+                    && !StartsSentenceOrClause(text, from, start)
                     && !(IsLatinLetter(after) && char.IsLower(after)))
                 {
-                    // A sentence that is given starts with a capital, or in Korean. Emphasis
-                    // that goes on in small letters ("Sure, **here are three example
-                    // sentences.**") is the reply's own sentence, and still an announcement.
+                    // A sentence that is given is led into by the words before it, with no
+                    // clause mark between, and starts with a capital or in Korean. Emphasis
+                    // after "Sure," or "좋아요," and emphasis that goes on in small letters
+                    // ("Sure, **here are three example sentences.**") are the reply's own
+                    // words, and still an announcement.
                     closer = mark;
                     closerLength = length;
                 }
@@ -299,13 +312,26 @@ public static class CoachEmptyAnnouncement
 
     /// <summary>
     /// True when nothing of a sentence stands between <paramref name="from"/> and
-    /// <paramref name="at"/>: the line starts there, or the sentence before has ended. Closing
-    /// marks after that sentence's end are stepped over ("**Sure!** *Here are ...").
+    /// <paramref name="at"/>, or nothing of a clause: the line starts there, the sentence before
+    /// has ended, or a clause mark stands just before ("Sure, ", "좋아요, ", "Okay - "). Closing
+    /// marks after that end are stepped over ("**Sure!** *Here are ...", "**Sure**, *Here ...").
     /// </summary>
-    private static bool StartsSentence(string text, int from, int at)
+    private static bool StartsSentenceOrClause(string text, int from, int at)
     {
-        var lead = text[from..at].TrimEnd().TrimEnd(Closers).TrimEnd();
-        return lead.Length == 0 || Array.IndexOf(SentenceEnds, lead[^1]) >= 0;
+        var lead = text[from..at].TrimEnd();
+        if (lead.Length == 0)
+        {
+            return true;
+        }
+
+        // The mark may stand outside the closing run ("**Sure**, ") or inside it ("**Sure,** ").
+        var last = lead[^1];
+        var inner = lead.TrimEnd(Closers).TrimEnd();
+        return Array.IndexOf(SentenceEnds, last) >= 0
+            || Array.IndexOf(ClauseEnds, last) >= 0
+            || inner.Length == 0
+            || Array.IndexOf(SentenceEnds, inner[^1]) >= 0
+            || Array.IndexOf(ClauseEnds, inner[^1]) >= 0;
     }
 
     private static bool IsLatinLetter(char letter) => letter < '\u0250' && char.IsLetter(letter);
