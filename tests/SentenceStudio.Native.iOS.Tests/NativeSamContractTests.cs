@@ -133,13 +133,15 @@ public sealed class NativeSamContractTests
         // Every push gets a slot whatever Sam's state: a facade toolbar's actions are
         // fixed once built, so the entry is a toolbar host added to (and removed from)
         // the slot as availability changes, never decided once at push time.
-        var withToolbar = scene[scene.IndexOf("private SwiftView WithSamToolbar(", StringComparison.Ordinal)..
-            scene.IndexOf("private void UpdateSamToolbars()", StringComparison.Ordinal)];
+        var withToolbar = SourceSlice.Between(scene,
+            "private SwiftView WithSamToolbar(",
+            "private void UpdateSamToolbars()");
         Assert.DoesNotContain("IsSamAvailable", withToolbar);
         Assert.DoesNotContain("return page;", withToolbar);
         Assert.Contains("return Views.Overlay(page, slot, SwiftOverlayEdge.Top);", withToolbar);
-        var update = scene[scene.IndexOf("private void UpdateSamToolbars()", StringComparison.Ordinal)..
-            scene.IndexOf("private SwiftView SamToolbarHost()", StringComparison.Ordinal)];
+        var update = SourceSlice.Between(scene,
+            "private void UpdateSamToolbars()",
+            "private SwiftView SamToolbarHost()");
         Assert.Contains("var available = _app.IsSamAvailable;", update);
         Assert.Contains("if (!available || entry.TabBarShown?.Invoke() == true)", update);
         Assert.Contains("slot.Add(SamToolbarHost());", update);
@@ -154,9 +156,8 @@ public sealed class NativeSamContractTests
         // nothing; an open resource form (unsaved edits) and Recent lookups block it too.
         Assert.Contains("_sam?.ReportVocabularyReviewBlockedByScreen();", controller);
         Assert.Contains("if (IsSamReviewBlockedByScreen)", controller);
-        var guard = controller[controller.IndexOf("internal bool IsSamReviewBlockedByScreen =>",
-            StringComparison.Ordinal)..];
-        guard = guard[..guard.IndexOf(';')];
+        var guard = SourceSlice.From(controller, "internal bool IsSamReviewBlockedByScreen =>");
+        guard = SourceSlice.Until(guard, ";");
         // Tab shell trial: the review opens over the Study root, so History (pushed over
         // Study) and every editor with unsaved edits on another tab block it; a smart
         // resource being read in the Library does not.
@@ -164,9 +165,8 @@ public sealed class NativeSamContractTests
             "IsActivityLogOpen", "IsProfileEditing", "HasLibraryEditor" })
             Assert.Contains(screen, guard);
         var library = Source("App/ApplicationController.Library.cs");
-        var editor = library[library.IndexOf("internal bool HasLibraryEditor =>",
-            StringComparison.Ordinal)..];
-        editor = editor[..editor.IndexOf(';')];
+        var editor = SourceSlice.From(library, "internal bool HasLibraryEditor =>");
+        editor = SourceSlice.Until(editor, ";");
         foreach (var screen in new[] { "IsResourcesFormOpen && !IsResourceFormReadOnly",
             "IsVocabularyWordOpen", "IsSkillFormOpen", "LibraryPairsHasChildPage" })
             Assert.Contains(screen, editor);

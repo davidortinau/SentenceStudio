@@ -191,9 +191,9 @@ public sealed class NativeSwiftUIResourceContractTests
     public void BulkVocabularyShowsVisibleDelimiterAndSwipeToRemove()
     {
         var form = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
-        var bulk = form[form.IndexOf("internal static List<SwiftView> ImportRows(",
-                StringComparison.Ordinal)
-            ..form.IndexOf("internal static SwiftView EditVocabularyRow(", StringComparison.Ordinal)];
+        var bulk = SourceSlice.Between(form,
+            "internal static List<SwiftView> ImportRows(",
+            "internal static SwiftView EditVocabularyRow(");
         Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Segmented)", bulk);
         Assert.Contains("inputs.DelimiterChanged(index == 1 ? \"tab\" : \"comma\")", bulk);
         Assert.Contains("inputs.RegisterImport(import);", bulk);
@@ -201,8 +201,7 @@ public sealed class NativeSwiftUIResourceContractTests
             bulk);
         Assert.Contains("inputs.ChooseFile", bulk);
 
-        var remove = form[form.IndexOf("private static SwiftView RemoveAction(",
-                StringComparison.Ordinal)..];
+        var remove = SourceSlice.From(form, "private static SwiftView RemoveAction(");
         Assert.Contains("Views.Button(Views.Label(text(\"ResourceEdit_RemoveWord\"), \"trash\"),", remove);
         Assert.Contains("() => removeWord(id)", remove);
         Assert.Contains(".WithButtonRole(SwiftButtonRole.Destructive)", remove);
@@ -221,16 +220,18 @@ public sealed class NativeSwiftUIResourceContractTests
     public void ResourceAddStagedWords_AreSectionRowsWithATypeMenu()
     {
         var form = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
-        var add = form[form.IndexOf("internal static void AddVocabulary(", StringComparison.Ordinal)
-            ..form.IndexOf("internal static string VocabularyHeader(", StringComparison.Ordinal)];
+        var add = SourceSlice.Between(form,
+            "internal static void AddVocabulary(",
+            "internal static string VocabularyHeader(");
         Assert.Contains("if (state.Vocabulary.Count > 0)", add);
         Assert.Contains("var staged = Views.Section(StagedHeader(state.Vocabulary.Count, text),", add);
         Assert.Contains("StagedRow(word, busy, actions, style, text)", add);
         Assert.Contains("inputs.RegisterStagedGrid(staged);", add);
         Assert.Contains("text(\"ResourceAdd_VocabWordsAdded\"), count)", form);
 
-        var staged = form[form.IndexOf("internal static SwiftView StagedRow(", StringComparison.Ordinal)
-            ..form.IndexOf("private static SwiftView Terms(", StringComparison.Ordinal)];
+        var staged = SourceSlice.Between(form,
+            "internal static SwiftView StagedRow(",
+            "private static SwiftView Terms(");
         Assert.Contains("string.IsNullOrWhiteSpace(word.Tags)", staged);
         Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", staged);
         Assert.Contains(".WithAccessibilityLabel(text(\"Import_ColType\"))", staged);
@@ -242,7 +243,7 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.DoesNotContain("Views.TextField(word.TargetTerm", form);
         Assert.DoesNotContain("Views.TextField(word.NativeTerm", form);
 
-        var terms = form[form.IndexOf("private static SwiftView Terms(", StringComparison.Ordinal)..];
+        var terms = SourceSlice.From(form, "private static SwiftView Terms(");
         Assert.Contains("string.IsNullOrEmpty(word.NativeTerm)", terms);
         Assert.Contains("SourceTextRole.Body1Bold,\n                strongElement: true", terms);
         Assert.Contains("SourceTextRole.Body1, SourceTextTone.Secondary", terms);
@@ -253,19 +254,16 @@ public sealed class NativeSwiftUIResourceContractTests
     {
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
         var form = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
-        var type = coordinator[coordinator.IndexOf("SetWordType: (id, kind) =>",
-                StringComparison.Ordinal)
-            ..coordinator.IndexOf("ImportText: () =>", StringComparison.Ordinal)];
+        var type = SourceSlice.Between(coordinator, "SetWordType: (id, kind) =>", "ImportText: () =>");
         Assert.Contains("_presenter.SetStagedLexicalUnitType(id, kind)", type);
         Assert.Contains("Publish(formChanged: false);", type);
         Assert.DoesNotContain("Publish();", type);
 
         // Captain 2026-11-13: native Resource form. The staged words' Section drops the row
         // in place and its header takes the new count.
-        var remove = coordinator[coordinator.IndexOf(
-                "private void RemoveVocabulary(string id)", StringComparison.Ordinal)
-            ..coordinator.IndexOf("private bool TryRemoveWordRow(string id)",
-                StringComparison.Ordinal)];
+        var remove = SourceSlice.Between(coordinator,
+            "private void RemoveVocabulary(string id)",
+            "private bool TryRemoveWordRow(string id)");
         Assert.Contains("if (_creating && _stagedGrid is { } section", remove);
         Assert.Contains("for (var index = 0; index < section.Children.Count; index++)", remove);
         Assert.Contains("section.RemoveAt(index);", remove);
@@ -279,9 +277,9 @@ public sealed class NativeSwiftUIResourceContractTests
 
         // An existing resource's removed word leaves its Section in place too (the form keeps
         // its scroll position), and the form is not redrawn before the removal.
-        var inPlace = coordinator[coordinator.IndexOf("private bool TryRemoveWordRow(string id)",
-                StringComparison.Ordinal)
-            ..coordinator.IndexOf("private async Task MutateVocabularyAsync(", StringComparison.Ordinal)];
+        var inPlace = SourceSlice.Between(coordinator,
+            "private bool TryRemoveWordRow(string id)",
+            "private async Task MutateVocabularyAsync(");
         Assert.Contains("section.RemoveAt(index);", inPlace);
         Assert.Contains("section.Add(LearningResourceVocabularyView.EmptyRow(style, _text));", inPlace);
         Assert.Contains("section.Text = LearningResourceVocabularyView.VocabularyHeader(count, _text);",
@@ -362,10 +360,9 @@ public sealed class NativeSwiftUIResourceContractTests
         var row = Source("Features/LearningResources/LearningResourceRowView.cs");
         // A list row follows its own column's width: the type and language beside the title
         // where they fit, otherwise under it (a split view's narrow list column).
-        var list = row[row.IndexOf(
-                "if (list && SourceUiLayout.ShowResourceListMetadata(width ?? style.ViewportWidth))",
-                StringComparison.Ordinal)
-            ..row.IndexOf("label.WithFlexibleWidth();", StringComparison.Ordinal)];
+        var list = SourceSlice.Between(row,
+            "if (list && SourceUiLayout.ShowResourceListMetadata(width ?? style.ViewportWidth))",
+            "label.WithFlexibleWidth();");
 
         Assert.Contains("label = Views.HStack(\n                icon,\n                name,", list);
         Assert.Contains("style.Text(Views.Text(media), SourceTextRole.Small,", list);
@@ -436,10 +433,9 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("if (placeholder is not null)", fields);
         Assert.DoesNotContain("native.resources.form.vocabulary.example", vocabulary);
 
-        var edit = form[form.IndexOf("if (!creating && !readOnly)\n        {\n            sections.Add(LearningResourceFieldsView.Area(style, text(\"ResourceEdit_Transcript\"),",
-                StringComparison.Ordinal)
-            ..form.IndexOf("LearningResourceVocabularyView.AddVocabulary(sections,",
-                StringComparison.Ordinal)];
+        var edit = SourceSlice.Between(form,
+            "if (!creating && !readOnly)\n        {\n            sections.Add(LearningResourceFieldsView.Area(style, text(\"ResourceEdit_Transcript\"),",
+            "LearningResourceVocabularyView.AddVocabulary(sections,");
         Assert.Contains("ResourceEdit_Transcript", edit);
         Assert.Contains("ResourceEdit_Translation", edit);
         Assert.DoesNotContain("placeholder:", edit);
@@ -561,10 +557,9 @@ public sealed class NativeSwiftUIResourceContractTests
     {
         var views = Source("Features/LearningResources/LearningResourceView.cs");
         var browser = Source("Features/LearningResources/LearningResourcesView.cs");
-        var edit = views[views.IndexOf("internal static SwiftView Page(",
-                StringComparison.Ordinal)
-            ..views.IndexOf("internal static SwiftView WithToolbar(",
-                StringComparison.Ordinal)];
+        var edit = SourceSlice.Between(views,
+            "internal static SwiftView Page(",
+            "internal static SwiftView WithToolbar(");
         Assert.DoesNotContain("state.Sync", edit);
         Assert.DoesNotContain("NativeResourceSyncPhase.", edit);
         Assert.DoesNotContain("NativeResourceSyncStatus.Describe(", edit);
@@ -731,10 +726,9 @@ public sealed class NativeSwiftUIResourceContractTests
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
         var views = Source("Features/LearningResources/LearningResourceQuickAddView.cs");
         var scene = Source("App/ApplicationScene.cs");
-        var search = coordinator[coordinator.IndexOf(
-                "private async Task SearchVocabularyAsync(", StringComparison.Ordinal)
-            ..coordinator.IndexOf("private Task AttachVocabularyAsync(",
-                StringComparison.Ordinal)];
+        var search = SourceSlice.Between(coordinator,
+            "private async Task SearchVocabularyAsync(",
+            "private Task AttachVocabularyAsync(");
 
         Assert.Contains("Interlocked.Increment(ref _quickSuggestionsRevision);", search);
         Assert.Contains("Publish(formChanged: false);", search);
@@ -744,9 +738,9 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("Views.IndeterminateProgress(text(\"Common_Loading\"))", views);
         Assert.Contains("NativeResourceVocabularySearchPhase.Searching", coordinator);
 
-        var refresh = coordinator[coordinator.IndexOf(
-                "internal void RefreshAddWords(SourceUiStyle style)", StringComparison.Ordinal)
-            ..coordinator.IndexOf("private SwiftView[] AddWordsRows(", StringComparison.Ordinal)];
+        var refresh = SourceSlice.Between(coordinator,
+            "internal void RefreshAddWords(SourceUiStyle style)",
+            "private SwiftView[] AddWordsRows(");
         Assert.Contains("if (revision == _renderedAddWordsRevision)", refresh);
         Assert.Contains("list.RemoveAt(0);", refresh);
         Assert.Contains("list.Add(row);", refresh);
@@ -762,10 +756,9 @@ public sealed class NativeSwiftUIResourceContractTests
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
         var views = Source("Features/LearningResources/LearningResourceView.cs");
         var vocabulary = Source("Features/LearningResources/LearningResourceVocabularyView.cs");
-        var mutation = coordinator[coordinator.IndexOf(
-                "private async Task MutateVocabularyAsync(", StringComparison.Ordinal)
-            ..coordinator.IndexOf("private async Task ImportVocabularyTextAsync(",
-                StringComparison.Ordinal)];
+        var mutation = SourceSlice.Between(coordinator,
+            "private async Task MutateVocabularyAsync(",
+            "private async Task ImportVocabularyTextAsync(");
 
         // Captain 2026-11-13: native Resource form. The staged word joins the mounted
         // vocabulary Section in place (no rebuilt form, so focus and scroll stay).
@@ -820,8 +813,7 @@ public sealed class NativeSwiftUIResourceContractTests
         Assert.Contains("_app.CancelResourceDelete", scene);
         Assert.Contains("_app.ConfirmResourceDelete", scene);
         Assert.DoesNotContain("Views.ResourceDeleteConfirmation(_fileImporter,", scene);
-        var closed = coordinator[coordinator.IndexOf(
-                "internal void DeleteDialogClosed()", StringComparison.Ordinal)..];
+        var closed = SourceSlice.From(coordinator, "internal void DeleteDialogClosed()");
         Assert.Contains("DispatchQueue.MainQueue.DispatchAsync(", closed[..600]);
         Assert.Contains("NativeResourceDetailPhase.Deleting", closed[..600]);
         Assert.Contains("if (_presenter.RequestDelete())", coordinator);

@@ -44,13 +44,12 @@ public sealed class NativeVocabularyRouteTests
     {
         // The shared browser reloads; the iOS coordinator turns Sheet into the sheet version.
         var browser = Flat(SharedSource("Features/Vocabulary/VocabularyBrowser.cs"));
-        var reload = browser[browser.IndexOf("internal async Task ReloadAsync()",
-                StringComparison.Ordinal)
+        var reload = SourceSlice.Between(browser,
+            "internal async Task ReloadAsync()",
             // OpenWordAsync says whether the word opened since 2026-11-17 (Sam's word lists).
-            ..browser.IndexOf("internal async Task<bool> OpenWordAsync(",
-                StringComparison.Ordinal)];
+            "internal async Task<bool> OpenWordAsync(");
         Assert.Contains("_catalog = catalog;", reload);
-        var completion = reload[reload.IndexOf("finally", StringComparison.Ordinal)..];
+        var completion = SourceSlice.From(reload, "finally");
         Assert.Contains("VocabularyChanges.List | (_filters?.PhoneSheetOpen == true", completion);
         Assert.Contains("? VocabularyChanges.Sheet", completion);
         Assert.DoesNotContain("OpenPhoneSheet()", completion);
@@ -96,10 +95,9 @@ public sealed class NativeVocabularyRouteTests
         Assert.Contains("ToggleListMode: () => SetListMode(!ListMode),", coordinator);
 
         var scene = Source("App/ApplicationScene.Vocabulary.cs");
-        var refresh = scene[scene.IndexOf(
-                "private void UpdateVocabularyList(", StringComparison.Ordinal)
-            ..scene.IndexOf("private void UpdateVocabularyWord(",
-                StringComparison.Ordinal)];
+        var refresh = SourceSlice.Between(scene,
+            "private void UpdateVocabularyList(",
+            "private void UpdateVocabularyWord(");
         Assert.Contains("var current = _vocabularySlot.Children.Single();", refresh);
         Assert.Contains("!BrowserPageUpdate.Vocabulary.TryUpdateInPlace(current, next)", refresh);
         Assert.DoesNotContain("current.RemoveAt(", refresh);

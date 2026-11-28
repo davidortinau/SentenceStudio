@@ -28,7 +28,7 @@ public sealed class NativeExampleActionsMenuContractTests
         Assert.True(start >= 0, "The saved sentence row was not found.");
         var row = examples[start..];
         // To the end of the method that builds it.
-        row = row[..row.IndexOf("\n    }\n", StringComparison.Ordinal)];
+        row = SourceSlice.Until(row, "\n    }\n");
         Assert.Contains("Views.Menu(", row);
         Assert.Contains("$\"{id}.actions\"", row);
         Assert.Contains(".WithMenuLabelFittingContent()", row);

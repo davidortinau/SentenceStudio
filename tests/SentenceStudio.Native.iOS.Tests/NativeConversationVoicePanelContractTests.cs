@@ -29,7 +29,7 @@ public sealed class NativeConversationVoicePanelContractTests
         Assert.True(start >= 0, "The voice pace menu was not found.");
         var menu = conversation[start..];
         // To the end of the method that builds it.
-        menu = menu[..menu.IndexOf("\n    }\n", StringComparison.Ordinal)];
+        menu = SourceSlice.Until(menu, "\n    }\n");
         Assert.Contains("NativeConversationAccess.VoicePace", menu);
         Assert.Contains(".WithMenuLabelFittingContent();", menu);
         Assert.DoesNotContain("WithFixedSize", menu);

@@ -102,9 +102,10 @@ public sealed class NativeYouTubeImportContractTests
         // and the page changes those rows in place (drawn and measured across the turn in
         // tests/SentenceStudio.Native.SwiftUIViews.Tests).
         var scene = Source("App/ApplicationScene.cs");
-        var viewport = scene[scene.IndexOf("private void ViewportChanged(", StringComparison.Ordinal)
-            ..scene.IndexOf("private static SwiftView? FindFocusedInput(", StringComparison.Ordinal)];
-        var atBreakpoint = viewport[viewport.IndexOf("if (crossedDesktopBreakpoint)", StringComparison.Ordinal)..];
+        var viewport = SourceSlice.Between(scene,
+            "private void ViewportChanged(",
+            "private static SwiftView? FindFocusedInput(");
+        var atBreakpoint = SourceSlice.From(viewport, "if (crossedDesktopBreakpoint)");
         Assert.Contains("if (_youTubeChannelContent is not null && _app.IsYouTubeChannelOpen)\n"
             + "                _app.YouTubeChannelViewportChanged(_youTubeChannelContent, _style);", atBreakpoint);
         Assert.Contains("YouTubeChannelView.ViewportChanged(mounted, channel, channel.State, style, Text);",
