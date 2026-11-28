@@ -1441,6 +1441,74 @@ var cases = new (string Name, Action Test)[]
             throw new Exception($"The brite link button is painted {natural:0.#} points high with its minimum heights cleared and {held:0.#} with them: a minimum height frame is still in place, so the widths above compare nothing.");
         Console.WriteLine($"     The brite link button: {held:0.#} points high with its minimum heights, {natural:0.#} without.");
     }),
+    // Issue 334: the squeeze the case above works around is gone in bridge 0.1.0-preview.71: a
+    // minimum height is no longer SwiftUI's frame(minHeight:), which placed a row in the row's
+    // own measured width, where an HStack gives its least flexible child an equal share. The
+    // quiz's own Submit and "I was correct" (QuizQuestionView.Add with QuizFeedbackView.Override
+    // beside Submit) are drawn in the row the quiz puts them in and in the same row as a plain
+    // HStack, which it was until issue 279 and which is what a frame squeezes: with a minimum
+    // height on the row they are painted as wide as without, the two widths and the gap (312
+    // points at 402). With preview.70 the plain row with a minimum height is 294 wide at 402
+    // and 292 at 330, where without one it is 307.
+    ("Minimum height: Submit and I was correct are painted as wide with a minimum height on their row as without (issue 334)", () =>
+    {
+        foreach (var width in new[] { 402d, 330d })
+        {
+            var quizStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+            SwiftView SubmitRow(NativeQuizState state, string submitId, SwiftView? beside)
+            {
+                var items = new List<SwiftView>();
+                QuizQuestionView.Add(items, state, "", false, false, quizStyle, QuizEnglish,
+                    _ => { }, _ => { }, false, _ => { }, () => { }, _ => { }, () => { }, () => { },
+                    () => { }, () => { }, _ => { }, (_, _) => { }, () => { }, () => { }, null, beside);
+                return items.Single(item => Find(item, submitId) is not null);
+            }
+            SwiftView Pair(bool plainRow, double minimumHeight)
+            {
+                var row = SubmitRow(QuizCorrection(), "native.quiz.correction",
+                    QuizFeedbackView.Override(quizStyle, QuizEnglish, () => { }));
+                if (row.Kind != "hstack" || row.Children.Count != 2)
+                    throw new Exception("The quiz no longer puts Submit and I was correct in one row of two: draw the row it puts them in now.");
+                if (plainRow)
+                    row.WithStackingWhenTooWide(false);
+                return minimumHeight > 0 ? row.WithMinimumHeight(minimumHeight) : row;
+            }
+            double PaintedWidth(SwiftView view)
+            {
+                var rows = PaintedRows(view, width, 300);
+                if (rows.Count != 1)
+                    throw new Exception($"Expected one painted row, found {rows.Count}.");
+                return rows[0].Right - rows[0].Left;
+            }
+            using var alone = SubmitRow(QuizCorrection() with
+            {
+                Phase = NativePhase.Ready, RequiresCorrection = false, CanSubmit = true,
+                AnswerWasCorrect = null, SelectedAnswer = null, CorrectAnswerAfterGrading = null
+            }, "native.quiz.submit", null);
+            using var wasCorrect = QuizFeedbackView.Override(quizStyle, QuizEnglish, () => { });
+            var apart = PaintedWidth(alone) + SourceUiLayout.ItemGap + PaintedWidth(wasCorrect);
+            if (width == 402 && Math.Abs(apart - 312) > 2)
+                throw new Exception($"At 402 points Submit and I was correct take {apart:0.#} points at their own widths, not the 312 issue 334 measured: the buttons changed, so read the widths below against {apart:0.#}.");
+            var wrong = new List<string>();
+            foreach (var plainRow in new[] { true, false })
+            {
+                using var free = Pair(plainRow, 0);
+                using var raised = Pair(plainRow, 60);
+                var (without, with) = (PaintedWidth(free), PaintedWidth(raised));
+                var row = plainRow ? "a plain row" : "the quiz's row";
+                Console.WriteLine($"     At {width} points in {row}: {with:0.#} points wide with a minimum height of 60, {without:0.#} without, {apart:0.#} at their own widths.");
+                // At 330 a plain row is itself five points short of the two widths (an equal
+                // share is less than Submit needs; issue 279 gave the quiz a row that stacks),
+                // so the comparison is with the same row without the minimum height, and
+                // with the two widths where the row has room for them or is the quiz's.
+                if (Math.Abs(with - without) > 1
+                    || ((width == 402 || !plainRow) && Math.Abs(without - apart) > 2))
+                    wrong.Add($"in {row} they are painted {with:0.#} points wide with a minimum height and {without:0.#} without");
+            }
+            if (wrong.Count > 0)
+                throw new Exception($"At {width} points Submit and I was correct take {apart:0.#} points at their own widths with the gap, but {string.Join("; ", wrong)}.");
+        }
+    }),
     // Issue 277: the case above draws rows it puts together itself, 330 points wide, in English,
     // at the default text size, and only "Failed" and "Retry", which fit in an equal share of
     // the row. This one draws the pages' own rows (History's and Discovery's, from a state made
