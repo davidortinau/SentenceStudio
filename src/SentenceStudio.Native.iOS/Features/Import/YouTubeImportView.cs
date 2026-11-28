@@ -370,11 +370,16 @@ internal static class YouTubeImportView
     /// <summary>
     /// Source btn btn-sm btn-outline-warning: no fill, a warning border and text. The fill stays
     /// unset (the bridge's surface colors are opaque #RRGGBB only). Fixed-size, like the badge
-    /// beside it (StatusBadge says why).
+    /// beside it (StatusBadge says why). Its text is the source .btn's: 14px times the app's text
+    /// size (app.css:569). The role is on the whole label, as on the app's other small buttons
+    /// (SourceUiStyle.SourceButton), so the icon follows the text size with the words. Without it
+    /// the label drew in the system font, the same at every app text size: 70 by 28 points at
+    /// the default and at the largest (issue 354, drawn in the native view tests).
     /// </summary>
     internal static SwiftView OutlineWarningButton(SwiftView label, Action action, SourceUiStyle style)
     {
-        label.WithForegroundColor(WarningOutline.Light, WarningOutline.Dark)
+        style.Text(label, SourceTextRole.Button)
+            .WithForegroundColor(WarningOutline.Light, WarningOutline.Dark)
             .WithPadding(4, 8, 4, 8);
         return Views.Button(label, action)
             .WithButtonStyle(SwiftButtonStyle.Plain)
