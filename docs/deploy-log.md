@@ -27,7 +27,9 @@ ran the 2026-11-24 fix for issue 258 on 2026-11-25); those deploys are not recor
 under `docs/`.
 
 A deploy whose post-deploy checks failed has no line until `after` passes: if production
-keeps that build meanwhile, the log is behind by that deploy.
+keeps that build meanwhile, the log is behind by that deploy. The same holds when the checks
+passed and the line could not be written (this file cannot be written, the disk is full):
+`after` says so, leaves this file as it was and exits non-zero, and rerunning it adds the line.
 
 ## Deploys
 

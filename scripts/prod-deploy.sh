@@ -151,8 +151,12 @@ wait_healthy() {
 # revision was created (Azure's time, in UTC), this checkout's commit and its subject, and
 # the revision's name. A revision already in the log is not written twice, so after can be
 # rerun. Nothing is committed.
+#
+# after calls this on the left of ||, where bash does not apply set -e inside the function:
+# every step that can fail returns its failure by hand, and "recorded" is printed only once
+# the line is in the log.
 record_deploy() {
-  local revision=$1 created when epoch commit committed line
+  local revision=$1 created when epoch commit subject committed line tmp
   [ -f "$LOG" ] || { echo "FAIL: $LOG is missing; this deploy is not recorded"; return 1; }
   if grep -qF "\`$revision\`" "$LOG"; then
     echo "ok:   $revision is already in $LOG"; return 0
@@ -167,8 +171,10 @@ try:
     print(int(t.timestamp()), t.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"))
 except ValueError:
     print()' "$created") || true
-  commit=$(git rev-parse HEAD)
-  line="- $when \`$commit\` $(git log -1 --format=%s HEAD) (API revision \`$revision\`)"
+  commit=$(git rev-parse HEAD) && subject=$(git log -1 --format=%s HEAD) \
+    && committed=$(git log -1 --format=%ct HEAD) && [ -n "$commit" ] && [ -n "$committed" ] \
+    || { echo "FAIL: git could not read this checkout's commit; this deploy is not recorded in $LOG"; return 1; }
+  line="- $when \`$commit\` $subject (API revision \`$revision\`)"
   if [ -z "${epoch:-}" ]; then
     echo "FAIL: Azure gave no creation time for $revision ('$created'); this deploy is not recorded."
     echo "      Add it to $LOG by hand, with the time: $line"
@@ -176,18 +182,31 @@ except ValueError:
   fi
   # A commit made after the revision existed cannot be what it runs: the checkout has moved
   # since the deploy (after rerun later, from another checkout or after a pull).
-  committed=$(git log -1 --format=%ct HEAD)
   if [ "$committed" -gt "$epoch" ]; then
     echo "FAIL: $revision was created $when, before this checkout's commit $(git rev-parse --short HEAD) was made,"
     echo "      so that commit is not what was deployed; this deploy is not recorded."
     echo "      Add it to $LOG by hand, with the commit that was deployed: $line"
     return 1
   fi
-  # The log may have lost its final newline to an editor; a line is never joined to the last.
-  [ -z "$(tail -c 1 "$LOG")" ] || echo >> "$LOG"
-  echo "$line" >> "$LOG"
-  echo "ok:   recorded in $LOG (not committed; commit and push it):"
-  echo "      $line"
+  # The new log is written beside the old one and moved into its place only when it ends with
+  # the whole line, so a write that fails (a log that cannot be written, a full disk) leaves
+  # the log as it was, never with half a line. The log may have lost its final newline to an
+  # editor; a line is never joined to the last.
+  if [ -w "$LOG" ] && tmp=$(mktemp "$LOG.XXXXXX"); then
+    if cp -p "$LOG" "$tmp" \
+       && { [ -z "$(tail -c 1 "$tmp")" ] || echo >> "$tmp"; } \
+       && echo "$line" >> "$tmp" \
+       && [ "$(tail -n 1 "$tmp")" = "$line" ] \
+       && mv -f "$tmp" "$LOG"; then
+      echo "ok:   recorded in $LOG (not committed; commit and push it):"
+      echo "      $line"
+      return 0
+    fi
+    rm -f "$tmp"
+  fi
+  echo "FAIL: could not write to $LOG; this deploy is not recorded. The log is as it was."
+  echo "      Rerun after once it can be written, or add the line by hand: $line"
+  return 1
 }
 
 after() {
