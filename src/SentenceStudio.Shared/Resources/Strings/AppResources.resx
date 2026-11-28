@@ -1505,10 +1505,6 @@
     <value>days</value>
     <comment>Number of days until review (e.g. "3 days")</comment>
   </data>
-  <data name="Mastered" xml:space="preserve">
-    <value>Mastered!</value>
-    <comment>Word has reached mastery level</comment>
-  </data>
   <data name="StartPracticing" xml:space="preserve">
     <value>Start practicing to track progress</value>
     <comment>Message for unknown words with no progress</comment>
@@ -1641,10 +1637,6 @@
     <value>Export your learning data for backup or analysis.</value>
     <comment>Description of data management section</comment>
   </data>
-  <data name="ExportData" xml:space="preserve">
-    <value>Export Data</value>
-    <comment>Button to export app data</comment>
-  </data>
   <data name="Exporting" xml:space="preserve">
     <value>Exporting</value>
     <comment>Status text while exporting data</comment>
@@ -1740,10 +1732,6 @@
   <data name="Tag" xml:space="preserve">
     <value>Tag</value>
     <comment>[002-vocab-search] Filter chip label for tag filters</comment>
-  </data>
-  <data name="Resource" xml:space="preserve">
-    <value>Resource</value>
-    <comment>[002-vocab-search] Filter chip label for resource filters</comment>
   </data>
   <data name="Lemma" xml:space="preserve">
     <value>Lemma</value>
@@ -1864,10 +1852,6 @@
   <data name="SavePreferences" xml:space="preserve">
     <value>Save Preferences</value>
     <comment>[001-vocab-quiz-preferences] Button text to save preference changes</comment>
-  </data>
-  <data name="AutoAdvanceDuration" xml:space="preserve">
-    <value>Auto-advance delay</value>
-    <comment>[001-vocab-quiz-preferences] Label for auto-advance duration slider</comment>
   </data>
   <data name="PreferencesSaveFailed" xml:space="preserve">
     <value>Failed to save preferences. Please try again.</value>
@@ -2049,10 +2033,6 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Scenario creation cancelled.</value>
     <comment>[002-warmup-scenarios] Message when scenario creation is cancelled</comment>
   </data>
-  <data name="ScenarioCreated" xml:space="preserve">
-    <value>Scenario "{0}" created! Starting conversation...</value>
-    <comment>[002-warmup-scenarios] Success message when scenario is created</comment>
-  </data>
   <data name="NoActiveScenarioToEdit" xml:space="preserve">
     <value>No scenario is currently selected to edit.</value>
     <comment>[002-warmup-scenarios] Message when user tries to edit with no scenario</comment>
@@ -2072,14 +2052,6 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   <data name="CannotDeletePredefined" xml:space="preserve">
     <value>Predefined scenarios cannot be deleted.</value>
     <comment>[002-warmup-scenarios] Message when user tries to delete predefined scenario</comment>
-  </data>
-  <data name="Yes" xml:space="preserve">
-    <value>Yes</value>
-    <comment>Generic yes button label</comment>
-  </data>
-  <data name="No" xml:space="preserve">
-    <value>No</value>
-    <comment>Generic no button label</comment>
   </data>
   <data name="ConversationInputPlaceholder" xml:space="preserve">
     <value>How do you say this in {0}?</value>
@@ -7157,14 +7129,6 @@ For example: {0} ...</value>
   <data name="Import_Updated" xml:space="preserve">
     <value>Updated</value>
     <comment>Label for updated count</comment>
-  </data>
-  <data name="Import_Failed" xml:space="preserve">
-    <value>Failed</value>
-    <comment>Label for failed count</comment>
-  </data>
-  <data name="Import_ViewResource" xml:space="preserve">
-    <value>View Resource</value>
-    <comment>Button to view imported resource</comment>
   </data>
   <data name="Import_ImportMore" xml:space="preserve">
     <value>Import More</value>

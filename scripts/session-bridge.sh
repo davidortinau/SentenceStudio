@@ -10,7 +10,9 @@
 #                                     free version, the branch a pull request there goes to,
 #                                     and whether this login may push there
 #   scripts/session-bridge.sh test    builds the native framework and the bridge's own tests,
-#                                     and runs them
+#                                     and runs them: the managed test program, then the Swift
+#                                     side's tests (swift test); says each count, and stops
+#                                     when a test of either fails
 #   scripts/session-bridge.sh pack    builds the native framework, packs and verifies the version
 #                                     the bridge's project file names, puts the package in
 #                                     this user's package folder, where every build of this
@@ -258,6 +260,33 @@ bridge_tests() {
   cat "$log.run" >> "$log"; grep -E 'Managed tests:|FAIL|failed' "$log.run" | tail -20; rm -f "$log.run"
   [ "$code" != 124 ] || stop "the bridge's test program did not finish in 300 seconds and was stopped. Its output so far is $log."
   grep -Eq 'Managed tests: ([0-9]+)/\1 passed' "$log" || stop "the bridge's tests did not all pass. The whole output is $log."
+  swift_tests "$log"
+}
+
+# The Swift side's own tests (native/MicrosoftSwiftUIShim/Tests), which the managed test program
+# does not run: they draw the views and measure them, so a change to the Swift side that breaks
+# a layout fails here and nowhere else. (Until 2026-11-25 no script ran them, and a session had
+# to know to.) Says the count as the managed tests do, and the failures. $1 the log to add to.
+swift_tests() {
+  local log="$1" code total ran failed
+  ( cd "$BRIDGE" && within 420 swift test --package-path native/MicrosoftSwiftUIShim ) > "$log.run" 2>&1; code=$?
+  cat "$log.run" >> "$log"
+  # XCTest gives the whole run's count under "All tests", and only when the run reached its
+  # end: each suite says a count of its own before that, and a footer of Swift Testing follows
+  # with a count of its own kind of test, of which the bridge has none.
+  total="$(grep -A1 -E "^Test Suite 'All tests' (passed|failed)" "$log.run" | grep -E 'Executed [0-9]+ tests?, with' | tail -1)"
+  ran="$(printf '%s\n' "$total" | sed -E 's/.*Executed ([0-9]+) tests?,.*/\1/')"
+  # Tests that failed, not failures: one test can fail more than once.
+  failed="$(grep -cE "^Test Case '.*' failed" "$log.run")"
+  # A failed expectation, a test file that does not compile and a crash all say "error:".
+  # Said from the bridge's folder and without the compiler's colours.
+  grep -E "error: |^Test Case '.*' failed" "$log.run" | sed -e "s#$BRIDGE/##g" -e $'s/\x1b\\[[0-9;]*m//g' | cut -c1-400 | head -20
+  rm -f "$log.run"
+  [ "$code" != 124 ] || stop "the bridge's Swift tests did not finish in 420 seconds and were stopped. Their output so far is $log."
+  [ -n "$total" ] || stop "the bridge's Swift tests did not run to their end: they did not build, or a test crashed. The whole output is $log."
+  [ "$ran" -gt 0 ] || stop "the bridge's Swift tests ran no test. The whole output is $log."
+  echo "Swift tests: $((ran - failed))/$ran passed"
+  [ "$code" = 0 ] && [ "$failed" = 0 ] || stop "the bridge's Swift tests did not all pass. The whole output is $log."
 }
 
 # The packages the Captain packed are the ones a version means once it is given out. A copy of

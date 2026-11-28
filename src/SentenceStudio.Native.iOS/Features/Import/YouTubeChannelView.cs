@@ -194,10 +194,62 @@ internal static class YouTubeChannelView
         return Views.Section(text("ChannelDetail_DiscoverVideos"), rows.ToArray());
     }
 
+    private static string VideoRowId(int index) => $"native.import.youtube.channel.video.{index}";
+
+    /// <summary>
+    /// The page's width crossed 768 points with the page open (an iPhone turned, an iPad's window
+    /// resized): each failed video's row under <paramref name="mounted"/> that has the other
+    /// width's shape gets this width's lines, in place. Nothing else on the page is drawn again,
+    /// so the link field keeps its focus and the Form its scroll position; the lines are built
+    /// from <paramref name="state"/>, so selection, a running retry and the actions are as a
+    /// fresh draw would have them (issue 308: the shape was chosen only when the row was built).
+    /// </summary>
+    internal static void ViewportChanged(SwiftView mounted, YouTubeChannelCoordinator channel,
+        YouTubeChannelState state, SourceUiStyle style, Func<string, string> text)
+    {
+        if (state.Videos.IsDefaultOrEmpty)
+            return;
+        var failed = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var index = 0; index < state.Videos.Length; index++)
+            if (state.Videos[index].IsFailed)
+                failed[VideoRowId(index)] = index;
+        if (failed.Count > 0)
+            Reshape(mounted);
+
+        void Reshape(SwiftView view)
+        {
+            if (view.AccessibilityIdentifier is { } id && failed.TryGetValue(id, out var index))
+            {
+                // A row that is not a failed video's column was drawn from an older state, and
+                // the redraw that state change asked for replaces it.
+                if (view.Kind != "vstack" || (view.Children.Count > 1) == FailedOnTwoLines(style))
+                    return;
+                using var next = VideoRow(channel, state, state.Videos[index], index, style, text);
+                while (view.Children.Count > 0)
+                {
+                    var previous = view.Children[0];
+                    view.RemoveAt(0);
+                    previous.Dispose();
+                }
+                while (next.Children.Count > 0)
+                {
+                    var line = next.Children[0];
+                    next.RemoveAt(0);
+                    view.Add(line);
+                }
+                return;
+            }
+            foreach (var child in view.Children)
+                Reshape(child);
+        }
+    }
+
+    private static bool FailedOnTwoLines(SourceUiStyle style) => style.ViewportWidth < 768;
+
     private static SwiftView VideoRow(YouTubeChannelCoordinator channel, YouTubeChannelState state,
         YouTubeDiscoveredVideo video, int index, SourceUiStyle style, Func<string, string> text)
     {
-        var id = $"native.import.youtube.channel.video.{index}";
+        var id = VideoRowId(index);
         var select = Views.Toggle(video.Title, state.SelectedVideoIds.Contains(video.VideoId),
                 _ => channel.ToggleVideo(video.VideoId))
             .WithLabelsHidden()
@@ -209,12 +261,21 @@ internal static class YouTubeChannelView
             select,
             style.Text(Views.Text(video.Title), SourceTextRole.Body2).WithLineLimit(1).WithFlexibleWidth(),
         };
+        // The switch, the badge and Retry keep their own width, so only the title can give way.
+        // On an iPhone a failed video's row has no room for all four: an iPhone's switch is 51
+        // points wide or more, and drawn with the room that leaves, a 375-point page's row left
+        // the title 61.5 points at the largest app text size, and 28 while the retry ran and
+        // Retry had its spinner (issue 308). There the badge and Retry go on a second line, at
+        // the trailing edge, and the title has the first line beside the switch (as
+        // YouTubeImportView.ImportRow does since issue 292).
+        var second = video.IsFailed && FailedOnTwoLines(style) ? new List<SwiftView>() : null;
+        var trailing = second ?? cells;
         if (video.IsCompleted)
             cells.Add(Badge(style, "checkmark.circle", text("ChannelDetail_Imported"), style.Appearance.Success,
                 LightBadgeText, $"{id}.imported"));
         else if (video.IsFailed)
         {
-            cells.Add(Badge(style, "xmark.circle", text("Import_Failed"), style.Appearance.Danger,
+            trailing.Add(Badge(style, "xmark.circle", text("Import_Failed"), style.Appearance.Danger,
                 LightBadgeText, $"{id}.failed"));
             var label = Views.HStack();
             if (state.RetryingVideoId == video.VideoId)
@@ -227,13 +288,28 @@ internal static class YouTubeChannelView
                 .WithAccessibilityLabel(text("Import_Retry"))
                 .WithAccessibilityIdentifier($"{id}.retry");
             retry.IsEnabled = !state.IsRetryingImport;
-            cells.Add(retry);
+            trailing.Add(retry);
         }
         else if (video.IsInProgress)
             cells.Add(Badge(style, "hourglass", text("ChannelDetail_Importing"), InfoBadge, DarkBadgeText,
                 $"{id}.importing"));
         var row = Views.HStack(cells.ToArray()).WithFlexibleWidth();
         row.Spacing = SourceUiLayout.ItemGap + 4;
+        if (video.IsFailed)
+        {
+            // A failed video's row is a column of one line or two at every width, so an open
+            // page's row can be given the other width's lines in place (ViewportChanged).
+            var lines = Views.VStack(row).WithFlexibleWidth();
+            lines.Spacing = SourceUiLayout.ItemGap;
+            if (second is not null)
+            {
+                var under = Views.HStack(second.ToArray())
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Trailing);
+                under.Spacing = SourceUiLayout.ItemGap + 4;
+                lines.Add(under);
+            }
+            return lines.WithAccessibilityIdentifier(id);
+        }
         var padded = row;
         // Source: an imported video's row is dimmed (opacity-50).
         if (video.IsCompleted)

@@ -37,6 +37,15 @@ public class CoachOpportunityStoredEnumContractTests
     public void EveryKindKeepsItsStoredOrdinal(CoachOpportunityKind kind, int stored) =>
         ((int)kind).Should().Be(stored);
 
+    /// <summary>
+    /// The kind issue 306 appended, pinned by its stored value and its name together. Written
+    /// without naming the member, so this file builds against the code before that change and
+    /// fails there instead of failing the whole project's build.
+    /// </summary>
+    [Fact]
+    public void TheEmptyAnnouncementKindKeepsItsStoredOrdinal() =>
+        ((CoachOpportunityKind)11).ToString().Should().Be("EmptyAnnouncementRetried");
+
     [Theory]
     [InlineData(CoachOpportunityDisposition.Product, 0)]
     [InlineData(CoachOpportunityDisposition.AggregateOnly, 1)]
@@ -85,7 +94,7 @@ public class CoachOpportunityStoredEnumContractTests
     {
         // Guards on the counts, so appending stays cheap and inserting cannot pass quietly: a
         // new member in the middle shifts an ordinal and fails a theory above as well.
-        Enum.GetValues<CoachOpportunityKind>().Should().HaveCount(11);
+        Enum.GetValues<CoachOpportunityKind>().Should().HaveCount(12);
         Enum.GetValues<CoachOpportunityDisposition>().Should().HaveCount(2);
         Enum.GetValues<CoachOpportunitySurface>().Should().HaveCount(3);
         Enum.GetValues<CoachOpportunityOfferLink>().Should().HaveCount(5);
@@ -140,13 +149,16 @@ public class CoachOpportunityStoredEnumContractTests
     [InlineData("learner_reported_other")]
     [InlineData("answer_required")]
     [InlineData("evidence_reference_invalid")]
+    [InlineData("empty_announcement_second_reply_held_content")]
+    [InlineData("empty_announcement_second_reply_empty")]
+    [InlineData("empty_announcement_second_call_failed")]
     public void EveryCapabilityCodeKeepsItsStoredValue(string code) =>
         CoachOpportunityCapabilityCodes.All.Should().Contain(code);
 
     [Fact]
     public void TheCapabilityVocabularyIsClosedAndBounded()
     {
-        CoachOpportunityCapabilityCodes.All.Should().HaveCount(42);
+        CoachOpportunityCapabilityCodes.All.Should().HaveCount(45);
 
         foreach (var code in CoachOpportunityCapabilityCodes.All)
         {

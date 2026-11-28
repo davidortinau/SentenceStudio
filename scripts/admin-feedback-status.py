@@ -219,6 +219,19 @@ def head_in(line):
     return found.group(1) if found else ""
 
 
+def review_note(head, number):
+    """What the reviewer on GitHub recommends for the pull request's head commit
+    (docs/pr-review-agent.md), put first on its line because it is what he acts on."""
+    if not head:
+        return ""
+    try:
+        words = pr.review_of(head, number, OUT / "state" / "reviews-borne-out.json")
+    except pr.GitHubError:
+        # Said, not left out: while it lasts, no pass starts on the reviewer's findings either.
+        return "**Review: could not be read.** "
+    return f"**Review: {words}.** " if words else ""
+
+
 def fingerprint(body):
     """The body without its timestamp line, so an unchanged status is not rewritten."""
     return hashlib.sha256("\n".join(body.splitlines()[1:]).encode()).hexdigest()
@@ -236,16 +249,20 @@ def gather(windows, handled):
     own = pr.own_pull_requests()
     queue = []
     running = in_flight_number()
-    for found in pr.pending(handled, every=True):
-        if found["pr"] != running:
-            queue.append(f"- `/revise` on #{found['pr']} (issue #{found['issue']})")
-    for number, source in pr.waiting_issues(windows):
-        if number != running:
-            queue.append(f"- #{number} ({source})")
+    # In the order the work is taken: what he asked for, what he or a learner filed, what the
+    # reviewer says needs fixing first, what a session left for later.
+    waiting = [found for found in pr.pending(handled, every=True) if found["pr"] != running]
+    issues = [(number, source) for number, source in pr.waiting_issues(windows) if number != running]
+    by_review = [found for found in waiting if found["ids"][0].startswith("v")]
+    queue += [f"- `/revise` on #{found['pr']} (issue #{found['issue']})" for found in waiting if found not in by_review]
+    queue += [f"- #{number} ({source})" for number, source in issues if source != "follow-up"]
+    queue += [f"- the reviewer's findings on #{found['pr']} (issue #{found['issue']})" for found in by_review]
+    queue += [f"- #{number} ({source})" for number, source in issues if source == "follow-up"]
     prs = []
     for item in own:
         lines, _ = pr.checks(item["pr"], 0)
-        prs.append(f"- #{item['pr']} for #{item['issue']}: {lines[0].removeprefix('CHECKS: ')}"
+        prs.append(f"- #{item['pr']} for #{item['issue']}: {review_note(head_in(lines[0]), item['pr'])}"
+                   f"{lines[0].removeprefix('CHECKS: ')}"
                    f"{checked(item['pr'], head_in(lines[0]))}{next_note(item['pr'])}")
     with_pr = {item["issue"] for item in own}
     attempted = pr.gh_lines(

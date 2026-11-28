@@ -206,5 +206,54 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(status.checked(257, "965e0043"), "")
 
 
+class QueueTests(unittest.TestCase):
+    """What waits for a pass, as the status issue lists it."""
+
+    def test_a_pass_the_reviewers_findings_start_is_named_as_one(self):
+        waiting = [{"pr": 297, "issue": 290, "ids": ["41", "r7"]}, {"pr": 312, "issue": 306, "ids": ["v900"]}]
+        with mock.patch.object(status.pr, "own_pull_requests", return_value=[]), \
+             mock.patch.object(status.pr, "pending", return_value=waiting) as asked, \
+             mock.patch.object(status.pr, "waiting_issues", return_value=[(321, "app"), (320, "follow-up")]), \
+             mock.patch.object(status.pr, "gh_lines", return_value=[]), \
+             mock.patch.object(status, "in_flight_number", return_value=None):
+            queue, prs, waiting_on_you = status.gather([], set())
+
+        # In the order the work is taken.
+        self.assertEqual(queue, ["- `/revise` on #297 (issue #290)", "- #321 (app)",
+                                 "- the reviewer's findings on #312 (issue #306)", "- #320 (follow-up)"])
+        self.assertEqual((prs, waiting_on_you), ([], []))
+        asked.assert_called_once_with(set(), every=True)
+
+    def test_the_passes_the_runner_recorded_reach_the_count(self):
+        with tempfile.TemporaryDirectory() as folder:
+            kept = Path(folder) / "handled"
+            kept.write_text("v900\n312:v900\n", encoding="utf-8")
+            with mock.patch.object(status, "update") as asked:
+                self.assertEqual(status.main(["update", "--handled", str(kept)]), 0)
+        self.assertEqual(asked.call_args[0][2].passes, {312: {"v900"}})
+
+
+class ReviewNoteTests(unittest.TestCase):
+    """The reviewer's recommendation leads a pull request's line on the status issue."""
+
+    def test_the_recommendation_comes_first_and_stands_out(self):
+        with mock.patch.object(status.pr, "review_of", return_value="fix first (2 to fix)") as asked:
+            self.assertEqual(status.review_note("16ce7bba", 280), "**Review: fix first (2 to fix).** ")
+        asked.assert_called_once_with("16ce7bba", 280, status.OUT / "state" / "reviews-borne-out.json")
+
+    def test_no_recommendation_adds_nothing(self):
+        with mock.patch.object(status.pr, "review_of", return_value=""):
+            self.assertEqual(status.review_note("16ce7bba", 280), "")
+
+    def test_a_head_that_is_not_known_is_not_asked_about(self):
+        with mock.patch.object(status.pr, "review_of") as asked:
+            self.assertEqual(status.review_note("", 280), "")
+        asked.assert_not_called()
+
+    def test_github_not_answering_is_said(self):
+        with mock.patch.object(status.pr, "review_of", side_effect=status.pr.GitHubError("HTTP 502")):
+            self.assertEqual(status.review_note("16ce7bba", 280), "**Review: could not be read.** ")
+
+
 if __name__ == "__main__":
     unittest.main()

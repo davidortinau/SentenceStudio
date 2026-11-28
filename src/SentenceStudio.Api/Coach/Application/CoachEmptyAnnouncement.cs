@@ -1,10 +1,12 @@
+using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Contracts.Coach.Intent;
 
 namespace SentenceStudio.Api.Coach.Application;
 
 /// <summary>
-/// Recognises a plain reply that says content is coming and holds none (issue 289): "Here are
-/// three example sentences that use the word." and then nothing.
+/// Recognises a reply that says content is coming and holds none (issue 289): "Here are
+/// three example sentences that use the word." and then nothing. The reply is a plain message,
+/// or an answer whose only part is that announcement (issue 305).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,13 +25,16 @@ public static class CoachEmptyAnnouncement
 {
     /// <summary>
     /// Phrases that say content follows. Matched in the last sentence only, case-insensitively.
-    /// English and Korean, the two display languages.
+    /// One list for each of the two display languages, English and Korean.
     /// </summary>
-    private static readonly string[] AnnouncingPhrases =
+    private static readonly string[] EnglishAnnouncingPhrases =
     [
-        "here are", "here is", "here's", "here’s", "below are", "below is", "the following", "as follows",
-        "다음은", "다음과 같", "아래는", "아래와 같"
+        "here are", "here is", "here's", "here’s", "below are", "below is", "the following", "as follows"
     ];
+
+    private static readonly string[] KoreanAnnouncingPhrases = ["다음은", "다음과 같", "아래는", "아래와 같"];
+
+    private static readonly string[] AnnouncingPhrases = [.. EnglishAnnouncingPhrases, .. KoreanAnnouncingPhrases];
 
     private static readonly char[] SentenceEnds = ['.', '!', '?', '。', '\n'];
 
@@ -39,10 +44,14 @@ public static class CoachEmptyAnnouncement
     private static readonly char[] Closers = ['"', '\'', '”', '’', ')', ']', '*', '_', '`'];
 
     /// <summary>
-    /// True when <paramref name="intent"/> is a reply that carries nothing but its message, and
-    /// the message announces content it does not hold.
+    /// True when <paramref name="intent"/> is a reply that carries nothing but its message, or
+    /// nothing but one direct-answer part, and that text announces content it does not hold.
     /// </summary>
-    public static bool IsOne(CoachTurnIntent intent)
+    /// <param name="intent">The model's reply.</param>
+    /// <param name="displayLanguageTag">
+    /// The language the reply is written in, as <see cref="Announces"/> reads it.
+    /// </param>
+    public static bool IsOne(CoachTurnIntent intent, string? displayLanguageTag = null)
     {
         ArgumentNullException.ThrowIfNull(intent);
 
@@ -54,10 +63,9 @@ public static class CoachEmptyAnnouncement
             return false;
         }
 
-        // Anything else the reply carries may be what the message announces: answer parts, a
-        // vocabulary set to save, an activity to open, something to remember, a follow-up question.
-        if (HasAnswerText(intent.PedagogicalAnswer)
-            || intent.VocabularySet is not null
+        // Anything else the reply carries may be what the message announces: a vocabulary set to
+        // save, an activity to open, something to remember, a follow-up question.
+        if (intent.VocabularySet is not null
             || intent.ActivityLaunch is not null
             || intent.MemoryProposal is not null
             || !string.IsNullOrWhiteSpace(intent.ClarifyingQuestion))
@@ -65,11 +73,71 @@ public static class CoachEmptyAnnouncement
             return false;
         }
 
-        return Announces(intent.CoachMessage);
+        var parts = PartsWithText(intent.PedagogicalAnswer);
+        if (parts.Count == 0)
+        {
+            return Announces(intent.CoachMessage, displayLanguageTag);
+        }
+
+        // Answer parts are what a message announces, with one exception (issue 305): an answer
+        // whose only part is the direct answer, and that part is the announcement. The answer
+        // path shows the parts and not the message, so nothing else reaches the learner. A
+        // general answer's message is put in front of its parts as a part of its own (the shape
+        // repair), so with a message it has two, and two or more are left alone.
+        if (parts.Count > 1
+            || parts[0].Kind != CoachAnswerBlockKind.Answer
+            || (intent.Kind != CoachIntentKind.PedagogicalAnswer
+                && !(intent.Kind == CoachIntentKind.GeneralAnswer && string.IsNullOrWhiteSpace(intent.CoachMessage))))
+        {
+            return false;
+        }
+
+        var pieces = parts[0].Spans
+            .Where(span => span is not null && !string.IsNullOrWhiteSpace(span.Text))
+            .ToList();
+
+        // A part that ends in the language being studied ends with content: "Here is your coffee."
+        // is the sentence the learner asked for, not an announcement of one.
+        if (pieces[^1].Language == CoachLanguageRole.Target)
+        {
+            return false;
+        }
+
+        // Joined as the answer's plain text joins them.
+        return Announces(string.Join(' ', pieces.Select(span => span.Text.Trim())), displayLanguageTag);
+    }
+
+    /// <summary>
+    /// True when <paramref name="intent"/> is a reply of the same kinds whose message is blank and
+    /// which carries nothing else at all: the learner is shown an empty reply. Read for the second
+    /// reply of a turn asked for twice, so that the ledger does not count a blank reply as
+    /// content (issue 306). It announces nothing, so <see cref="IsOne"/> is false for it.
+    /// </summary>
+    public static bool IsBlank(CoachTurnIntent intent)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+
+        return intent.Kind is (CoachIntentKind.NoChange or CoachIntentKind.GeneralAnswer
+                or CoachIntentKind.OffTopic or CoachIntentKind.PedagogicalAnswer)
+            && string.IsNullOrWhiteSpace(intent.CoachMessage)
+            && string.IsNullOrWhiteSpace(intent.ClarifyingQuestion)
+            && intent.VocabularySet is null
+            && intent.ActivityLaunch is null
+            && intent.MemoryProposal is null
+            && !(intent.PedagogicalAnswer?.Blocks ?? []).Any(block => block?.Spans is { } spans
+                && spans.Any(span => span is not null && !string.IsNullOrWhiteSpace(span.Text)));
     }
 
     /// <summary>True when <paramref name="message"/> ends by announcing content and stops there.</summary>
-    public static bool Announces(string? message)
+    /// <param name="message">The text the learner would be shown.</param>
+    /// <param name="displayLanguageTag">
+    /// The learner's display language. An announcement is written in it, so only that language's
+    /// phrases are read (issue 330): for a learner who reads English and studies Korean,
+    /// "You can say it like this. 다음은 제 차례예요." ends with the sentence asked for, and 다음은
+    /// announces nothing. With no tag, or one that is neither English nor Korean, both lists are
+    /// read. A closing colon announces in any language.
+    /// </param>
+    public static bool Announces(string? message, string? displayLanguageTag = null)
     {
         var text = (message ?? string.Empty).Trim().TrimEnd(Closers).TrimEnd();
         if (text.Length == 0)
@@ -89,29 +157,116 @@ public static class CoachEmptyAnnouncement
         }
 
         var body = text.TrimEnd(SentenceEnds).TrimEnd();
-        var lastSentence = body[(body.LastIndexOfAny(SentenceEnds) + 1)..];
+        var sentenceStart = body.LastIndexOfAny(SentenceEnds) + 1;
+        var lineStart = body.LastIndexOf('\n') + 1;
 
-        foreach (var phrase in AnnouncingPhrases)
+        foreach (var phrase in PhrasesFor(displayLanguageTag))
         {
-            var at = lastSentence.LastIndexOf(phrase, StringComparison.OrdinalIgnoreCase);
-            if (at < 0 || (at > 0 && char.IsLetter(lastSentence[at - 1])))
+            // Every place the phrase stands in the last sentence, last first: one that does not
+            // count must not hide an earlier one that does.
+            for (var at = body.LastIndexOf(phrase, StringComparison.OrdinalIgnoreCase);
+                at >= sentenceStart;
+                at = at == 0 ? -1 : body.LastIndexOf(phrase, at - 1, StringComparison.OrdinalIgnoreCase))
             {
-                // Not there, or the tail of another word ("where is", "there are").
-                continue;
-            }
+                if (at > sentenceStart && char.IsLetter(body[at - 1]))
+                {
+                    // The tail of another word ("where is", "there are").
+                    continue;
+                }
 
-            // "Here's a tip: say it with 공." holds what it announces, after the colon.
-            if (lastSentence.IndexOfAny(ContentLeads, at + phrase.Length) < 0)
-            {
-                return true;
+                // In English you say "Here is your coffee." gives the sentence, it does not
+                // announce one (issue 326).
+                if (InsideQuotation(body, lineStart, at))
+                {
+                    continue;
+                }
+
+                // "Here's a tip: say it with 공." holds what it announces, after the colon.
+                if (body.IndexOfAny(ContentLeads, at + phrase.Length) < 0)
+                {
+                    return true;
+                }
             }
         }
 
         return false;
     }
 
-    private static bool HasAnswerText(CoachPedagogicalAnswerIntent? answer) =>
-        answer?.Blocks is { } blocks
-        && blocks.Any(block => block?.Spans is { } spans
-            && spans.Any(span => span is not null && !string.IsNullOrWhiteSpace(span.Text)));
+    /// <summary>
+    /// True when a quotation that opens at or after <paramref name="from"/> is still open at
+    /// <paramref name="at"/>. Read from the start of the line and not of the sentence, so the
+    /// second sentence of a quotation is inside it too; a quotation is not followed across lines,
+    /// so a stray mark higher up cannot hide an announcement.
+    /// </summary>
+    private static bool InsideQuotation(string text, int from, int at)
+    {
+        // The mark that closes the open quotation, or none.
+        var closer = '\0';
+        for (var i = from; i < at; i++)
+        {
+            var mark = text[i];
+            var afterWord = i > from && char.IsLetterOrDigit(text[i - 1]);
+            var beforeWord = i + 1 < text.Length && char.IsLetter(text[i + 1]);
+
+            if (closer != '\0')
+            {
+                // A single mark between two Latin letters is an apostrophe ("Don't"), not the
+                // end. A Korean particle joins the closing mark directly ('차다'를), so only
+                // Latin letters make one.
+                var apostrophe = mark is '\'' or '’'
+                    && i > from && IsLatinLetter(text[i - 1])
+                    && i + 1 < text.Length && IsLatinLetter(text[i + 1]);
+                if (mark == closer && !apostrophe)
+                {
+                    closer = '\0';
+                }
+
+                continue;
+            }
+
+            closer = mark switch
+            {
+                '"' => '"',
+                '“' => '”',
+                '「' => '」',
+                '『' => '』',
+                '‘' => '’',
+                // A straight single mark opens only in front of a word and not after one
+                // ("don't", "learners'").
+                '\'' when beforeWord && !afterWord => '\'',
+                _ => '\0'
+            };
+        }
+
+        return closer != '\0';
+    }
+
+    /// <summary>The announcing phrases of one display language, or of both when it is neither.</summary>
+    private static string[] PhrasesFor(string? displayLanguageTag)
+    {
+        if (IsLanguage(displayLanguageTag, "en"))
+        {
+            return EnglishAnnouncingPhrases;
+        }
+
+        return IsLanguage(displayLanguageTag, "ko") ? KoreanAnnouncingPhrases : AnnouncingPhrases;
+    }
+
+    /// <summary>True when the tag's language is <paramref name="language"/>: "ko" and "ko-KR", not "kok-IN".</summary>
+    private static bool IsLanguage(string? tag, string language)
+    {
+        var trimmed = tag?.Trim();
+        return trimmed is not null
+            && trimmed.StartsWith(language, StringComparison.OrdinalIgnoreCase)
+            && (trimmed.Length == language.Length || trimmed[language.Length] is '-' or '_');
+    }
+
+    private static bool IsLatinLetter(char letter) => letter < '\u0250' && char.IsLetter(letter);
+
+    /// <summary>The answer's parts that hold text: the ones the shape repair keeps.</summary>
+    private static List<CoachAnswerBlockIntent> PartsWithText(CoachPedagogicalAnswerIntent? answer) =>
+        (answer?.Blocks ?? [])
+            .Where(block => block?.Spans is { } spans
+                && spans.Any(span => span is not null && !string.IsNullOrWhiteSpace(span.Text)))
+            .ToList();
 }

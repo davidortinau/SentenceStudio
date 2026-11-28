@@ -218,6 +218,136 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
   A list that could not be filed is tried again by the next pass; why is in `state/next.err`.
   What became of each list is kept in `state/next/done/`.
 
+## The review
+
+A review agent on GitHub reads each pull request and recommends what to do with it:
+`docs/pr-review-agent.md` has the whole of it. The check's part:
+
+- **Asking.** When a fix session or a follow-up pass ends with its pull request brought up to
+  date, the runner starts the reviewer for that pull request as the last thing it does, after
+  its own comments on it (`request_review`: `gh workflow run pr-review.lock.yml -f
+  pr_number=<n>`, under the Captain's login, because GitHub does not let the sessions' App
+  start it). The commits no longer change by then, and what the runner checked is there for it
+  to read. It asks only for the open pull request of the pass's own branch: in a first pass
+  the number comes from the session's reply. A request that fails is said in the summary and
+  not tried again; `/review` on the pull request asks by hand. `FEEDBACK_REVIEW=off` stops the
+  asking.
+- **Asking again when the checks finish red** (2026-11-27, from dotnet/maui's autopilot: not
+  done until the tests have passed). The reviewer is asked the moment a session ends, when
+  the commit's checks are usually still running, so a test the change broke could finish red
+  beside "Review: merge". A pass looks for that at most every ten minutes, never while a
+  session runs (`review_again_when_red`; `red-after-merge` in `scripts/admin-feedback-pr.py`):
+  every check on the head has finished, one failed, and the reviewer's review of that commit
+  says Merge. The reviewer is then asked once more for that commit, and the summary has a
+  line starting `REVIEW:`. Not when:
+  - `main` fails the same check, or `main`'s run of it has not finished: it is not held
+    against the change for now, and a later look decides, once `main`'s run of it has passed;
+  - the failed check had finished thirty minutes or more before the review was posted (the
+    reviewer's time limit): the reviewer saw it and said Merge all the same;
+  - the pull request is a draft.
+
+  Each commit is asked about once. `state/red-after-merge` holds the commits settled: those
+  whose checks came out green, those whose failures the reviewer had all seen with none
+  waiting on `main`, and those the reviewer was asked about, written once the request went
+  through. A request that fails is said in the summary and made again at the next look,
+  three times in all; then the commit is let go and he is notified. What could not be read
+  of a pull request is in `state/red-look.err` until a look reads everything; nothing shows
+  that file, it is there for whoever wonders why nothing was asked. The reviewer reads which
+  test failed and whether `main` fails it too, and says "Fix first" when the change reaches
+  it; what follows from that is "Fixing what it found, by itself", with its count of rounds.
+  Asking again starts no session.
+- **Reading.** The recommendation is the check named `Merge recommendation` on the pull
+  request's head commit, read by name and only when GitHub Actions posted it. The status
+  issue leads each pull request's line with it: "Review: merge", "Review: fix first (2 to
+  fix)", "Review: your call (1 to decide)" or "Review: not reviewed". The check alone is not
+  taken at its word, because GitHub hangs a check on whatever the head is when it is posted
+  and CI's token is able to write checks:
+  - its title has to name this commit, or the line says "for a commit it did not name" or
+    "but it read an earlier commit";
+  - the reviewer's own newest review of the pull request has to be of this commit, say in its
+    text that it read this commit, and say the same, or the line says "but no review of this
+    commit says so". (A yes is remembered for ten minutes in
+    `state/reviews-borne-out.json`, so the rewrite each minute does not ask each time.)
+  GitHub's own pages show the check without these tests; the status issue is the place to
+  trust.
+- **Not CI.** That check is left out of the count of passed and failed checks, and so are the
+  jobs of the reviewer's own workflow, which GitHub hangs on `main`'s newest commit whichever
+  pull request they read. A review that fails to run does not turn `MAIN CI` red. GitHub starts
+  that workflow for every comment in the repository (most runs end at once, skipped), so a
+  commit's workflow runs are read page by page.
+- **Fixing what it found.** The Captain comments `/revise review`. A request of his that
+  names the review (`NAMES_REVIEW` in `scripts/admin-feedback-pr.py` lists the forms: "review"
+  as its first word, "decision 1: yes", "the review", "the reviewer", "review comments") is
+  handed to the fix session together with the reviewer's newest review and its comments on
+  the diff, as literal text marked as the reviewer's, not his (`review_text`), and with a
+  warning when that review read an earlier commit. Only a review posted by
+  `github-actions[bot]` that starts with "## Merge recommendation:" is taken. When the pass
+  ends, the runner asks for a review again.
+- **Fixing what it found, by itself** (Captain, 2026-11-26: "is there a good reason I
+  shouldn't just let Lem address it automatically?"). A "Fix first" starts a fix pass with no
+  comment from him. `pending` in `scripts/admin-feedback-pr.py` takes the review in a request's
+  place (its id written `v<number>`) when all of this holds:
+  - no request of his waits on the pull request, and it is not a draft;
+  - the review is the reviewer's newest on it, says "Fix first", and both GitHub's record and
+    the review's own text say it read the head commit;
+  - GitHub says nobody edited the review after it was posted (`unedited`: an account with
+    write access can edit another's review, and the sessions' App has it; the same test
+    applies before a review is handed over on his `/revise review`, and before the status
+    issue repeats a recommendation; a comment on the diff that was edited, or that GitHub
+    does not list, is left out). What cannot be read of a review now is read on a later
+    look, and does not hold up his requests or the issues; the status issue says "Review:
+    could not be read" on that pull request's line for as long as it lasts;
+  - the check on that commit says the same, by the tests under "Reading" (`review_of`);
+  - no pass was started on that review before, none was set aside for it, and he has not
+    handed it over himself since (a `/revise` that names the review, made after it);
+  - the branch changes none of the files a session takes rules from without being pointed at
+    them (`rules_changed`, `RULE_FILES`: an `AGENTS.md`, `CLAUDE.md`, `CLAUDE.local.md`,
+    `.claude/` or `.mcp.json` in any folder, and `.squad/skills/`, in any case of the name,
+    compared with `main` in the runner's own checkout from what GitHub holds). Claude Code
+    loads the worktree's `AGENTS.md` and `.claude/` by itself, whatever the prompt points
+    at, so on such a branch the pass does not start: the runner says so on the pull request
+    (naming the kinds of file and how many, never a file's name, which is the branch's to
+    choose), sets the review aside (`x<number>`), and his `/revise review` starts it. A pass
+    he asked for goes ahead on such a branch and is told those files are the change under
+    work, not its instructions. A branch with no history in common with `main` counts as
+    changing them. A branch GitHub cannot be read for leaves either kind of pass waiting;
+  - fewer than two passes were started this way on the pull request (`FIX_ROUNDS` in
+    `scripts/admin-feedback-pr.py`; `FEEDBACK_REVIEW_FIX_ROUNDS` in the job's environment
+    changes it, 0 turns it off, and so does anything that is not one digit).
+
+  **The order of work** in a pass: a request of his on any pull request; then an issue he or
+  a learner filed; then a pull request the reviewer says needs fixing first; then the
+  follow-up issues a session left for later.
+
+  **Counting.** A pass that starts is recorded twice: the marker in its closing comment
+  (`v<number>`), and a line `<pr>:v<number>` in `state/handled-requests` written before the
+  session starts. Neither depends on what the review says afterwards. A pass that could not
+  start (a worktree in the way) sets the review aside as `x<number>`: it is not tried again
+  by itself and is not counted.
+
+  The session is handed the review as literal text marked as the reviewer's, with the
+  sentence that the Captain's standing instruction, not a request, made it the task
+  (`findings_text`). The pass is a follow-up pass in every other way: the pull request is a
+  draft while it runs, it counts against the day's cap, its closing comment marks the review
+  as answered, and the reviewer is asked again when it ends. That comment says which pass it
+  was ("pass 1 of at most 2 started that way") and, on the last, that no more start by
+  themselves. The status issue's queue names it "the reviewer's findings on #n".
+
+  "Your call" starts nothing: those decisions are his. What this gives up is the rule that an
+  agent's text becomes a session's task only on his word. What bounds it: only he merges, the
+  reviewer reads the result again, the session may answer a finding "not a fault" and change
+  nothing, and the rounds are counted in two places.
+
+  Known and not closed, about where a session's rules come from: the documents `AGENTS.md`
+  points at (`docs/engineering-guide-full.md`, `docs/deploy-runbook.md`, files under
+  `.squad/decisions/`) are read from the branch. What a session left in its home or its
+  clone no longer reaches the next one: see "A clean start" under "Where and when it runs".
+
+  Known and accepted: the reviewer reads text nobody vetted (the pull request, the failed
+  tests' output, and for an issue from the app's feedback button the learner's own words),
+  so it can be talked into a finding; and a draft is a convenience, not a guard, because the
+  sessions' App can make a draft ready.
+
 ## Where and when it runs
 
 - On Lilliput, **continuously while there is work** (Captain, 2026-11-19: issues were waiting
@@ -307,15 +437,104 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
     sessions and memory, this check's folder with the app's key cache and the feedback key. It
     has no sudo, and no use of the Captain's Docker (the socket is in his home) or of his
     simulators; it has its own of each (below).
-  - **What it has:** under `~lemuel/sstudio/` a clone of the repository (`repo`, public, fetched
-    without a login), the worktrees (`trees/feedback-issue-<n>`), each issue's activity log and
-    proof file and each request handed to a follow-up pass (`fix`), and the app's token while a
-    session runs (`gh`). Its Claude sign-in is a long-lived token in `~lemuel/.claude-token`
-    (mode 600), made by the Captain with `claude setup-token`; the session can read it, as it
-    must. Its package cache is its own (`~lemuel/.nuget`), filled from the mirror.
+  - **What it has:** under `~lemuel/sstudio/` the worktrees (`trees/feedback-issue-<n>`), each
+    in a clone of its own made for that session (`clones/feedback-issue-<n>`), each issue's
+    activity log and proof file and each request handed to a follow-up pass (`fix`), and the
+    app's token while a session runs (`gh`). Its Claude sign-in is a long-lived token in
+    `~lemuel/.claude-token` (mode 600), made by the Captain with `claude setup-token`; the
+    session can read it, as it must. Its package cache is its own (`~lemuel/.nuget`), filled
+    from the mirror.
+  - **A clean start** (Captain, 2026-11-27: "address the clean home issue so we don't pollute
+    future sessions"). Until then that user's home and its one clone lasted from session to
+    session, so whatever a session left there was there for every session after it: Claude
+    Code's own memory and state, a shell profile, a git configuration or hook, a tool it had
+    installed or updated. Before every session the runner now does this (`clean_start`,
+    `scripts/session-clean.sh`, run as that user with nothing of its own running):
+    - **The home is put back to its image.** The Captain's side keeps an image of that home's
+      tool folders (`~/sstudio-feedback-check/home-image`, taken with
+      `scripts/admin-feedback-check.sh --home-image`; the one before is kept beside it as
+      `home-image.previous`). Whatever is at the top level of the home and is neither kept in
+      place nor in the image is moved to `~lemuel/sstudio/set-aside/<stamp>/`: Claude Code's
+      state and memory (`.claude`, `.claude.json`) every time, and anything else a session or
+      a tool left (`.zshrc`, `.gitconfig`, a sign-in). The image's folders are then made equal
+      to it, file for file by content and permissions, so a tool a session changed is the
+      Captain's copy again (a file or folder its owner locked or closed is opened first).
+      Without an image no session starts, and that is asked before anything else is done.
+    - **Kept in place, never looked into:** `.claude-token`, `Library` (what macOS keeps: the
+      keychain, preferences, the simulators), `sstudio`, the account's empty standard
+      folders, and three large caches inside the tool folders: `.nuget/packages`,
+      `.local/share/NuGet` and the Docker machine's disk `.colima/_lima`. One of these
+      renamed by case alone (`library`: the disk does not tell the two apart) is still the
+      kept thing and gets its spelling back.
+    - **Never part of an image**, whatever is there when one is taken: Claude Code's state,
+      shell profiles, git's own files, `CLAUDE.md` and `AGENTS.md`, sign-ins (`.azure`,
+      `.azd`, `.netrc`), `.config/git`.
+    - **Where a session's files load from:** `~lemuel/sstudio`, `trees`, `clones` and `fix`
+      lose any `CLAUDE.md`, `AGENTS.md`, `.claude` or `.mcp.json` lying in them (Claude Code
+      reads those from the folders above its worktree and from a folder it is given),
+      `fix` anything that is not one of the check's own `issue-<n>-...` files, and `gh`
+      anything but the sign-in the runner writes there for each session (a sign-in left
+      behind is deleted).
+    - **The temporary folder** of that user is emptied. The runner names it; the script
+      never works one out. (It did once, on 2026-11-27, and a test run as the Captain emptied
+      his own.) It empties only that user's own per-user temporary folder, and only when run
+      for that user's real home; a test hands it a stand-in it has marked. What macOS itself
+      keeps there and protects stays, and the log counts it (`left-in-temporary-folder`). If
+      the folder cannot be found, the summary says it was not emptied.
+    - **Whose home.** The script moves nothing in a home the runner has not marked as a
+      session user's (`~lemuel/sstudio/.session-home`, written by `clean_start`, which never
+      runs for the runner's own user), and nothing in the real home of an administrator or
+      of root. Run by hand against the Captain's home, it refuses.
+    - **A clone of its own.** The runner keeps the repository as GitHub has it in
+      `/Users/Shared/sstudio-feedback/repo.git` (`mirror_ready`: the Captain's, read-only to
+      that user, fetched before each session). A session's worktree is made in a clone made
+      for it from that copy (`session_clone`), with GitHub as its origin and without tags,
+      and the clone is removed with the worktree. A worktree that is kept keeps its clone.
+      A clone is only ever removed when GitHub has every commit in it (`drop_clone`): one
+      that holds a second branch, a stash or a detached commit, or that cannot be asked, is
+      moved to `~lemuel/sstudio/kept/` and the summary says so. Whether GitHub has them is
+      asked of the runner's own copy, fetched at that moment (`clone_on_github`), never of
+      the clone: what a clone says GitHub holds is the session's to write.
+    - **The SwiftUI bridge's clone** is kept for its build output (a build from nothing takes
+      minutes), so before each session its hooks, replaced objects, grafts and attributes are
+      removed and its configuration rewritten to name the origin and nothing else
+      (`bridge_git_plain`). Sessions' branches stay in it. This narrows what a session can
+      leave there and does not close it: a repository nested among its working files can
+      still carry a configuration git obeys. The runner's own git commands in that clone
+      therefore run before the home is cleaned, and what remains is that a session's own
+      git, in this one clone, can be steered by an earlier session.
+    - **A session cannot stop the next start** by what it leaves where the script writes: a
+      link or a file where the set-aside folder goes is moved out of the way
+      (`set-aside-was-<stamp>`), a mark made into a folder is replaced, and the clean has a
+      time limit of 15 minutes (it takes seconds).
+    - **Nothing is deleted outright** except temporary files, a sign-in left in `gh`, what
+      the image replaces inside the tool folders, a session's clone once GitHub has all of
+      it, and set-aside folders after 14 days. `state/session-clean.log` has what the last
+      clean start set aside and put back. When something other than Claude Code's state was
+      set aside, the run's summary says so, whatever becomes of the pass, and that list is
+      kept as `state/session-clean-<stamp>.log`.
+      `scripts/admin-feedback-check.sh --home-check` says what the next one would do and
+      changes nothing.
+    - **Take a new image** after installing or updating a tool for that user on purpose, when
+      its home is as a session should find it; until then the next clean start undoes the
+      change. Look at what `--home-image` lists: it is what every session will start from.
+    - **Still a session's to change for the next one**, because each is too large to restore
+      or is macOS's own: the package cache (a changed package would be built into a later
+      session's test run), the Docker machine's disk and images, `~lemuel/Library`, the
+      per-user cache folder beside the temporary one (compilers' caches), the bridge's
+      working files and build output, and the check's own files in `fix`, which are handed
+      from one pass on an issue to the next on purpose.
+    - **Still there for a session that goes looking**, though nothing loads them: the
+      set-aside folders of the last 14 days (an earlier session's Claude Code state among
+      them), other issues' kept worktrees and clones, the account's standard folders and
+      Trash, and the machine's shared `/tmp`. The same user owns them all, so nothing can
+      hide them from it.
   - **What it is given of the Captain's**, read-only in `/Users/Shared/sstudio-feedback`
     (owned by the Captain, rewritten before each session): the current
-    `docs/admin-feedback-fix.md`, the mirror's `NuGet.config` with its local feed pointed at
+    `docs/admin-feedback-fix.md` and `AGENTS.md` as they are on `main` (a session is told to
+    read both there; Claude Code also loads the worktree's own `AGENTS.md`, which is why a
+    pass nobody asked for does not start on a branch that changes it: "The review"), the
+    mirror's `NuGet.config` with its local feed pointed at
     `LocalNuGets` there, and in that folder the `.nupkg` files that are on no feed, copied from
     `~/work/LocalNuGets` and `~/work/Microsoft.SwiftUI/artifacts` (`FEEDBACK_LOCAL_FEEDS`). **A
     package that exists only in the Captain's package cache is not there:** put its `.nupkg`
@@ -380,7 +599,9 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
       - It reads where the bridge's `main` is (one `git ls-remote`) and does nothing more
         while `main` is where it last looked.
       - When the version `main` names has no tag, it makes a clean copy of that commit under
-        `~/sstudio-feedback-check/bridge-release`, runs the bridge's own tests and its build,
+        `~/sstudio-feedback-check/bridge-release`, runs the bridge's own tests (the managed
+        ones, then the Swift side's: a version with a failing test of either is not packed,
+        and the release's notes and the status say both counts) and its build,
         pack and verify (`scripts/session-bridge.sh test` and `package`, the steps a session
         proved the change with), copies the package into `~/work/Microsoft.SwiftUI/artifacts`
         and makes the release `v<version>` on the bridge's repository at that commit, with
@@ -477,14 +698,19 @@ a `/revise` line for each item he wanted, waited a pass for each, and held the m
     visudo -cf /tmp/sstudio-lemuel && sudo install -o root -g wheel -m 440 /tmp/sstudio-lemuel
     /etc/sudoers.d/sstudio-lemuel`; run `claude setup-token` and store what it prints with
     `read -s "t?Token: " && print -r -- "$t" | sudo -H -u lemuel sh -c 'umask 077; cat >
-    /Users/lemuel/.claude-token'; unset t`. The runner makes the clone and the folders itself.
+    /Users/lemuel/.claude-token'; unset t`. The runner makes the clones and the folders itself;
+    the image of the home is taken once with `scripts/admin-feedback-check.sh --home-image`.
     The token lasts a year (made 2026-11-24); when it stops working, sessions fail at once and
     the summary says so: make a new one the same way.
   - **A worktree that was kept** (uncommitted or unpushed work, or a run that died) belongs to
-    that user. Look at it with `sudo -H -u lemuel git -C /Users/lemuel/sstudio/trees/feedback-issue-<n>
-    status`, and remove it with `sudo -H -u lemuel git -C /Users/lemuel/sstudio/repo worktree
-    remove --force /Users/lemuel/sstudio/trees/feedback-issue-<n>` (and `branch -D
-    feedback/issue-<n>` there to have the issue worked from scratch).
+    that user, and its clone is kept with it. Look at it with `sudo -H -u lemuel git -C
+    /Users/lemuel/sstudio/trees/feedback-issue-<n> status`, and remove both with `sudo -H -u
+    lemuel rm -rf /Users/lemuel/sstudio/trees/feedback-issue-<n>
+    /Users/lemuel/sstudio/clones/feedback-issue-<n>`. One kept before 2026-11-27 belongs to
+    the old shared clone instead: `sudo -H -u lemuel git -C /Users/lemuel/sstudio/repo worktree
+    remove --force /Users/lemuel/sstudio/trees/feedback-issue-<n>`. That clone
+    (`~lemuel/sstudio/repo`) is no longer used for anything else and can go once no such
+    worktree is left.
 - To rotate the key: generate a new one on the app's page, copy it as base64 (`base64 -i
   <file>.pem | pbcopy`), replace the keychain item with `security add-generic-password -U -a
   sstudio-fix-agent -s sstudio-fix-agent-key -w` and paste at its prompt (a value on the
