@@ -48,6 +48,9 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
 {
     public const string Password = "AdminTest1234!";
 
+    /// <summary>The domain of the addresses the factory makes for accounts seeded without one.</summary>
+    private const string GeneratedAddressDomain = "admin-tests.local";
+
     private readonly string _dbPath = Path.Combine(
         Path.GetTempPath(), $"sentencestudio_admin_{Guid.NewGuid():N}.db");
     private readonly string _auditDbPath = Path.Combine(
@@ -81,6 +84,12 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
     /// </summary>
     public bool DurableKeyRing { get; init; } = true;
 
+    /// <summary>
+    /// Sets <c>Coach:Opportunities:Enabled</c> for the host. Left unset, the host has what
+    /// Development ships (on); a test sets this false to read the ledger with capture turned off.
+    /// </summary>
+    public bool? OpportunityCapture { get; init; }
+
     /// <summary>The host's clock. Moves only when a test moves it.</summary>
     public TestTimeProvider Time { get; } = new(new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.Zero));
 
@@ -102,6 +111,11 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:Audience", TestJwtGenerator.TestAudience);
         builder.UseSetting("AI:OpenAI:ApiKey", "test-openai-key");
         builder.UseSetting("ElevenLabsKey", "test-elevenlabs-key");
+        if (OpportunityCapture is { } capture)
+        {
+            builder.UseSetting("Coach:Opportunities:Enabled", capture ? "true" : "false");
+        }
+
         TestApiHostConfigurator.RelaxAuthRateLimits(builder);
 
         builder.ConfigureServices((context, services) =>
@@ -194,9 +208,13 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
     public void SetAdminEmails(params string[] emails) =>
         AdminList.Set(new AdminOptions { Emails = [.. emails] });
 
-    /// <summary>Creates an account. No role and not listed: an ordinary learner.</summary>
-    public async Task<ApplicationUser> SeedAccountAsync(string email, bool emailConfirmed = true)
+    /// <summary>
+    /// Creates an account. No role and not listed: an ordinary learner. Given no address it makes
+    /// one of its own, different each time, so a test that only needs a learner writes none.
+    /// </summary>
+    public async Task<ApplicationUser> SeedAccountAsync(string? email = null, bool emailConfirmed = true)
     {
+        email ??= $"{Guid.NewGuid():n}@{GeneratedAddressDomain}";
         using var scope = Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = new ApplicationUser
@@ -237,12 +255,15 @@ internal sealed class AdminApiFactory : WebApplicationFactory<Program>
         await db.UserRoles.Where(ur => ur.UserId == user.Id).ExecuteDeleteAsync();
     }
 
-    /// <summary>An account that holds the role and is on the list: an admin.</summary>
-    public async Task<ApplicationUser> SeedAdminAsync(string email)
+    /// <summary>
+    /// An account that holds the role and is on the list: an admin. Given no address it makes one
+    /// of its own, as <see cref="SeedAccountAsync"/> does.
+    /// </summary>
+    public async Task<ApplicationUser> SeedAdminAsync(string? email = null)
     {
         var user = await SeedAccountAsync(email);
         await GrantRoleAsync(user);
-        SetAdminEmails([.. AdminList.CurrentValue.Emails, email]);
+        SetAdminEmails([.. AdminList.CurrentValue.Emails, user.Email!]);
         return user;
     }
 

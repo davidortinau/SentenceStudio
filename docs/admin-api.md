@@ -68,6 +68,7 @@ Every response is `Cache-Control: no-store`.
 | `GET /api/admin/reports/sam?attention=true&take=` | `reports` | Flagged Sam answers nobody has looked at yet, newest first. |
 | `GET /api/admin/reports/sam?status=&take=` | `reports` | Flagged Sam answers with one status, or all of them. |
 | `GET /api/admin/reports/sam/{reportId}` | `reports` | One report and each flag on it. |
+| `GET /api/admin/reports/sam/counts?since=` | `reports` | What Sam's ledger counts about its own turns, added up across learners. |
 | `POST /api/admin/reports/sam/{reportId}/exchange` | `learner_content` | The flagged question and answer. **Learner content.** |
 | `POST /api/admin/reports/sam/{reportId}/triage` | `triage` | The report after the change. |
 | `GET /api/admin/reports/github?take=` | `reports` | Reports learners filed to GitHub from the app. |
@@ -228,6 +229,52 @@ list. Returns the report as in the list, with `issueUrl` filled in for a linked 
 Nothing leaves `accepted`: a report that an issue tracks keeps that status. Its issue can still
 be changed. Every other move is allowed.
 
+### `GET /api/admin/reports/sam/counts`
+
+What the server counts about Sam's own turns, not what a learner flagged: a reply that announced
+content and held none and was asked for again, an off-topic request, a daily limit, a timeout.
+The ledger keeps each as a counter (one row per learner, code and UTC day, with no conversation,
+turn or message on it) and this adds them up across learners, the largest count first.
+`scripts/admin-api.sh sam-counts [sinceDate]` calls it.
+
+```json
+{
+  "items": [
+    {
+      "kind": "empty_announcement_retried",
+      "capabilityCode": "empty_announcement_second_reply_held_content",
+      "count": 9,
+      "learners": 2,
+      "firstObservedAtUtc": "2026-11-25T08:00:00Z",
+      "lastObservedAtUtc": "2026-11-27T11:50:00Z"
+    }
+  ],
+  "sinceUtc": null,
+  "truncated": false
+}
+```
+
+- One line per `kind` and `capabilityCode`. `count` is how many times it happened, `learners`
+  how many different learners it happened to.
+- `since` is a UTC day as `yyyy-MM-dd` and is optional. With it, only counters last observed on
+  or after that day are added; a counter covers one UTC day, so a time within a day is refused
+  (400). `sinceUtc` echoes the start of that day. Without it, everything still kept is added:
+  the retention sweep ages old counters out.
+- Only the ledger's aggregate-only rows are counted. Flagged answers are not in it (they are the
+  list above), nor are the rows the server recorded to be reviewed one by one.
+- `kind` describes, like `stopReason`: the stored kind's name in lowercase with underscores.
+  `capabilityCode` is the ledger's own code, as stored.
+- An empty `items` means only that no counter is kept for that window. It does not say why:
+  nothing may have happened, or the server may not have been recording.
+- `Coach:Opportunities:Enabled` decides whether the server records, not whether this route
+  answers. Turned off, it stops new counts being written; the counters written while it was on
+  are still kept and still read here until the retention sweep ages them out. So neither an
+  empty answer nor a full one says how the setting stands now. What the answer does say is
+  when anything was last recorded: the newest `lastObservedAtUtc` across its lines. The setting
+  itself is read from the server's configuration.
+- No learner id, name, email, conversation id, turn id or row id is in the answer, for an admin
+  or a token.
+
 ### `GET /api/admin/reports/github`
 
 ```json
@@ -292,6 +339,7 @@ All times are UTC.
 
 - The lists and the detail carry no learner text, no message or conversation id, and for a token
   no name or email.
+- The counts carry no id of any kind: not a learner, a conversation, a turn or a row.
 - Sam conversations that nobody flagged, and the rest of a conversation around a flagged turn.
 - A learner's words, vocabulary, resources and progress (phase 2 of the plan).
 - The token, any token's digest, a password or a password-again proof.

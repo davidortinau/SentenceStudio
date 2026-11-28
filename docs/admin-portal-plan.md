@@ -467,6 +467,7 @@ agent reads the same inbox with `scripts/admin-api.sh`. Merged to `main` and dep
 | `GET /api/admin/reports/attention-count` | How many flagged answers nobody has looked at. For the sidebar. | none | none (404 for a token) | no |
 | `GET /api/admin/reports/sam?attention=true` or `?status=`, `&take=` | Flagged Sam answers, newest first. | `reports.sam_list` | `reports` | no |
 | `GET /api/admin/reports/sam/{reportId}` | One report and each flag on it, in codes. | `reports.sam_read` | `reports` | no |
+| `GET /api/admin/reports/sam/counts?since=` | What Sam's ledger counts about its own turns (aggregate-only rows), added up across learners by kind and capability code. No ids. Added 2026-11-27 (issue 332); the script's `sam-counts`. No screen yet. | `reports.sam_counts` | `reports` | no |
 | `POST /api/admin/reports/sam/{reportId}/exchange` | The flagged question and answer. Learner content. | `reports.sam_exchange_read` | `learner_content` | yes |
 | `POST /api/admin/reports/sam/{reportId}/triage` | "Looked at", and a status, an issue number or its removal. | `reports.sam_triage` | `triage` | no |
 | `GET /api/admin/reports/github?take=` | Reports learners filed to GitHub from the app. | `reports.github_list` | `reports` | no |

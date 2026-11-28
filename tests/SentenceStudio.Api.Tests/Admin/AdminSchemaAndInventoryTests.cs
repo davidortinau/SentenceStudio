@@ -229,6 +229,7 @@ public sealed class AdminEndpointInventoryTests : IDisposable
                 ("/api/admin/token", AdminTokenPermissions.None),
                 ("/api/admin/reports/sam", AdminTokenPermissions.Reports),
                 ("/api/admin/reports/sam/{reportId}", AdminTokenPermissions.Reports),
+                ("/api/admin/reports/sam/counts", AdminTokenPermissions.Reports),
                 ("/api/admin/reports/github", AdminTokenPermissions.Reports),
                 ("/api/admin/reports/sam/{reportId}/exchange", AdminTokenPermissions.LearnerContent),
                 ("/api/admin/reports/github/screen-states/{reference}", AdminTokenPermissions.LearnerContent),
