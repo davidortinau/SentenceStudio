@@ -166,10 +166,9 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("IsQuickAddAttaching = _quickAdding || state.VocabularyBusy",
             resources);
         Assert.Contains("if (!_formOpen || IsNavigationBlocked)", resources);
-        var close = resources[resources.IndexOf("private void CloseForm(",
-                StringComparison.Ordinal)
-            ..resources.IndexOf("private async Task SaveAsync(",
-                StringComparison.Ordinal)];
+        var close = SourceSlice.Between(resources,
+            "private void CloseForm(",
+            "private async Task SaveAsync(");
         Assert.Contains("if (!_formOpen || IsNavigationBlocked)", close);
         Assert.Contains("if (_app.IsResourcesFormOpen)\n                UpdateResourceForm();",
             Source("App/ApplicationScene.Library.cs"));
@@ -279,8 +278,7 @@ public sealed class NativeSwiftUIPresentationContractTests
     {
         var selector = Source("Features/Dashboard/ChooseOwnSelectorView.cs");
         var app = Source("App/ApplicationController.cs");
-        var resourceRow = selector[selector.IndexOf("if (isResource)\n            {",
-            StringComparison.Ordinal)..selector.IndexOf("continue;", StringComparison.Ordinal)];
+        var resourceRow = SourceSlice.Between(selector, "if (isResource)\n            {", "continue;");
 
         Assert.Contains("NativeForm.Switch(style, option.Title, chosen,", resourceRow);
         Assert.Contains("selected.SelectedResourceIds.Contains(id)", resourceRow);
@@ -295,8 +293,9 @@ public sealed class NativeSwiftUIPresentationContractTests
         Assert.Contains("var options = isResource ? resourceOrder : selected.Skills;", selector);
         Assert.Contains("_dashboardState.ChooseOwn, ChooseOwnResourceOrder(), _chooseOwnSearch,",
             app);
-        var order = app[app.IndexOf("ChooseOwnResourceOrder()\n    {", StringComparison.Ordinal)..
-            app.IndexOf("internal void FilterChooseOwn(", StringComparison.Ordinal)];
+        var order = SourceSlice.Between(app,
+            "ChooseOwnResourceOrder()\n    {",
+            "internal void FilterChooseOwn(");
         Assert.Contains("NativeChooseOwnOrder.SelectedFirst(", order);
         Assert.Contains("state.Resources, state.SelectedResourceIds);", order);
         // Taken once per opening and per reload, never on a switch.
@@ -304,8 +303,9 @@ public sealed class NativeSwiftUIPresentationContractTests
             "if (_chooseOwnResourceOrder.IsDefault || state.Resources != _chooseOwnResourcesListed)",
             order);
         Assert.Equal(2, app.Split("_chooseOwnResourceOrder = default;").Length - 1);
-        var choose = app[app.IndexOf("private void SelectChooseOwn(", StringComparison.Ordinal)..
-            app.IndexOf("private async Task SignOutAsync()", StringComparison.Ordinal)];
+        var choose = SourceSlice.Between(app,
+            "private void SelectChooseOwn(",
+            "private async Task SignOutAsync()");
         Assert.DoesNotContain("_chooseOwnResourceOrder", choose);
     }
 

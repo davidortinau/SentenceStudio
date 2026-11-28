@@ -46,10 +46,9 @@ public sealed class NativeQuizSourceLayoutContractTests
         Assert.DoesNotContain("SwiftButtonStyle.Bordered", row);
 
         var style = Read("Styling/SourceUiStyle.cs");
-        var helper = style[style.IndexOf("internal SwiftView QuizPromptIconButton(",
-                StringComparison.Ordinal)
-            ..style.IndexOf("internal SwiftView TextLinkButton(",
-                StringComparison.Ordinal)];
+        var helper = SourceSlice.Between(style,
+            "internal SwiftView QuizPromptIconButton(",
+            "internal SwiftView TextLinkButton(");
         Assert.Contains("appearance.BootstrapOutlineSecondaryFill", helper);
         Assert.Contains("appearance.BootstrapButtonBorder", helper);
         Assert.Contains("appearance.SecondaryText", helper);
@@ -70,8 +69,7 @@ public sealed class NativeQuizSourceLayoutContractTests
     public void AnswerTermAndResultAlert_PrecedeMcChoicesAndSharedTextField()
     {
         var feature = Read("Features/Quiz/QuizQuestionView.cs");
-        var render = feature[feature.IndexOf("internal static void Add(",
-            StringComparison.Ordinal)..];
+        var render = SourceSlice.From(feature, "internal static void Add(");
 
         var term = render.IndexOf("native.quiz.correct-answer",
             StringComparison.Ordinal);
@@ -139,12 +137,12 @@ public sealed class NativeQuizSourceLayoutContractTests
     public void InfoDuringFeedback_AutoAdvanceClosesOverlayAtDeadlineRatherThanCancelingIt()
     {
         var app = Read("App/ApplicationController.Quiz.cs");
-        var open = app[app.IndexOf("private void OpenQuizDetails()", StringComparison.Ordinal)
-            ..app.IndexOf("internal SwiftView RenderQuizDetails(",
-                StringComparison.Ordinal)];
-        var auto = app[app.IndexOf("private async Task RunAutoAdvanceAsync(",
-                StringComparison.Ordinal)..app.IndexOf("private void CancelAutoAdvance()",
-                StringComparison.Ordinal)];
+        var open = SourceSlice.Between(app,
+            "private void OpenQuizDetails()",
+            "internal SwiftView RenderQuizDetails(");
+        var auto = SourceSlice.Between(app,
+            "private async Task RunAutoAdvanceAsync(",
+            "private void CancelAutoAdvance()");
 
         Assert.DoesNotContain("CancelAutoAdvance();", open);
         Assert.Contains("_quiz.OpenDetails()", open);
@@ -186,14 +184,12 @@ public sealed class NativeQuizSourceLayoutContractTests
         var question = Read("Features/Quiz/QuizQuestionView.cs");
         var sentence = Read("Features/Quiz/QuizSentenceView.cs");
         var feedback = Read("Features/Quiz/QuizFeedbackView.cs");
-        var queue = app[app.IndexOf("private bool QueueQuizAudioNavigation(",
-                StringComparison.Ordinal)
-            ..app.IndexOf("private void CancelQuizAudioPlayback()",
-                StringComparison.Ordinal)];
-        var runner = controller[controller.IndexOf(
-                "private async Task RunSafelyAsync(", StringComparison.Ordinal)
-            ..controller.IndexOf("private static string Text(",
-                StringComparison.Ordinal)];
+        var queue = SourceSlice.Between(app,
+            "private bool QueueQuizAudioNavigation(",
+            "private void CancelQuizAudioPlayback()");
+        var runner = SourceSlice.Between(controller,
+            "private async Task RunSafelyAsync(",
+            "private static string Text(");
 
         Assert.Contains("PlayPrompt: () => PlayQuizAudio(", app);
         Assert.Contains("PlayQuizAudio(token => _quiz.PlayAnswerChoiceAsync(", app);
@@ -334,10 +330,9 @@ public sealed class NativeQuizSourceLayoutContractTests
         // prompt audio played; the quiz then rendered after the audio.
         var app = Regex.Replace(Read("App/ApplicationController.Quiz.cs"), @"\s+", " ");
         var question = Read("Features/Quiz/QuizQuestionView.cs");
-        var start = app[app.IndexOf("private async Task StartQuizAsync(",
-                StringComparison.Ordinal)
-            ..app.IndexOf("private async Task ReturnFromQuizAsync(",
-                StringComparison.Ordinal)];
+        var start = SourceSlice.Between(app,
+            "private async Task StartQuizAsync(",
+            "private async Task ReturnFromQuizAsync(");
 
         var loading = start.IndexOf(
             "_quizState = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);",

@@ -113,8 +113,9 @@ public sealed class NativeSwiftUIDashboardContractTests
     {
         var toolbar = Source("Features/Dashboard/DashboardView.cs");
         var app = Source("App/ApplicationController.cs");
-        var refresh = app[app.IndexOf("internal void RefreshDashboard()", StringComparison.Ordinal)
-            ..app.IndexOf("internal void RegeneratePlan()", StringComparison.Ordinal)];
+        var refresh = SourceSlice.Between(app,
+            "internal void RefreshDashboard()",
+            "internal void RegeneratePlan()");
         Assert.Contains("if (_disposed || _busy || _dashboard is null)", refresh);
         Assert.Contains("_dashboardRefreshing = true;", refresh);
         Assert.Contains("await _dashboard.RefreshAsync(_lifetime.Token)", refresh);
@@ -158,7 +159,7 @@ public sealed class NativeSwiftUIDashboardContractTests
     public void ReadyDashboardWithUnconfirmedSync_ShowsThePendingSyncText()
     {
         var dashboard = Source("Features/Dashboard/DashboardView.cs");
-        var caption = dashboard[dashboard.IndexOf("if (state.HasPendingSync)", StringComparison.Ordinal)..];
+        var caption = SourceSlice.From(dashboard, "if (state.HasPendingSync)");
         Assert.Contains("text(\"Native_SyncPending\")", caption);
         Assert.Contains("native.dashboard.sync.caption", caption);
         Assert.DoesNotContain("DebugHealth_CoreSync", dashboard);
@@ -175,10 +176,9 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("WithAdaptiveStack(480)", feature);
         Assert.True(480 > 402 - 2 * SourceUiLayout.PageGutter(402)
             - 2 * SourceUiLayout.CardInset);
-        var dashboardPage = dashboard[dashboard.IndexOf(
-                "private static SwiftView DashboardPage(", StringComparison.Ordinal)
-            ..dashboard.IndexOf("private static SwiftView ModeButton(",
-                StringComparison.Ordinal)];
+        var dashboardPage = SourceSlice.Between(dashboard,
+            "private static SwiftView DashboardPage(",
+            "private static SwiftView ModeButton(");
         Assert.Contains("Views.VStack(items.ToArray())", dashboardPage);
         Assert.Contains("Views.Scroll(content)", dashboardPage);
         Assert.Contains("WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))",

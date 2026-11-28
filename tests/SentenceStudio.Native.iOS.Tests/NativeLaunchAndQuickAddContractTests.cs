@@ -33,10 +33,10 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.Contains("private bool _launching = true;", controller);
         // A remembered session keeps the launch look until Study's first load starts (Study
         // then shows that load), and the load runs busy so Refresh and the mode switch wait.
-        var route = controller[controller.IndexOf("private async Task RouteAfterAuthAsync()", StringComparison.Ordinal)..];
-        route = route[..route.IndexOf("RefreshSamAvailability();", StringComparison.Ordinal)];
+        var route = SourceSlice.From(controller, "private async Task RouteAfterAuthAsync()");
+        route = SourceSlice.Until(route, "RefreshSamAvailability();");
         Assert.DoesNotContain("Publish();", route);
-        var load = route[route.IndexOf("if (_dashboard is not null)", StringComparison.Ordinal)..];
+        var load = SourceSlice.From(route, "if (_dashboard is not null)");
         Assert.True(load.IndexOf("_launching = false;", StringComparison.Ordinal)
             < load.IndexOf("_dashboard.LoadAfterSignInAsync", StringComparison.Ordinal));
         Assert.Contains("_busy = true;", load);
@@ -81,11 +81,11 @@ public sealed class NativeLaunchAndQuickAddContractTests
             Source("App/ApplicationController.Import.cs"));
         // An import draft is not an editor: it does not block Sam's review quiz or a Study
         // insight link; only Study's Add resource (which closes the page) shows it instead.
-        var editor = controller[controller.IndexOf("internal bool HasLibraryEditor =>", StringComparison.Ordinal)..];
-        Assert.DoesNotContain("HasImportContentWork", editor[..editor.IndexOf(';')]);
+        var editor = SourceSlice.From(controller, "internal bool HasLibraryEditor =>");
+        Assert.DoesNotContain("HasImportContentWork", SourceSlice.Until(editor, ";"));
         Assert.Contains("if (HasLibraryEditor || HasImportContentWork || HasYouTubeImportWork)",
             Source("App/ApplicationController.cs"));
-        Assert.DoesNotContain("HasYouTubeImportWork", editor[..editor.IndexOf(';')]);
+        Assert.DoesNotContain("HasYouTubeImportWork", SourceSlice.Until(editor, ";"));
         // A blocked page never shows a result set before the owner changed (fail closed).
         var importPage = Source("Features/Import/ImportContentView.cs");
         var blocked = importPage.IndexOf("else if (state.Blocked)", StringComparison.Ordinal);
@@ -98,9 +98,8 @@ public sealed class NativeLaunchAndQuickAddContractTests
         // editor's operation (no Task.Yield ordering), opens Vocabulary first, and only then
         // releases the import page; a refusal or a failed open shows on the editor.
         var vocabularyHost = Source("App/ApplicationController.Vocabulary.cs");
-        var handoff = vocabularyHost[vocabularyHost.IndexOf(
-            "private bool OpenDuplicatesOnVocabularyPage", StringComparison.Ordinal)..];
-        handoff = handoff[..handoff.IndexOf("private string? LibraryOwner(", StringComparison.Ordinal)];
+        var handoff = SourceSlice.From(vocabularyHost, "private bool OpenDuplicatesOnVocabularyPage");
+        handoff = SourceSlice.Until(handoff, "private string? LibraryOwner(");
         Assert.DoesNotContain("Task.Yield", handoff);
         Assert.Contains("DispatchQueue.MainQueue.DispatchAsync(", handoff);
         Assert.InRange(handoff.IndexOf("await vocabulary.OpenAsync(owner)", StringComparison.Ordinal),
@@ -143,8 +142,8 @@ public sealed class NativeLaunchAndQuickAddContractTests
         Assert.Contains("private CancellationTokenSource? _samSlotCheck;", library);
         Assert.Contains("check.CancelAfter(SamSlotCheckLimit);", library);
         Assert.Contains("answer = await sam.RefreshAvailabilityAsync(token);", library);
-        var reset = library[library.IndexOf("private void ResetSamSlot()", StringComparison.Ordinal)..];
-        reset = reset[..reset.IndexOf("}", StringComparison.Ordinal)];
+        var reset = SourceSlice.From(library, "private void ResetSamSlot()");
+        reset = SourceSlice.Until(reset, "}");
         Assert.Contains("check?.Cancel();", reset);
         // An unexpected failure answers "not reachable" instead of a silent reset.
         Assert.Contains("ShowShellNotice(SamSlotText(NativeSamAvailabilityText.Unreachable));", library);

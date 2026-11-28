@@ -32,17 +32,15 @@ public sealed class NativeSourceStylingContractTests
     public void ScrollContentOwnsVisualGutters_WithoutPaddingOrReplacingNativeViewports()
     {
         var dashboard = Source("Features/Dashboard/DashboardView.cs");
-        var dashboardPage = dashboard[dashboard.IndexOf(
-                "private static SwiftView DashboardPage(", StringComparison.Ordinal)
-            ..dashboard.IndexOf("private static SwiftView ModeButton(",
-                StringComparison.Ordinal)];
+        var dashboardPage = SourceSlice.Between(dashboard,
+            "private static SwiftView DashboardPage(",
+            "private static SwiftView ModeButton(");
         Assert.Contains("Views.VStack(items.ToArray())", dashboardPage);
         Assert.Contains("Views.Scroll(content)", dashboardPage);
         Assert.DoesNotContain("Views.Scroll(items.ToArray())", dashboardPage);
 
         var quizSource = Source("Features/Quiz/QuizView.cs");
-        var quiz = quizSource[quizSource.IndexOf(
-            "private static SwiftView QuizPage(", StringComparison.Ordinal)..];
+        var quiz = SourceSlice.From(quizSource, "private static SwiftView QuizPage(");
         Assert.Contains("Views.VStack(items.ToArray())", quiz);
         Assert.Contains("Views.Scroll(content)", quiz);
         Assert.Contains("Views.BottomInset(page, footer)", quiz);
@@ -81,9 +79,9 @@ public sealed class NativeSourceStylingContractTests
         Assert.DoesNotContain("Views.Scroll(", settings);
 
         var scene = Source("App/ApplicationScene.cs");
-        var viewport = scene[scene.IndexOf("private void ViewportChanged(",
-            StringComparison.Ordinal)..scene.IndexOf("private static SwiftView? Find(",
-            StringComparison.Ordinal)];
+        var viewport = SourceSlice.Between(scene,
+            "private void ViewportChanged(",
+            "private static SwiftView? Find(");
         Assert.Contains("native.dashboard.scroll.content", viewport);
         Assert.Contains("native.resources.scroll.content", viewport);
         Assert.DoesNotContain("native.settings.scroll.content", viewport);
@@ -226,8 +224,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("BrowserPage.FilterMenu(Prefix, \"language\"", browser);
         Assert.DoesNotContain("Views.Menu(", browser);
         var browse = Source("Features/Browse/BrowserPage.cs");
-        var filter = browse[browse.IndexOf("internal static SwiftView FilterMenu(",
-            StringComparison.Ordinal)..];
+        var filter = SourceSlice.From(browse, "internal static SwiftView FilterMenu(");
         Assert.Contains("var picker = style.Input(Views.Picker(", filter);
         Assert.Contains(".WithPickerStyle(SwiftPickerStyle.Menu)", filter);
         Assert.Contains("style.Text(Views.Text(label), SourceTextRole.Body2, SourceTextTone.Secondary)",
@@ -258,7 +255,7 @@ public sealed class NativeSourceStylingContractTests
         // A Section carries no automation ID: SwiftUI would give it to every row.
         Assert.DoesNotContain("Views.Section(string.Empty, notices.ToArray())\n                .WithAccessibilityIdentifier", form);
         Assert.DoesNotContain(".WithAccessibilityIdentifier(\"native.resources.form.basic.card\")", form);
-        var toolbar = form[form.IndexOf("internal static SwiftView WithToolbar(", StringComparison.Ordinal)..];
+        var toolbar = SourceSlice.From(form, "internal static SwiftView WithToolbar(");
         Assert.Contains("Views.Button(text(\"Common_Save\"), actions.Save)", toolbar);
         Assert.DoesNotContain("Common_Save", vocabulary);
         var sharedStyle = Source("Styling/SourceUiStyle.cs");
@@ -275,10 +272,9 @@ public sealed class NativeSourceStylingContractTests
     public void ResponsiveStyle_UpdatesGridFontsAndBreakpointCompositionWithFocusRestoration()
     {
         var scene = Source("App/ApplicationScene.cs");
-        var viewport = scene[scene.IndexOf("private void ViewportChanged(",
-            StringComparison.Ordinal)
-            ..scene.IndexOf("private static SwiftView? Find(",
-                StringComparison.Ordinal)];
+        var viewport = SourceSlice.Between(scene,
+            "private void ViewportChanged(",
+            "private static SwiftView? Find(");
         Assert.Contains(".OnViewportChanged(ViewportChanged)", scene);
         Assert.Contains("SourceUiStyle.RefreshTypography(_root, _app.Appearance, width)",
             viewport);
@@ -303,10 +299,9 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(".WithInlineNavigationTitle()", scene);
         // The Library root carries the inline title; Resources is its first page.
         var library = Source("App/ApplicationScene.Library.cs");
-        var libraryTitle = library[library.IndexOf("_libraryRoot = _libraryListSlot",
-            StringComparison.Ordinal)
-            ..library.IndexOf("_librarySplit = new LibrarySplitNavigation(",
-                StringComparison.Ordinal)];
+        var libraryTitle = SourceSlice.Between(library,
+            "_libraryRoot = _libraryListSlot",
+            "_librarySplit = new LibrarySplitNavigation(");
         Assert.Contains(".WithNavigationTitle(_app.Localize(\"Nav_Library\"))", libraryTitle);
         Assert.Contains(".WithInlineNavigationTitle()", libraryTitle);
         Assert.DoesNotContain("Views.Searchable(_resourcesSlot", scene);
@@ -330,9 +325,9 @@ public sealed class NativeSourceStylingContractTests
     public void SourceButtons_KeepNativeHitAndDisabledVisuals_WithARealTransparentOutline()
     {
         var style = Source("Styling/SourceUiStyle.cs");
-        var button = style[style.IndexOf("private SwiftView SourceButton(",
-            StringComparison.Ordinal)..style.IndexOf("internal SwiftView Input(",
-            StringComparison.Ordinal)];
+        var button = SourceSlice.Between(style,
+            "private SwiftView SourceButton(",
+            "internal SwiftView Input(");
         Assert.Contains("SourceButtonRole.FilledSecondary => appearance.CardSurface",
             button);
         Assert.Contains("SourceButtonRole.Primary => appearance.Primary", button);
@@ -363,8 +358,7 @@ public sealed class NativeSourceStylingContractTests
         // one-point border matches the composer capsule beside it.
         Assert.Equal(6, style.Split("WithButtonBorderWidth(",
             StringSplitOptions.None).Length - 1);
-        var composerButton = style[style.IndexOf("internal SwiftView ComposerIconButton(",
-            StringComparison.Ordinal)..];
+        var composerButton = SourceSlice.From(style, "internal SwiftView ComposerIconButton(");
         Assert.Contains(".WithButtonBorderWidth(1)\n            .WithButtonCircle(ComposerHeight)",
             composerButton);
         Assert.Contains(".WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)",
@@ -416,9 +410,9 @@ public sealed class NativeSourceStylingContractTests
     public void MappedResourceModeAndQuizChoice_UseSourceClassShapeWithoutChangingOtherThemes()
     {
         var style = Source("Styling/SourceUiStyle.cs");
-        var mode = style[style.IndexOf("internal SwiftView ResourceViewModeButton(",
-            StringComparison.Ordinal)..style.IndexOf("internal SwiftView FullWidthPrimaryButton(",
-            StringComparison.Ordinal)];
+        var mode = SourceSlice.Between(style,
+            "internal SwiftView ResourceViewModeButton(",
+            "internal SwiftView FullWidthPrimaryButton(");
         Assert.Contains(".WithButtonAppearance(fill?.Light, fill?.Dark,", mode);
         Assert.Contains("border.Light, border.Dark, appearance.BootstrapSmallButtonRadius)",
             mode);
@@ -429,8 +423,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("button.Text = name;", mode);
 
         var feature = Source("Features/Quiz/QuizQuestionView.cs");
-        var quizChoice = feature[feature.IndexOf("private static SwiftView QuizChoice(",
-            StringComparison.Ordinal)..];
+        var quizChoice = SourceSlice.From(feature, "private static SwiftView QuizChoice(");
         Assert.Contains("correct ? style.Appearance.Success", quizChoice);
         Assert.Contains("incorrect ? style.Appearance.Danger", quizChoice);
         Assert.Contains("style.Appearance.BootstrapButtonBorder", quizChoice);
@@ -447,19 +440,18 @@ public sealed class NativeSourceStylingContractTests
     public void BriteHardShadow_StaysOnSourceFilledButtonsOnly()
     {
         var style = Source("Styling/SourceUiStyle.cs");
-        var shadow = style[style.IndexOf("private SwiftView WithBriteHardShadow(",
-            StringComparison.Ordinal)..style.IndexOf("private SwiftView SourceButton(",
-            StringComparison.Ordinal)];
+        var shadow = SourceSlice.Between(style,
+            "private SwiftView WithBriteHardShadow(",
+            "private SwiftView SourceButton(");
         Assert.Contains("appearance.Selection.ThemeId == \"brite\"", shadow);
         Assert.Contains("button.WithShadow(\"#000000\", \"#000000\", 0, 1, 3)",
             shadow);
         Assert.Contains(".WithButtonShadowOffsetX(3)", shadow);
 
-        var sourceButton = style[style.IndexOf("private SwiftView SourceButton(",
-            StringComparison.Ordinal)..style.IndexOf("internal SwiftView Input(",
-            StringComparison.Ordinal)];
-        var selected = sourceButton[sourceButton.IndexOf(
-            "if (role is SourceButtonRole.Primary", StringComparison.Ordinal)..];
+        var sourceButton = SourceSlice.Between(style,
+            "private SwiftView SourceButton(",
+            "internal SwiftView Input(");
+        var selected = SourceSlice.From(sourceButton, "if (role is SourceButtonRole.Primary");
         Assert.Contains("or SourceButtonRole.FilledSecondary", selected);
         Assert.Contains("or SourceButtonRole.BootstrapLoginPrimary", selected);
         Assert.Contains("WithBriteHardShadow(button);", selected);
@@ -469,9 +461,9 @@ public sealed class NativeSourceStylingContractTests
             < sourceButton.LastIndexOf("WithBriteHardShadow(button);",
                 StringComparison.Ordinal));
 
-        var mode = style[style.IndexOf("internal SwiftView ResourceViewModeButton(",
-            StringComparison.Ordinal)..style.IndexOf("internal SwiftView FullWidthPrimaryButton(",
-            StringComparison.Ordinal)];
+        var mode = SourceSlice.Between(style,
+            "internal SwiftView ResourceViewModeButton(",
+            "internal SwiftView FullWidthPrimaryButton(");
         Assert.Contains("if (selected)\n            WithBriteHardShadow(button);", mode);
         Assert.Contains("else if (appearance.Selection.ThemeId == \"brite\")", mode);
         Assert.Contains("button.WithShadow(\"#000000\", \"#000000\", 0, 0)", mode);
@@ -480,8 +472,7 @@ public sealed class NativeSourceStylingContractTests
             < mode.IndexOf("WithBriteHardShadow(button);", StringComparison.Ordinal));
 
         var feature = Source("Features/Quiz/QuizQuestionView.cs");
-        var choice = feature[feature.IndexOf("private static SwiftView QuizChoice(",
-            StringComparison.Ordinal)..];
+        var choice = SourceSlice.From(feature, "private static SwiftView QuizChoice(");
         Assert.DoesNotContain("WithBriteHardShadow", choice);
     }
 
@@ -489,9 +480,9 @@ public sealed class NativeSourceStylingContractTests
     public void SourceLink_KeepsOneCenteredButtonAndHonorsSketchyTextDecoration()
     {
         var style = Source("Styling/SourceUiStyle.cs");
-        var link = style[style.IndexOf("internal SwiftView TextLinkButton(",
-            StringComparison.Ordinal)..style.IndexOf("internal SwiftView ResourceViewModeButton(",
-            StringComparison.Ordinal)];
+        var link = SourceSlice.Between(style,
+            "internal SwiftView TextLinkButton(",
+            "internal SwiftView ResourceViewModeButton(");
         Assert.Contains("appearance.Selection.ThemeId != \"sketchy\"", link);
         Assert.Contains("label.Spacing = 4;", link);
         Assert.Contains(".WithPadding(6, 16, 6, 16)", link);
@@ -506,8 +497,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("button.WithButtonAppearance(null, null, null, null,", link);
         Assert.Contains("appearance.BootstrapSmallButtonRadius)", link);
         Assert.Contains(".WithButtonBorderWidth(appearance.BootstrapBaseButtonBorderWidth);",
-            link[link.IndexOf("else if (appearance.Selection.ThemeId == \"sketchy\")",
-                StringComparison.Ordinal)..]);
+            SourceSlice.From(link, "else if (appearance.Selection.ThemeId == \"sketchy\")"));
         Assert.Contains("WithSketchyBootstrapCorners(button);", link);
         Assert.True(link.IndexOf("button.WithButtonAppearance(null, null, null, null,",
             StringComparison.Ordinal) < link.IndexOf("WithSketchyBootstrapCorners(button)",
@@ -561,9 +551,9 @@ public sealed class NativeSourceStylingContractTests
     public void ResourceToolbar_UpdatesActionsWithoutTreatingItAsAnAddRemoveContainer()
     {
         var scene = Source("App/ApplicationScene.cs");
-        var update = scene[scene.IndexOf("private void UpdateResources(bool replaceAll = false)",
-            StringComparison.Ordinal)..scene.IndexOf("private void UpdateResourceFilters(",
-            StringComparison.Ordinal)];
+        var update = SourceSlice.Between(scene,
+            "private void UpdateResources(bool replaceAll = false)",
+            "private void UpdateResourceFilters(");
         Assert.Contains("BrowserPageUpdate.Resources.TryUpdateInPlace(current, next)", update);
         Assert.DoesNotContain("current.RemoveAt(", update);
         Assert.DoesNotContain("current.Add(", update);
@@ -628,19 +618,16 @@ public sealed class NativeSourceStylingContractTests
             view);
         Assert.Contains("!state.StarterBusy", view);
         Assert.Contains("if (fixture.Surface == \"starter-loading\")", preview);
-        Assert.DoesNotContain("CreateStarterAsync()", preview[
-            preview.IndexOf("if (fixture.Surface == \"starter-loading\")",
-                StringComparison.Ordinal)
-            ..preview.IndexOf("if (fixture.Surface == \"dashboard\")",
-                StringComparison.Ordinal)]);
+        Assert.DoesNotContain("CreateStarterAsync()", SourceSlice.Between(preview,
+            "if (fixture.Surface == \"starter-loading\")",
+            "if (fixture.Surface == \"dashboard\")"));
     }
 
     [Fact]
     public void OriginalButtonGroups_UseThemeStrokeOverlap_OnlyDashboardExpandsChildren()
     {
         var dashboardSource = Source("Features/Dashboard/DashboardView.cs");
-        var dashboard = dashboardSource[..dashboardSource.IndexOf(
-            "internal static SwiftView WithToolbar(", StringComparison.Ordinal)];
+        var dashboard = SourceSlice.Until(dashboardSource, "internal static SwiftView WithToolbar(");
         // Captain 2026-11-10: Resources has no button group (its grid/list switch is a toolbar icon).
         Assert.DoesNotContain("Views.ButtonGroup(",
             Source("Features/LearningResources/LearningResourcesView.cs"));
@@ -661,7 +648,7 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains("state.Phase == NativePhase.Ready\n            ? Views.VStack(content.WithFlexibleHeight())",
             screen);
         Assert.DoesNotContain("Views.LazyVGrid(", screen);
-        var grid = screen[screen.IndexOf("private SwiftView Grid(", StringComparison.Ordinal)..];
+        var grid = SourceSlice.From(screen, "private SwiftView Grid(");
         Assert.Contains("var row = Views.HStack(cells.ToArray())\n                .WithFlexibleWidth()\n                .WithFlexibleHeight();",
             grid);
         // Hidden native tiles and short-row fillers take a full, empty tile slot.
