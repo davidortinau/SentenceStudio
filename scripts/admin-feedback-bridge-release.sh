@@ -212,7 +212,7 @@ step() {
 }
 
 release() {
-  local build="$WORK/build" lock="$WORK/lock" holder tests="" package target sum previous changes notes url at code lower mine extra="" pre="" proved=""
+  local build="$WORK/build" lock="$WORK/lock" holder tests="" kind count package target sum previous changes notes url at code lower mine extra="" pre="" proved=""
   mkdir -p "$WORK" "$OUT/state" || { say "$WORK could not be made."; return 2; }
   # One release at a time, also when someone runs this by hand during a pass. A lock whose
   # release is no longer running, or that is older than a release can take (its steps' limits
@@ -262,7 +262,12 @@ release() {
       || failed "a clean copy of $SHORT could not be made in $build"
 
     step test || failed "the bridge's tests did not pass${STEP_STOP:+ ($STEP_STOP)}"
-    tests="$(printf '%s\n' "$STEP_OUT" | grep -Eo 'Managed tests: [0-9]+/[0-9]+ passed' | tail -1)"
+    # Both counts the step said, the managed tests' and then the Swift side's, on one line:
+    # it is the second line of the fed file and goes into the notes and the status as it is.
+    for kind in Managed Swift; do
+      count="$(printf '%s\n' "$STEP_OUT" | grep -Eo "$kind tests: [0-9]+/[0-9]+ passed" | tail -1)"
+      [ -z "$count" ] || tests="${tests:+$tests, }$count"
+    done
     step package || failed "the pack did not pass${STEP_STOP:+ ($STEP_STOP)}"
     package="$(printf '%s\n' "$STEP_OUT" | sed -n 's/^PACKAGE=//p' | tail -1)"
     [ "$(printf '%s\n' "$STEP_OUT" | sed -n 's/^VERSION=//p' | tail -1)" = "$VERSION" ] && [ -f "$package" ] \
