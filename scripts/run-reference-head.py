@@ -33,7 +33,10 @@ HEAD_PROJECTS = {
 }
 NATIVE_BASE_CONFIG = REPOSITORY_ROOT / "src/SentenceStudio.AppLib/appsettings.json"
 NATIVE_DEBUG_CONFIG = REPOSITORY_ROOT / "src/SentenceStudio.AppLib/appsettings.Development.json"
-NATIVE_CREDENTIAL_KEYS = ("OpenAIKey", "ElevenLabsKey")
+# The one credential the MAUI app builder still reads from private native configuration.
+# Speech and voice lists go through the API as the signed-in learner (B60), so the reference
+# heads read no ElevenLabs key and the launcher must not ask for one.
+NATIVE_CREDENTIAL_KEYS = ("OpenAIKey",)
 PLACEHOLDER_MARKER = re.compile(
     r"(?:^|[-_ ])(?:your|placeholder|not[-_ ]configured|change[-_ ]?me|"
     r"replace[-_ ]?me|insert|enter|example|sample|dummy|fake|todo|test)(?:$|[-_ ])",
@@ -354,8 +357,8 @@ def require_mobile_credentials():
     if not NATIVE_BASE_CONFIG.is_file():
         raise ReferenceHeadError(
             "Android/iOS --launch requires the private "
-            "src/SentenceStudio.AppLib/appsettings.json with Settings:OpenAIKey and "
-            "Settings:ElevenLabsKey. The generated tunnel JSON must remain URL-only."
+            "src/SentenceStudio.AppLib/appsettings.json with Settings:OpenAIKey. "
+            "The generated tunnel JSON must remain URL-only."
         )
     base = native_settings_from_file(NATIVE_BASE_CONFIG)
     development = (
@@ -480,8 +483,9 @@ def main(argv=None):
             print(
                 "NOT executed: macOS uses Captain's existing app identity and data. "
                 "Manual launch requires explicit per-turn authorization. Desktop direct clients "
-                "need AI__OpenAI__ApiKey and ElevenLabsKey in the app process environment; "
-                "AiService also needs Settings__OpenAIKey or a private Settings:OpenAIKey."
+                "need AI__OpenAI__ApiKey in the app process environment; "
+                "AiService also needs Settings__OpenAIKey or a private Settings:OpenAIKey. "
+                "Speech goes through the API with the learner's token and needs no key."
             )
             return 0
         if not args.launch:

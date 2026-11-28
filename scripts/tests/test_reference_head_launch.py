@@ -30,7 +30,6 @@ SYNTHETIC_ELEVENLABS_KEY = "el-fixture-only-no-real-key-0123456789"
 SYNTHETIC_OTHER_SECRET = "unrelated-fixture-only-no-real-key-0123456789"
 VALID_NATIVE_SETTINGS = {
     "OpenAIKey": SYNTHETIC_OPENAI_KEY,
-    "ElevenLabsKey": SYNTHETIC_ELEVENLABS_KEY,
     "OtherSecret": SYNTHETIC_OTHER_SECRET,
 }
 
@@ -394,8 +393,10 @@ class ReferenceHeadLauncherTests(unittest.TestCase):
                         ])
                     self.assertEqual(status, 2)
                     self.assertIn("Settings:OpenAIKey", stderr.getvalue())
-                    self.assertIn("Settings:ElevenLabsKey", stderr.getvalue())
-                    for private_value in VALID_NATIVE_SETTINGS.values():
+                    self.assertNotIn("ElevenLabsKey", stderr.getvalue())
+                    for private_value in (
+                        *VALID_NATIVE_SETTINGS.values(), SYNTHETIC_ELEVENLABS_KEY,
+                    ):
                         self.assertFalse(private_value in stdout.getvalue() + stderr.getvalue(),
                                          "Credential must not enter launcher output.")
                     self.assertEqual(list(self.scratch.glob("reference-head-*.json")), [])
@@ -407,16 +408,13 @@ class ReferenceHeadLauncherTests(unittest.TestCase):
 
     def test_missing_and_placeholder_mobile_keys_refuse_before_any_process(self):
         cases = (
+            ({}, "OpenAIKey"),
             ({"ElevenLabsKey": SYNTHETIC_ELEVENLABS_KEY}, "OpenAIKey"),
-            ({"OpenAIKey": SYNTHETIC_OPENAI_KEY}, "ElevenLabsKey"),
+            ({"OpenAIKey": "your-openai-key-here"}, "OpenAIKey"),
             ({"OpenAIKey": "your-openai-key-here",
               "ElevenLabsKey": SYNTHETIC_ELEVENLABS_KEY}, "OpenAIKey"),
-            ({"OpenAIKey": SYNTHETIC_OPENAI_KEY,
-              "ElevenLabsKey": "your-elevenlabs-key-here"}, "ElevenLabsKey"),
             ({"OpenAIKey": "not-configured",
               "ElevenLabsKey": SYNTHETIC_ELEVENLABS_KEY}, "OpenAIKey"),
-            ({"OpenAIKey": SYNTHETIC_OPENAI_KEY,
-              "ElevenLabsKey": "placeholder-long-enough"}, "ElevenLabsKey"),
         )
         for settings, missing in cases:
             with self.subTest(missing=missing, settings_names=list(settings)):
@@ -441,9 +439,27 @@ class ReferenceHeadLauncherTests(unittest.TestCase):
                 describe.assert_not_called()
                 run.assert_not_called()
 
+    def test_mobile_preflight_does_not_ask_for_an_elevenlabs_key(self):
+        # The MAUI heads synthesize through the API with the learner's token (B60) and read no
+        # ElevenLabs key, so one that is absent, a placeholder or malformed must not stop a launch.
+        cases = (
+            ({"OpenAIKey": SYNTHETIC_OPENAI_KEY}, None),
+            ({"OpenAIKey": SYNTHETIC_OPENAI_KEY,
+              "ElevenLabsKey": "your-elevenlabs-key-here"}, None),
+            ({"OpenAIKey": SYNTHETIC_OPENAI_KEY,
+              "ElevenLabsKey": "placeholder-long-enough"}, None),
+            ({"OpenAIKey": SYNTHETIC_OPENAI_KEY, "ElevenLabsKey": None}, None),
+            ({"OpenAIKey": SYNTHETIC_OPENAI_KEY},
+             {"ElevenLabsKey": "your-elevenlabs-key-here"}),
+        )
+        for settings, development in cases:
+            with self.subTest(settings_names=list(settings), development=development):
+                with self.native_credentials(settings=settings, development=development):
+                    launcher.require_mobile_credentials()
+
     def test_debug_override_and_malformed_config_fail_without_process_or_secret_output(self):
         with self.native_credentials(
-            development={"ElevenLabsKey": "your-elevenlabs-key-here"}
+            development={"OpenAIKey": "your-openai-key-here"}
         ), mock.patch.object(launcher, "require_output_dir", return_value=self.scratch), \
                 mock.patch.object(launcher, "describe_tunnel") as describe, \
                 mock.patch.object(launcher, "require_booted_simulator") as simulator, \
@@ -455,9 +471,9 @@ class ReferenceHeadLauncherTests(unittest.TestCase):
                 "--device", IOS_UDID, "--launch",
             ])
             self.assertEqual(status, 2)
-            self.assertIn("Settings:ElevenLabsKey in native-fixture-development.json",
+            self.assertIn("Settings:OpenAIKey in native-fixture-development.json",
                           stderr.getvalue())
-            self.assertNotIn(SYNTHETIC_ELEVENLABS_KEY, stderr.getvalue())
+            self.assertNotIn(SYNTHETIC_OPENAI_KEY, stderr.getvalue())
             self.assertEqual(list(self.scratch.glob("reference-head-*.json")), [])
         describe.assert_not_called()
         simulator.assert_not_called()
@@ -542,7 +558,8 @@ class ReferenceHeadLauncherTests(unittest.TestCase):
         credentials.assert_not_called()
         run.assert_not_called()
         self.assertEqual(len(list(self.scratch.glob("reference-head-*.json"))), 3)
-        self.assertIn("AI__OpenAI__ApiKey and ElevenLabsKey", stdout.getvalue())
+        self.assertIn("AI__OpenAI__ApiKey in the app process environment", stdout.getvalue())
+        self.assertNotIn("ElevenLabsKey", stdout.getvalue())
         self.assertIn("Settings__OpenAIKey", stdout.getvalue())
         self.assertNotIn(SYNTHETIC_OPENAI_KEY, stdout.getvalue())
         self.assertNotIn(SYNTHETIC_ELEVENLABS_KEY, stdout.getvalue())
@@ -1050,20 +1067,35 @@ class ReferenceHeadLauncherTests(unittest.TestCase):
             launcher.REPOSITORY_ROOT
             / "src/SentenceStudio.AppLib/Services/CoreServiceExtensions.cs"
         ).read_text(encoding="utf-8")
-        self.assertEqual(launcher.NATIVE_CREDENTIAL_KEYS, ("OpenAIKey", "ElevenLabsKey"))
+        speech_service = (
+            launcher.REPOSITORY_ROOT
+            / "src/SentenceStudio.AppLib/Services/ElevenLabsSpeechService.cs"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(launcher.NATIVE_CREDENTIAL_KEYS, ("OpenAIKey",))
         for contract in (
             'settings.OpenAIKey ?? "not-configured"',
-            'settings.ElevenLabsKey ?? "not-configured"',
             'Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")',
-            'Environment.GetEnvironmentVariable("ElevenLabsKey")',
             "builder.Services.AddTieredChatClients(builder.Configuration, openAiApiKey)",
-            "new ElevenLabsClient(elevenLabsKey)",
+            # Speech reaches the API through these clients, as the signed-in learner.
+            "builder.Services.AddApiClients(apiBaseUri)",
         ):
             self.assertIn(contract, app_builder)
+        # The app builder reads no ElevenLabs key and builds no ElevenLabs client (B60): the
+        # launcher must not ask for a key the app never reads. If either comes back, the key
+        # belongs in NATIVE_CREDENTIAL_KEYS and the desktop guidance again.
+        for removed in ("ElevenLabsKey", "ElevenLabsClient", "elevenLabsKey"):
+            self.assertNotIn(removed, app_builder)
+            self.assertNotIn(removed, speech_service)
+        self.assertIn("ISpeechApiClient", speech_service)
         # AiService reads the key only on its direct speech path, never at construction.
         self.assertIn('_configuration["Settings:OpenAIKey"]', ai_service)
         self.assertNotIn('GetRequiredSection("Settings")', ai_service)
         self.assertIn("services.AddSingleton<ElevenLabsSpeechService>()", core_services)
+        self.assertIn(
+            "services.AddSingleton<IVoiceDiscoveryService, "
+            "SentenceStudio.Services.Api.ApiVoiceDiscoveryService>()",
+            core_services,
+        )
 
 
 if __name__ == "__main__":
