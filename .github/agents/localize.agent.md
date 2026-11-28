@@ -166,7 +166,7 @@ ContentPage($"{_localize["YouTubeImportTitle"]}", ...)
 - Warning: 경고
 - Confirm: 확인
 - Yes: 예
-- No: 아니오
+- No: 아니요
 - OK: 확인
 - Dashboard: 대시보드
 - Settings: 설정

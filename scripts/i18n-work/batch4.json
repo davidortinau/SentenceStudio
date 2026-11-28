@@ -192,7 +192,7 @@
     {"key": "DebugHealth_CoreSync", "en": "CoreSync", "ko": "CoreSync", "comment": "CoreSync section title"},
     {"key": "DebugHealth_SyncServiceRegistered", "en": "Sync service registered", "ko": "동기화 서비스 등록됨", "comment": "Sync service registered label"},
     {"key": "DebugHealth_Yes", "en": "Yes", "ko": "예", "comment": "Yes value"},
-    {"key": "DebugHealth_No", "en": "No", "ko": "아니오", "comment": "No value"},
+    {"key": "DebugHealth_No", "en": "No", "ko": "아니요", "comment": "No value"},
     
     {"key": "MinimalPair_Create", "en": "Create Minimal Pair", "ko": "최소 대립쌍 만들기", "comment": "Create minimal pair page title"},
     {"key": "MinimalPair_SelectFirstWord", "en": "Select First Word", "ko": "첫 번째 단어 선택", "comment": "Select first word section title"},
