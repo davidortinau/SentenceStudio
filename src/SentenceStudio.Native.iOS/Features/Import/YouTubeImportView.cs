@@ -297,11 +297,74 @@ internal static class YouTubeImportView
         yield return Views.Section(text("Import_History"), rows.ToArray());
     }
 
+    private static string ImportRowId(string importId) => $"native.import.youtube.import.{importId}";
+
+    /// <summary>
+    /// Source md breakpoint: from 768 points a row has its channel beside the title, and a row
+    /// with Retry is one line; under it there is no channel and Retry is on a second line.
+    /// </summary>
+    private static bool ShowsChannel(SourceUiStyle style) => style.ViewportWidth >= 768;
+
+    /// <summary>
+    /// The page's width crossed 768 points with the page open (an iPhone turned, an iPad's window
+    /// resized): each import's row under <paramref name="mounted"/> that has the other width's
+    /// shape is replaced, at its place in its Section, by one built for this width from
+    /// <paramref name="state"/> (so a running retry and what a tap opens are as a fresh draw
+    /// would have them). Every row changes at that width, not only one with Retry: the channel
+    /// is in each row from 768 points and in none under it, which is also how a mounted row's
+    /// shape is told. Nothing else on the page is drawn again, so the Form keeps its scroll
+    /// position (issue 352: the shape was chosen only when the row was built; the channel page's
+    /// rows do the same since issue 308, YouTubeChannelView.ViewportChanged).
+    /// </summary>
+    internal static void ViewportChanged(SwiftView mounted, YouTubeImportCoordinator import,
+        YouTubeImportState state, SourceUiStyle style, Func<string, string> text,
+        YouTubeImportActions actions)
+    {
+        // Any other tab has no import rows; rows still mounted from an earlier state are
+        // replaced by the redraw that state change asked for.
+        if (state.Blocked || state.Tab != YouTubeImportTab.History || state.IsLoadingImports
+            || state.DisplayedImports.IsDefaultOrEmpty)
+            return;
+        var imports = new Dictionary<string, YouTubeImportRow>(StringComparer.Ordinal);
+        foreach (var row in state.DisplayedImports)
+            imports[ImportRowId(row.Id)] = row;
+        var showsChannel = ShowsChannel(style);
+        Reshape(mounted);
+
+        void Reshape(SwiftView view)
+        {
+            for (var index = 0; index < view.Children.Count; index++)
+            {
+                var child = view.Children[index];
+                if (child.AccessibilityIdentifier is not { } id || !imports.TryGetValue(id, out var row))
+                {
+                    Reshape(child);
+                    continue;
+                }
+                if (Has(child, $"{id}.channel") == showsChannel)
+                    continue;
+                view.RemoveAt(index);
+                child.Dispose();
+                view.Insert(index, ImportRow(import, state, row, style, text, actions));
+            }
+        }
+
+        static bool Has(SwiftView view, string id)
+        {
+            if (view.AccessibilityIdentifier == id)
+                return true;
+            foreach (var child in view.Children)
+                if (Has(child, id))
+                    return true;
+            return false;
+        }
+    }
+
     private static SwiftView ImportRow(YouTubeImportCoordinator import, YouTubeImportState state,
         YouTubeImportRow row, SourceUiStyle style, Func<string, string> text,
         YouTubeImportActions actions)
     {
-        var id = $"native.import.youtube.import.{row.Id}";
+        var id = ImportRowId(row.Id);
         var title = row.VideoTitle ?? text("YouTubeImport_Untitled");
         var titleText = style.Text(Views.Text(title), SourceTextRole.Body1Strong).WithLineLimit(1);
         var open = Views.Button(titleText, () =>
@@ -326,10 +389,10 @@ internal static class YouTubeImportView
         // and at the largest the row was 356 points wide, past its edges (issue 292). There the
         // date and Retry go on a second line, at the trailing edge, and the title has the first
         // line beside the badge.
-        var second = row.CanRetry && style.ViewportWidth < 768 ? new List<SwiftView>() : null;
+        var second = row.CanRetry && !ShowsChannel(style) ? new List<SwiftView>() : null;
         var trailing = second ?? cells;
         // Source: the channel column shows from the md breakpoint up (d-none d-md-inline).
-        if (style.ViewportWidth >= 768)
+        if (ShowsChannel(style))
             cells.Add(Caption(style, row.IsManual ? text("Import_ManualImport")
                     : row.ChannelName ?? text("YouTubeImport_ChannelFallback"))
                 .WithLineLimit(1)
