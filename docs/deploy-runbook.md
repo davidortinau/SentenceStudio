@@ -8,6 +8,8 @@
 > - Pre-checks, Option A deploy, sticky sessions, Sam settings comparison and Step 5:
 >   `scripts/prod-deploy.sh check`, then `scripts/prod-deploy.sh deploy`
 >   (`after` reruns the post-deploy checks).
+> - The record of the deploy: when those checks pass, `after` (and so `deploy`) adds one line
+>   to `docs/deploy-log.md`. Commit and push it. See "Step 5b" below.
 > - Native iOS on a phone: `scripts/ios-phone.sh Duotopia|DX24` builds and checks the
 >   Release app, then stops; rerun with `--yes --no-build` after the Captain approves the
 >   install. The MAUI DX24 steps in "Step 2" below are unchanged.
@@ -819,6 +821,38 @@ Then re-run `./scripts/post-deploy-validate.sh --skip-wait` and confirm 0 FAIL.
 > **Permanent fix (TODO):** declare `stickySessions.affinity = "sticky"` on the `webapp`
 > ingress in the AppHost/Bicep so `azd deploy` stops reverting it. Until then this is a
 > mandatory manual step on each deploy.
+
+### Step 5b: Record the deploy in `docs/deploy-log.md`
+
+`docs/deploy-log.md` is the one record of what production ran and since when: one line per
+deploy with the time the API's new revision was created (UTC), the commit deployed and its
+subject, and the revision's name. The feedback check's fix sessions read it to find which
+build answered a learner (`docs/admin-feedback-fix.md`, "The work", step 2), so a deploy
+without a line leaves them guessing.
+
+`scripts/prod-deploy.sh deploy` and `scripts/prod-deploy.sh after` add the line when every
+post-deploy check has passed. The script does not commit: **commit and push the line**, with
+your next push at the latest, because the sessions read the file on `main`.
+
+- Rerunning `after` does not add the same revision twice.
+- An uncommitted line does not stop the next `check` (the file does not ship); `check` prints
+  a note that it is waiting.
+- The line's commit is the one `deploy` shipped. `deploy` keeps it, with the revision it made,
+  in the checkout's git directory (`sstudio-deployed`, never in the working tree), so `after`
+  rerun from that checkout names it even after a pull or a switch of branch.
+- `after` run where `deploy` did not make the revision (a deploy by hand, another checkout, a
+  `deploy` that stopped before its checks began) records that checkout's `HEAD` and prints
+  `note: deploy did not make <revision> from this checkout`: the script cannot check that
+  commit against Azure, so correct the line before committing it if the deploy was made from
+  another commit. If `HEAD` was committed after the revision was created, it cannot be what
+  was deployed: the script says so, writes nothing and prints the line for you to add by hand
+  with the right commit.
+- If the line cannot be written (the file cannot be written, the disk is full), `after` says
+  `FAIL: could not write to docs/deploy-log.md`, leaves the file as it was, prints the line and
+  exits non-zero: the deploy's checks passed, only its record is missing. Rerun `after` once
+  the file can be written, or add the printed line by hand.
+- A deploy made another way (the manual steps below, or Option B) is added by hand in the
+  same form, at the end of the file.
 
 ### Step 6: Change-specific validation (manual)
 

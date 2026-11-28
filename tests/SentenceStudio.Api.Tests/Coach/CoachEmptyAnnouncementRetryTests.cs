@@ -23,10 +23,25 @@ public class CoachEmptyAnnouncementRetryTests
     private static CoachAgentTurnResult Reply(string text, long inputTokens = 0, long outputTokens = 0) =>
         CoachDurableTurnTests.Reply(text) with { Usage = new CoachRunUsage(inputTokens, outputTokens, 0m) };
 
+    private const string English = "en-US";
+    private const string Korean = "ko-KR";
+
+    // The harness's own learner: the display language is English and Korean is studied.
+    private static Task<(CoachConversationHarness Harness, IReadOnlyList<string> Shown)> TurnAsync(
+        params CoachAgentTurnResult[] script) => TurnAsync(English, script);
+
+    /// <summary>
+    /// A turn for a learner with this display language. One who reads Korean studies English, and
+    /// any other learner studies Korean.
+    /// </summary>
     private static async Task<(CoachConversationHarness Harness, IReadOnlyList<string> Shown)> TurnAsync(
-        params CoachAgentTurnResult[] script)
+        string displayLanguageTag, params CoachAgentTurnResult[] script)
     {
         var harness = new CoachConversationHarness();
+        harness.App.Languages.Profile = new SentenceStudio.Api.Coach.Application.CoachLanguageProfile(
+            TargetLanguageTag: displayLanguageTag == Korean ? English : Korean,
+            DisplayLanguageTag: displayLanguageTag,
+            NativeLanguageTag: displayLanguageTag);
         var conversationId = await harness.CreateConversationAsync();
         foreach (var result in script)
         {
@@ -46,7 +61,7 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("You mean the word on screen. I will not give the answer away; here are three Korean-only "
         + "example sentences that use it without giving away the quiz choice.")]
     [InlineData("Sure! Here's a set of example sentences for you.")]
-    [InlineData("다음은 예문 세 개입니다.")]
+    [InlineData("다음은 예문 세 개입니다.", Korean)]
     // Issue 326: quotation marks near an announcement do not hide it. The phrase is outside them,
     // an apostrophe is not a quotation mark, and a quoted phrase does not cover an unquoted one.
     [InlineData("\"차다\" means to kick. Here are three example sentences that use it.")]
@@ -55,8 +70,8 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("That is the learners' favourite, so here are three example sentences.")]
     [InlineData("Here are three example sentences that use \"here are\".")]
     [InlineData("\"차다\"는 이렇게 써요.\nHere are three example sentences.")]
-    [InlineData("'차다'를 쓴 예문은 다음과 같습니다.")]
-    [InlineData("‘차다’를 쓴 예문은 다음과 같습니다.")]
+    [InlineData("'차다'를 쓴 예문은 다음과 같습니다.", Korean)]
+    [InlineData("‘차다’를 쓴 예문은 다음과 같습니다.", Korean)]
     // Issue 331: emphasis near an announcement does not hide it. An announcement that is itself
     // in emphasis, from the start of the message, of a line or of a sentence, is still one; so
     // is one after a word in emphasis, and a mark that is not emphasis opens nothing.
@@ -68,7 +83,7 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("**Sure!** *Here are three example sentences.*")]
     [InlineData("차다는 이렇게 써요.\n**Here are three example sentences.**")]
     [InlineData("For **차다**, here are three example sentences.")]
-    [InlineData("**차다**를 쓴 예문은 다음과 같습니다.")]
+    [InlineData("**차다**를 쓴 예문은 다음과 같습니다.", Korean)]
     [InlineData("The word is kick_ball in the list, and here are three example sentences.")]
     [InlineData("That is 2*3 words, and here are three example sentences.")]
     [InlineData("* Here are three example sentences.")]
@@ -80,20 +95,29 @@ public class CoachEmptyAnnouncementRetryTests
     // The review of pull request 348: emphasis after a comma, a semicolon or a dash is the
     // reply's own clause, in a capital or in Korean as much as in small letters.
     [InlineData("Sure, **Here are three example sentences.**")]
-    [InlineData("좋아요, **다음은 예문 세 개입니다.**")]
+    [InlineData("좋아요, **다음은 예문 세 개입니다.**", Korean)]
     [InlineData("Sure, *Here are three example sentences.*")]
-    [InlineData("네， __아래는 예문 세 개입니다.__")]
+    [InlineData("네， __아래는 예문 세 개입니다.__", Korean)]
     [InlineData("Good question; **Here's a set of example sentences for you.**")]
     [InlineData("Sure - **Here are three example sentences.**")]
-    [InlineData("좋아요 – **다음은 예문 세 개입니다.**")]
+    [InlineData("좋아요 – **다음은 예문 세 개입니다.**", Korean)]
     [InlineData("**Sure**, **Here are three example sentences.**")]
     [InlineData("**Sure,** *Here are three example sentences.*")]
     [InlineData("For **차다**, **Here are three example sentences.**")]
     [InlineData("In English you say *Hello.* Sure, **The following are three example sentences.**")]
+    // Issue 330: an announcement is written in the display language, so the Korean rows above are
+    // for a learner who reads Korean. A colon ends an announcement in any language, an English
+    // announcement is read for a tag without a region, and a display language that is neither
+    // English nor Korean keeps both lists.
+    [InlineData("아래는 예문 세 개입니다.", Korean)]
+    [InlineData("차다를 쓴 예문 세 개입니다：", Korean)]
+    [InlineData("Here are three example sentences that use it.", "en")]
+    [InlineData("Here are three example sentences that use it.", "ja-JP")]
+    [InlineData("다음은 예문 세 개입니다.", "ja-JP")]
     public async Task An_announcement_with_nothing_after_it_is_asked_for_once_more_and_the_answer_is_shown(
-        string announcement)
+        string announcement, string displayLanguageTag = English)
     {
-        var (harness, shown) = await TurnAsync(Reply(announcement), Reply(Answer));
+        var (harness, shown) = await TurnAsync(displayLanguageTag, Reply(announcement), Reply(Answer));
         using var _ = harness;
 
         shown.Should().Equal(Answer);
@@ -132,9 +156,9 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("In English you say ‘Here’s your coffee.’")]
     [InlineData("In English you say 'Don't worry, here is your coffee.'")]
     [InlineData("A waiter might say \"Thank you for waiting. Here is your coffee.\"")]
-    [InlineData("한국어로는 \"다음은 제 차례예요\"라고 해요.")]
-    [InlineData("한국어로는 「다음은 제 차례예요」라고 해요.")]
-    [InlineData("한국어로는 『다음은 제 차례예요』라고 해요.")]
+    [InlineData("한국어로는 \"다음은 제 차례예요\"라고 해요.", Korean)]
+    [InlineData("한국어로는 「다음은 제 차례예요」라고 해요.", Korean)]
+    [InlineData("한국어로는 『다음은 제 차례예요』라고 해요.", Korean)]
     // Issue 331: a sentence set off with emphasis and no quotation marks is the content too.
     [InlineData("In English you say **Here is your coffee.**")]
     [InlineData("In English you say *Here is your coffee.*")]
@@ -147,14 +171,52 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("In English you say **Here is *your* coffee.**")]
     [InlineData("In English you say **\"Here is your coffee.\"**")]
     [InlineData("In English you say **_Here is your coffee._**")]
-    [InlineData("한국어로는 **다음은 제 차례예요**라고 해요.")]
+    [InlineData("한국어로는 **다음은 제 차례예요**라고 해요.", Korean)]
     // The review of pull request 348: a comma earlier in the lead does not cut the lead off.
     [InlineData("In English, you say **Here is your coffee.**")]
     [InlineData("Sure, in English you say **Here is your coffee.**")]
-    [InlineData("네, 한국어로는 **다음은 제 차례예요**라고 해요.")]
-    public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(string reply)
+    [InlineData("네, 한국어로는 **다음은 제 차례예요**라고 해요.", Korean)]
+    public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(
+        string reply, string displayLanguageTag = English)
     {
-        var (harness, shown) = await TurnAsync(Reply(reply), Reply("This second reply must never be asked for."));
+        var (harness, shown) = await TurnAsync(
+            displayLanguageTag, Reply(reply), Reply("This second reply must never be asked for."));
+        using var _ = harness;
+
+        shown.Should().Equal(reply);
+        harness.Coach.RunCount.Should().Be(1);
+    }
+
+    // Issue 330: the sentence the learner asked for, in the language studied and with no marks
+    // round it, begins with a phrase that announces in that language. The reply is written in the
+    // display language, and only that language's phrases are read.
+    [Theory]
+    [InlineData(English, "It is my turn next is 다음은 제 차례예요.")]
+    [InlineData(English, "You can say it like this. 다음은 제 차례예요.")]
+    [InlineData(English, "Below the title you would write 아래는 제 이름입니다.")]
+    [InlineData(Korean, "영어로는 이렇게 말해요. Here is your coffee.")]
+    [InlineData(Korean, "커피를 건넬 때는 here's your coffee 라고 해요.")]
+    public async Task A_sentence_in_the_language_studied_given_without_marks_is_shown_unchanged_and_costs_one_call(
+        string displayLanguageTag, string reply)
+    {
+        var (harness, shown) = await TurnAsync(
+            displayLanguageTag, Reply(reply), Reply("This second reply must never be asked for."));
+        using var _ = harness;
+
+        shown.Should().Equal(reply);
+        harness.Coach.RunCount.Should().Be(1);
+    }
+
+    // Issue 330, the cost of it: an announcement written in the other language is no longer read.
+    // The learner is shown it as written, which is what happened before issue 289.
+    [Theory]
+    [InlineData(English, "다음은 예문 세 개입니다.")]
+    [InlineData(Korean, "Here are three example sentences that use it.")]
+    public async Task An_announcement_that_is_not_in_the_display_language_is_shown_as_written(
+        string displayLanguageTag, string reply)
+    {
+        var (harness, shown) = await TurnAsync(
+            displayLanguageTag, Reply(reply), Reply("This second reply must never be asked for."));
         using var _ = harness;
 
         shown.Should().Equal(reply);
@@ -248,14 +310,15 @@ public class CoachEmptyAnnouncementRetryTests
     // The message is not shown on the answer path, so what it holds does not fill the announcement.
     [InlineData("Here are three example sentences:", "Here are three example sentences:")]
     [InlineData("Here are three Korean-only example sentences that use it without giving away the quiz choice.", "")]
-    [InlineData("다음은 예문 세 개입니다.", "")]
+    [InlineData("다음은 예문 세 개입니다.", "", Korean)]
     // The review of pull request 348, through the answer path.
     [InlineData("Sure, **Here are three example sentences.**", "")]
-    [InlineData("좋아요, **다음은 예문 세 개입니다.**", "")]
+    [InlineData("좋아요, **다음은 예문 세 개입니다.**", "", Korean)]
     public async Task An_answer_whose_only_part_is_an_announcement_is_asked_for_once_more_and_the_answer_is_shown(
-        string announcement, string message)
+        string announcement, string message, string displayLanguageTag = English)
     {
         var (harness, shown) = await TurnAsync(
+            displayLanguageTag,
             AnswerReply(CoachIntentKind.PedagogicalAnswer, message,
                 Part(CoachAnswerBlockKind.Answer, (announcement, CoachLanguageRole.Display))),
             Reply(Answer));
@@ -319,6 +382,12 @@ public class CoachEmptyAnnouncementRetryTests
                 Part(CoachAnswerBlockKind.Answer,
                     ("You can say it like this.", CoachLanguageRole.Display),
                     ("다음은 제 차례예요.", CoachLanguageRole.Target)))
+        },
+        {
+            // Issue 330: the sentence has no marks round it and its piece is not tagged apart.
+            "one answer part in the display language that ends with a sentence in the language studied",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer, ("You can say it like this. 다음은 제 차례예요.", CoachLanguageRole.Display)))
         },
         {
             // Issue 326: the sentence is quoted inside one piece in the display language.

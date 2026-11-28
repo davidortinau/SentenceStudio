@@ -40,7 +40,7 @@ internal static class QuizQuestionView
         if (state.Prompt is { } prompt)
         {
             var question = prompt.ShowWrittenPrompt && !string.IsNullOrWhiteSpace(prompt.PromptText)
-                ? style.Text(Views.Text(prompt.PromptText),
+                ? style.Text(Views.Text(prompt.PromptText.Trim()),
                         SourceTextRole.Display, SourceTextTone.Primary,
                         sourceHeading: true)
                     .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center)
@@ -180,7 +180,7 @@ internal static class QuizQuestionView
         {
             // Source: the answer sits in the centered prompt block (text-center).
             if (state.CorrectAnswerAfterGrading is { Length: > 0 } correct)
-                items.Add(style.Text(Views.Text(correct), SourceTextRole.Title2)
+                items.Add(style.Text(Views.Text(correct.Trim()), SourceTextRole.Title2)
                     .WithFlexibleWidth(500, SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier("native.quiz.correct-answer"));
         }
@@ -280,8 +280,13 @@ internal static class QuizQuestionView
             items.Add(field);
             if (submit is not null)
             {
+                // Issue 279: at the largest text sizes on a phone the two buttons do not fit
+                // one row. The row is measured (bridge 0.1.0-preview.69): while both fit they
+                // share it, and when they do not "I was correct" goes under Submit, so
+                // neither label is squeezed until it wraps.
                 var submitRow = besideSubmit is null
-                    ? Views.HStack(submit) : Views.HStack(submit, besideSubmit);
+                    ? Views.HStack(submit)
+                    : Views.HStack(submit, besideSubmit).WithStackingWhenTooWide();
                 submitRow.Spacing = SourceUiLayout.ItemGap;
                 items.Add(submitRow
                     .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
@@ -310,7 +315,12 @@ internal static class QuizQuestionView
             : neutralDisabled && sourceClass
                 ? style.Appearance.BootstrapNeutralDisabledBorder
                 : style.Appearance.BootstrapButtonBorder;
-        var title = style.Text(Views.Text(audioLetter ?? answer),
+        // Issue 328 (Captain, 2026-11-27): a term can be stored with white space around it,
+        // and SwiftUI draws it: a line break after "to die" made its option a line taller
+        // than the others. Only what is shown and read out is trimmed; the option still
+        // answers with the stored term, which the turn is graded and saved by.
+        var shown = answer.Trim();
+        var title = style.Text(Views.Text(audioLetter ?? shown),
             SourceTextRole.Title3);
         // The graded options carry the result, so it is not told by color alone. The
         // mark's place is kept on every option, so grading does not move or rewrap text.
@@ -347,7 +357,7 @@ internal static class QuizQuestionView
             style.WithSketchyBootstrapCorners(button);
         }
         if (audioLetter is null)
-            button.WithAccessibilityLabel(answer + ChoiceResultCaption(state, answer, text));
+            button.WithAccessibilityLabel(shown + ChoiceResultCaption(state, answer, text));
         button.IsEnabled = !answered && !busy;
         return button;
     }
@@ -380,7 +390,7 @@ internal static class QuizQuestionView
                 ? text("NativeVocabQuiz_CorrectFeedback")
                 : state.CorrectAnswerAfterGrading is { Length: > 0 } solution
                     ? string.Format(CultureInfo.CurrentCulture,
-                        text("NativeVocabQuiz_IncorrectFeedback"), solution)
+                        text("NativeVocabQuiz_IncorrectFeedback"), solution.Trim())
                     : text(NativeText.QuizIncorrect);
 
 }

@@ -1085,6 +1085,220 @@ var cases = new (string Name, Action Test)[]
             }
         }
     }),
+    // Issue 279: the correction row at the app's largest text size, at a phone's widths, in
+    // English and in Korean (the app's own strings). Each button is first drawn with room for
+    // everything, which gives the width and height it needs. Where the two and the gap fit the
+    // width, they are painted in one row at those widths; where they do not, "I was correct" is
+    // painted under Submit, each as wide and as high as it is by itself, so neither label wraps.
+    // (Squeezed into one row at 330 points, the row was one block of paint with wrapped labels.)
+    // The quiz page keeps 16 points each side of its content (QuizPage), so on a phone the row is
+    // offered the screen's width less 32: the last two drawings are that row on a 375-point and
+    // on a 402-point phone, with the style the page builds for that screen.
+    ("Quiz correction: at the largest text size Submit and I was correct stack on a phone when they do not fit one row, in English and Korean (issue 279)", () =>
+    {
+        const double room = 1200;
+        var wrong = new List<string>();
+        var (stacked, sideBySide) = (0, 0);
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var (page, width) in new[] { (330d, 330d), (402d, 402d), (951d, 951d), (375d, 343d), (402d, 370d) })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            var title = Words(NativeText.QuizOverride);
+            if (title == NativeText.QuizOverride || (language == "ko") != title.Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: the button beside Submit is \"{title}\".");
+            var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
+                AppearanceSelection.Default.WithFontScale(scale)), page);
+            SwiftView SubmitRow(SwiftView? besideSubmit)
+            {
+                var items = new List<SwiftView>();
+                QuizQuestionView.Add(items, QuizCorrection(), "", false, false, look, Words,
+                    _ => { }, _ => { }, false, _ => { }, () => { }, _ => { }, () => { }, () => { },
+                    () => { }, () => { }, _ => { }, (_, _) => { }, () => { }, () => { }, null, besideSubmit);
+                return items.Single(item => Find(item, "native.quiz.correction") is not null);
+            }
+            double OwnWidth(SwiftView view)
+            {
+                var blocks = PaintedRows(view, room, 400);
+                if (blocks.Count != 1)
+                    throw new Exception($"A button drawn by itself with room is painted in {blocks.Count} blocks.");
+                return blocks[0].Right - blocks[0].Left;
+            }
+            using var submitAlone = SubmitRow(null);
+            using var submitAgain = SubmitRow(null);
+            using var overrideAlone = QuizFeedbackView.Override(look, Words, () => { });
+            using var overrideAgain = QuizFeedbackView.Override(look, Words, () => { });
+            // A view is drawn once: the height comes from a second copy.
+            var submit = (Width: OwnWidth(submitAlone), Height: PaintedHeight(submitAgain, room, 400));
+            var beside = (Width: OwnWidth(overrideAlone), Height: PaintedHeight(overrideAgain, room, 400));
+            var oneRow = submit.Width + SourceUiLayout.ItemGap + beside.Width;
+            using var pair = SubmitRow(QuizFeedbackView.Override(look, Words, () => { }));
+            using var pairAgain = SubmitRow(QuizFeedbackView.Override(look, Words, () => { }));
+            var rows = PaintedRows(pair, width, 600);
+            var high = PaintedHeight(pairAgain, width, 600);
+            var at = $"{language}, text size {scale:0.##}, {width} points{(page == width ? "" : $" on a {page}-point screen")}";
+            var drawn = $"painted {string.Join(" and ", rows.Select(row => $"{row.Right - row.Left:0.#} wide"))}, {high:0.#} high; Submit needs {submit.Width:0.#} by {submit.Height:0.#}, \"{title}\" {beside.Width:0.#} by {beside.Height:0.#}, one row {oneRow:0.#}";
+            if (oneRow <= width)
+            {
+                sideBySide++;
+                if (rows.Count != 1 || Math.Abs(rows[0].Right - rows[0].Left - oneRow) > 2
+                    || high - Math.Max(submit.Height, beside.Height) > 2)
+                    wrong.Add($"{at}: the two fit one row and are not in it ({drawn})");
+                continue;
+            }
+            stacked++;
+            if (submit.Width > width || beside.Width > width)
+                throw new Exception($"{at}: a button does not fit the width by itself ({drawn}); this case does not cover that.");
+            if (rows.Count != 2
+                || Math.Abs(rows[0].Right - rows[0].Left - submit.Width) > 2
+                || Math.Abs(rows[1].Right - rows[1].Left - beside.Width) > 2
+                || Math.Abs(high - (submit.Height + SourceUiLayout.ItemGap + beside.Height)) > 2)
+                wrong.Add($"{at}: the two do not fit one row and are not one under the other at their own sizes ({drawn})");
+            else if (rows.Any(row => Math.Abs((row.Left + row.Right) / 2 - width / 2) > 2))
+                wrong.Add($"{at}: a stacked button is off the center ({drawn})");
+        }
+        if (wrong.Count > 0)
+            throw new Exception($"{wrong.Count} drawings are wrong: {string.Join("; ", wrong)}.");
+        if (stacked == 0 || sideBySide == 0)
+            throw new Exception($"The case must draw both: {stacked} drawings stacked and {sideBySide} side by side.");
+    }),
+    // Issue 328 (Captain, 2026-11-27): one answer of four was a text line taller than the
+    // others, and another began a space to the right. SwiftUI draws the white space a term
+    // was stored with (a line break after it is an empty second line), where the web page
+    // collapses it. The options are drawn in a real SwiftUI host: each is as tall as the
+    // others, shows its words alone, and still answers with the term as it is stored, which
+    // is what the turn is graded and saved by.
+    ("Quiz choices: an answer stored with a line break or a space around it is drawn like the others (issue 328)", () =>
+    {
+        foreach (var width in new[] { 402d, 951d })
+        {
+            var quizStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+            var stored = new[] { "to die\n", " kitchen", "rainy season", "many\r\n" };
+            var picked = new List<string>();
+            var items = new List<SwiftView>();
+            QuizQuestionView.Add(items,
+                new NativeQuizState(NativePhase.Ready, NativeDestination.VocabularyQuiz,
+                    Prompt: new NativeQuizPrompt("w-1", "맑아요", "Korean", null, null,
+                        IsTargetLanguagePrompt: true, ShowWrittenPrompt: true, CanPlayPromptAudio: false,
+                        ShowPhoto: false, TargetLanguageEngaged: true),
+                    Choices: [.. stored.Select(term => new NativeQuizChoice(term))],
+                    Mode: "MultipleChoice", CanSubmit: true, CurrentTurn: 1, TurnsInRound: 10, TurnId: "t-1"),
+                "", false, false, quizStyle, QuizEnglish,
+                _ => { }, _ => { }, false, picked.Add, () => { }, _ => { }, () => { }, () => { },
+                () => { }, () => { }, _ => { }, (_, _) => { }, () => { }, () => { });
+            try
+            {
+                var heights = new List<double>();
+                var shown = new List<string>();
+                for (var index = 0; index < stored.Length; index++)
+                {
+                    var id = $"{NativeAccess.QuizChoice}.{index}";
+                    var option = items.Single(item => Find(item, id) is not null);
+                    shown.Add(AllText(option));
+                    // Before it is drawn: a view taken out of its host cannot act again.
+                    Find(option, id)!.InvokeAction();
+                    heights.Add(PaintedHeight(option, width, 300));
+                }
+                if (heights.Max() - heights.Min() > 1)
+                    throw new Exception($"At {width} points the one-line options are {string.Join(", ", heights.Select(height => height.ToString("0.#")))} points high: they are not one height.");
+                for (var index = 0; index < stored.Length; index++)
+                    if (shown[index] != stored[index].Trim())
+                        throw new Exception($"Option {index} shows {shown[index].Length} characters where its words are {stored[index].Trim().Length}: the white space it was stored with is drawn.");
+                if (!picked.SequenceEqual(stored))
+                    throw new Exception("An option did not answer with the term as it is stored, so the turn could not be graded or saved by it.");
+            }
+            finally
+            {
+                foreach (var item in items)
+                    item.Dispose();
+            }
+        }
+    }),
+    // Issue 328, the follow-up: the same words come back on the quiz's summary, one row each,
+    // both terms as stored. Seen in the app on 2026-11-27: the rows of the words stored with
+    // white space were 44 points high beside 22. The summary is drawn in a real SwiftUI host
+    // with the terms as stored and again with the same terms stored clean: it is the same
+    // height, and each row shows its words alone.
+    ("Quiz summary: a word stored with a line break or a space around it is drawn like the others (issue 328)", () =>
+    {
+        foreach (var width in new[] { 402d, 951d })
+        {
+            var quizStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+            (string Target, string Native)[] stored =
+                [("죽다\n", "to die\n"), (" 부엌", " kitchen"), ("장마", "rainy season"), ("많이\r\n", "many\r\n")];
+            double Draw((string Target, string Native)[] words, bool checkText)
+            {
+                var items = new List<SwiftView>();
+                using var footer = QuizSummaryView.Add(items,
+                    new NativeQuizState(NativePhase.Summary, NativeDestination.VocabularyQuiz,
+                        TotalTurns: words.Length, CorrectCount: words.Length, RoundsCompleted: 1,
+                        Results: [.. words.Select((word, index) =>
+                            new NativeQuizResult($"w-{index}", word.Target, word.Native, WasCorrect: true))]),
+                    false, quizStyle, QuizEnglish, () => { }, () => { }, () => { });
+                try
+                {
+                    var card = items.Single(item => Find(item, NativeAccess.QuizSummary) is not null);
+                    var height = PaintedHeight(card, width, 600);
+                    for (var index = 0; checkText && index < words.Length; index++)
+                    {
+                        var id = $"{NativeAccess.QuizSummaryResult}.{index}";
+                        var word = AllText(Find(card, $"{id}.word") ?? throw new Exception($"No {id}.word in the summary."));
+                        var meaning = AllText(Find(card, $"{id}.meaning") ?? throw new Exception($"No {id}.meaning in the summary."));
+                        if (word != words[index].Target.Trim() || meaning != words[index].Native.Trim())
+                            throw new Exception($"Row {index} shows {word.Length} and {meaning.Length} characters where its words are {words[index].Target.Trim().Length} and {words[index].Native.Trim().Length}: the white space they were stored with is drawn.");
+                    }
+                    return height;
+                }
+                finally
+                {
+                    foreach (var item in items)
+                        item.Dispose();
+                }
+            }
+            var clean = Draw([.. stored.Select(word => (word.Target.Trim(), word.Native.Trim()))], checkText: false);
+            var asStored = Draw(stored, checkText: false);
+            if (Math.Abs(asStored - clean) > 1)
+                throw new Exception($"At {width} points the summary is {asStored:0.#} points high with the words as stored and {clean:0.#} with the same words stored clean.");
+            Draw(stored, checkText: true);
+        }
+    }),
+    // Issue 328, the follow-up: "Use in a sentence" shows the target word as its heading and
+    // inside its instruction. A line break stored after the word would put an empty line under
+    // the heading and break the instruction in the middle. The card is built through the real
+    // facade and its texts read: the heading is the word alone and the instruction runs on to
+    // its full stop. (Its height is not compared: the text editor in it takes all the height
+    // a host gives, so the card is as tall as the host either way.)
+    ("Quiz sentence: a word stored with a line break after it is shown as its words alone (issue 328)", () =>
+    {
+        static string SentenceEnglish(string key) =>
+            key == "VocabQuiz_WriteOneSentence" ? "Write one or more sentences using {0}." : QuizEnglish(key);
+        foreach (var width in new[] { 402d, 951d })
+        {
+            var quizStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
+            const string term = "죽다\n";
+            var items = new List<SwiftView>();
+            QuizSentenceView.Add(items,
+                new NativeQuizState(NativePhase.Ready, NativeDestination.VocabularyQuiz,
+                    Sentence: new NativeQuizSentencePrompt("w-1", term, "Korean")),
+                "", false, quizStyle, SentenceEnglish, _ => { }, () => { }, () => { }, () => { });
+            try
+            {
+                var card = items.Single(item => Find(item, "native.quiz.sentence.screen") is not null);
+                var heading = AllText(Find(card, "native.quiz.sentence.target-term")
+                    ?? throw new Exception("No target term in the sentence card."));
+                if (heading != term.Trim())
+                    throw new Exception($"The heading shows {heading.Length} characters where the word is {term.Trim().Length}: the white space it was stored with is drawn.");
+                if (!AllText(card).Contains($"using {term.Trim()}.", StringComparison.Ordinal))
+                    throw new Exception("The instruction does not run on from the word to its full stop: the white space the word was stored with is drawn inside it.");
+            }
+            finally
+            {
+                foreach (var item in items)
+                    item.Dispose();
+            }
+        }
+    }),
     // Issue 260, the Captain's follow-up: the YouTube pages' badges, Retry and Select All New
     // keep one line beside a title that truncates. The rows are put together here as ImportRow,
     // VideoRow and the count row put them together, from the views' own badges and buttons, and
@@ -1390,6 +1604,207 @@ var cases = new (string Name, Action Test)[]
         if (faults.Count > 0)
             throw new Exception($"{faults.Count} of {drawn.Count} rows: {string.Join("; ", faults)}.");
     }),
+    // Issue 308: the channel page's video row has the same build as the import row of issue 292
+    // (a checkbox, a title that truncates, then a badge and Retry that keep their own width),
+    // and only its height was ever measured (the issue 277 case). This draws the page's own
+    // video rows the way the case above draws the import rows: a failed video, a failed one
+    // whose retry is running (Retry has a spinner too), one being imported, an imported one and
+    // a new one. ISSUE_308_DRAWN prints every row's measurements.
+    // The row's toggle is not what an iPhone draws: this host is macOS, where a Toggle is a
+    // checkbox (measured below), and on an iPhone it is a switch, 51 points wide or more. So
+    // the row is drawn in its width less the difference: the room an iPhone's switch leaves.
+    // (At the full width every one-line row passed. With an iPhone's room, a failed video's
+    // row whose retry was running showed 28 to 30.5 points of its title on a 375-point page.
+    // This host's spinner is 32 points and an iPhone's 20, so a phone has 12 points more there.)
+    ("YouTube channel video row: on an iPhone at the largest app text size nothing is painted past the row and the title shows (issue 308)", () =>
+    {
+        const double margin = 100;
+        const string title = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        (string What, VideoImportStatus? Status, bool Retrying)[] kinds =
+        [
+            ("Failed", VideoImportStatus.Failed, false),
+            ("Failed, its retry running", VideoImportStatus.Failed, true),
+            ("being imported", VideoImportStatus.CleaningTranscript, false),
+            ("Completed", VideoImportStatus.Completed, false),
+            ("New", null, false),
+        ];
+        YouTubeChannelState Videos(string name, bool retrying) => new(true, false, false, false, false, false, null,
+            "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+            [.. kinds.Select((kind, index) => new YouTubeDiscoveredVideo($"v{index}", name, $"https://youtu.be/v{index}", kind.Status))],
+            System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null,
+            retrying, retrying ? "v1" : null, []);
+        const double phoneSwitch = 51;
+        double hostToggle;
+        using (var alone = Views.HStack(Views.Toggle("Select", false, _ => { }).WithLabelsHidden()))
+        {
+            var mask = PaintedMask(alone, 200, 80);
+            var painted = Enumerable.Range(0, mask[0].Length).Where(x => mask.Any(line => line[x])).ToArray();
+            hostToggle = (painted[^1] + 1 - painted[0]) / (mask[0].Length / 200d);
+        }
+        if (hostToggle is < 8 or > phoneSwitch)
+            throw new Exception($"This host's toggle is {hostToggle:0.#} points wide: not the checkbox this case allows for.");
+        var faults = new List<string>();
+        var drawn = new List<string> { $"This host's toggle is {hostToggle:0.#} points wide; an iPhone's switch is taken as {phoneSwitch}." };
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var page in new[] { 375d, 402d, 440d })
+        {
+            var width = Math.Floor(page - 72 - (phoneSwitch - hostToggle));
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            if (Words("Import_Retry") == "Import_Retry" || (language == "ko") != Words("Import_Retry").Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: Retry is \"{Words("Import_Retry")}\".");
+            var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
+                AppearanceSelection.Default.WithFontScale(scale)), page);
+            bool[][] Draw(string name, int index)
+            {
+                var state = Videos(name, kinds[index].Retrying);
+                var row = (SwiftView)typeof(YouTubeChannelView).GetMethod("VideoRow", flags)!
+                    .Invoke(null, [channel, state, state.Videos[index], index, look, (Func<string, string>)Words])!;
+                using var framed = Views.VStack(row).WithFixedWidth(width);
+                return PaintedMask(framed, width + 2 * margin, 160);
+            }
+            for (var index = 0; index < kinds.Length; index++)
+            {
+                var (with, without) = (Draw(title, index), Draw(" ", index));
+                var perPoint = with[0].Length / (width + 2 * margin);
+                var columns = Enumerable.Range(0, with[0].Length).ToArray();
+                var painted = columns.Where(x => with.Any(line => line[x])).ToArray();
+                var (left, right) = (painted[0] / perPoint - margin, (painted[^1] + 1) / perPoint - margin);
+                var titleWidth = columns.Count(x => Enumerable.Range(0, with.Length).Any(y => with[y][x] != without[y][x])) / perPoint;
+                var lines = with.Count(line => line.Any(pixel => pixel)) / perPoint;
+                var what = $"The channel's video row {kinds[index].What} ({language}, text size {scale:0.##}, a {page}-point page, {width} points beside an iPhone's switch)";
+                drawn.Add($"{what}: paint {left:0.#} to {right:0.#}, title {titleWidth:0.#}, {lines:0.#} high");
+                if (left < -1 || right > width + 1)
+                    faults.Add($"{what} is painted from {left:0.#} to {right:0.#}, past its {width} points");
+                // Three letters and the ellipsis of the title at this text size.
+                else if (titleWidth < 40 * scale)
+                    faults.Add($"{what} shows {titleWidth:0.#} points of its title, under {40 * scale:0.#}");
+            }
+        }
+        if (Environment.GetEnvironmentVariable("ISSUE_308_DRAWN") is not null)
+            Console.WriteLine(string.Join(Environment.NewLine, drawn));
+        if (faults.Count > 0)
+            throw new Exception($"{faults.Count} of {drawn.Count - 1} rows: {string.Join("; ", faults)}.");
+    }),
+    // Issue 308, the review of pull request 315: the case above builds a fresh row at each
+    // width, and the row chose its shape only when it was built, so a channel page that was open
+    // while the phone turned kept the shape of the width it was opened at. This one mounts the
+    // page's own video section once, in one host that stays (a failed video whose retry is
+    // running: the row with the least room), and then does what ApplicationScene.ViewportChanged
+    // does when the width crosses 768 points: the style takes the new width, the fonts are
+    // refreshed, and the page is told (YouTubeChannelView.ViewportChanged, which is what
+    // ApplicationController.YouTubeChannelViewportChanged calls). It turns an 844-point page to
+    // 375 points and a 375-point page to 844, in English and Korean, at the default and the
+    // largest app text size. After the turn the mounted section must draw as one built fresh at
+    // the new width does (the same title room, the same height), stay inside its row, and on
+    // the phone show its title. The section is in a column, not in its Form: a Form paints its
+    // own background, and the title is measured by what it paints. The page's method is looked
+    // up by name, like the page's other private parts here, so that this case also builds
+    // against the code from before the method was there, where nothing reshaped the row, and
+    // fails on what is drawn. ISSUE_308_TURNED prints the measurements.
+    ("YouTube channel page: turning the phone with the page open gives a failed video's row the new width's shape, both ways (issue 308)", () =>
+    {
+        const double margin = 100;
+        const double high = 400;
+        const double phoneSwitch = 51;
+        const string title = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        YouTubeChannelState Videos(string name) => new(true, false, false, false, false, false, null,
+            "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+            [new YouTubeDiscoveredVideo("v0", name, "https://youtu.be/v0", VideoImportStatus.Failed)],
+            System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null,
+            true, "v0", []);
+        double hostToggle;
+        using (var alone = Views.HStack(Views.Toggle("Select", false, _ => { }).WithLabelsHidden()))
+        {
+            var mask = PaintedMask(alone, 200, 80);
+            var painted = Enumerable.Range(0, mask[0].Length).Where(x => mask.Any(line => line[x])).ToArray();
+            hostToggle = (painted[^1] + 1 - painted[0]) / (mask[0].Length / 200d);
+        }
+        if (hostToggle is < 8 or > phoneSwitch)
+            throw new Exception($"This host's toggle is {hostToggle:0.#} points wide: not the checkbox this case allows for.");
+        // The Form row of a page that wide, less the room an iPhone's switch takes over this host's checkbox.
+        double RowWidth(double page) => Math.Floor(page - 72 - (phoneSwitch - hostToggle));
+        var turned = typeof(YouTubeChannelView).GetMethod("ViewportChanged", flags);
+        var faults = new List<string>();
+        var drawn = new List<string>();
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var (from, to) in new[] { (844d, 375d), (375d, 844d) })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            if (Words("Import_Retry") == "Import_Retry" || (language == "ko") != Words("Import_Retry").Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: Retry is \"{Words("Import_Retry")}\".");
+            var appearance = SourceUiAppearance.FromSelection(AppearanceSelection.Default.WithFontScale(scale));
+            SwiftView Section(string name, SourceUiStyle look, double page) =>
+                Views.VStack((SwiftView)typeof(YouTubeChannelView).GetMethod("Discovery", flags)!
+                    .Invoke(null, [channel, Videos(name), look, (Func<string, string>)Words])!)
+                    .WithFixedWidth(RowWidth(page));
+            // What the title paints (the columns that differ from the same section with a blank
+            // title), how far the paint reaches past the row on either side, and its height.
+            (double Title, double Left, double Right, double High) Measure(bool[][] with, bool[][] without, double page)
+            {
+                var perPoint = with[0].Length / (RowWidth(page) + 2 * margin);
+                var columns = Enumerable.Range(0, with[0].Length).ToArray();
+                var painted = columns.Where(x => with.Any(line => line[x])).ToArray();
+                return (columns.Count(x => Enumerable.Range(0, with.Length).Any(y => with[y][x] != without[y][x])) / perPoint,
+                    painted[0] / perPoint - margin, (painted[^1] + 1) / perPoint - margin,
+                    with.Count(line => line.Any(pixel => pixel)) / perPoint);
+            }
+            var look = new SourceUiStyle(appearance, from);
+            using var titled = Section(title, look, from);
+            using var blank = Section(" ", look, from);
+            var (titledHost, blankHost) = (SwiftUIHost.CreateView(titled), SwiftUIHost.CreateView(blank));
+            (double Title, double Left, double Right, double High) before, after, fresh;
+            try
+            {
+                before = Measure(HostMask(titledHost, RowWidth(from) + 2 * margin, high),
+                    HostMask(blankHost, RowWidth(from) + 2 * margin, high), from);
+                // The turn, as ApplicationScene.ViewportChanged makes it.
+                look.ViewportWidth = to;
+                foreach (var (mounted, name) in new[] { (titled, title), (blank, " ") })
+                {
+                    SourceUiStyle.RefreshTypography(mounted, appearance, to);
+                    turned?.Invoke(null, [mounted, channel, Videos(name), look, (Func<string, string>)Words]);
+                    mounted.WithFixedWidth(RowWidth(to));
+                }
+                // SwiftUI applies a mounted view's changes on the run loop.
+                Foundation.NSRunLoop.Current.RunUntil(Foundation.NSDate.FromTimeIntervalSinceNow(0.05));
+                after = Measure(HostMask(titledHost, RowWidth(to) + 2 * margin, high),
+                    HostMask(blankHost, RowWidth(to) + 2 * margin, high), to);
+            }
+            finally
+            {
+                SwiftUIHost.DetachView(titled, titledHost);
+                SwiftUIHost.DetachView(blank, blankHost);
+            }
+            var freshLook = new SourceUiStyle(appearance, to);
+            using (var freshTitled = Section(title, freshLook, to))
+            using (var freshBlank = Section(" ", freshLook, to))
+                fresh = Measure(PaintedMask(freshTitled, RowWidth(to) + 2 * margin, high),
+                    PaintedMask(freshBlank, RowWidth(to) + 2 * margin, high), to);
+            var what = $"The open channel page's failed video, its retry running ({language}, text size {scale:0.##}), turned from a {from}-point page to a {to}-point one";
+            drawn.Add($"{what}: title {before.Title:0.#} and {before.High:0.#} high before; title {after.Title:0.#}, {after.High:0.#} high, paint {after.Left:0.#} to {after.Right:0.#} after; built fresh at {to}: title {fresh.Title:0.#}, {fresh.High:0.#} high");
+            if (after.Left < -1 || after.Right > RowWidth(to) + 1)
+                faults.Add($"{what} is painted from {after.Left:0.#} to {after.Right:0.#}, past its {RowWidth(to)} points");
+            else if (Math.Abs(after.High - fresh.High) > 1 || Math.Abs(after.Title - fresh.Title) > 1)
+                faults.Add($"{what} shows {after.Title:0.#} points of its title and is {after.High:0.#} points high; a page opened at {to} points shows {fresh.Title:0.#} and is {fresh.High:0.#} high");
+            // Three letters and the ellipsis of the title at this text size.
+            else if (to < 768 && after.Title < 40 * scale)
+                faults.Add($"{what} shows {after.Title:0.#} points of its title, under {40 * scale:0.#}");
+        }
+        if (Environment.GetEnvironmentVariable("ISSUE_308_TURNED") is not null)
+            Console.WriteLine(string.Join(Environment.NewLine, drawn));
+        if (faults.Count > 0)
+            throw new Exception($"{faults.Count} of {drawn.Count} turns: {string.Join("; ", faults)}.");
+    }),
 };
 
 var failures = 0;
@@ -1569,7 +1984,10 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
         host.CacheDisplay(host.Bounds, bitmap);
         if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
             throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
-        var scale = bitmap.PixelsWide / width;
+        // Read once: each of these is a call into the bitmap, and there is one read per pixel
+        // (asked for again at every pixel, a 1200 by 400 canvas took minutes: issue 279).
+        var (data, stride, wide, high) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide, (int)bitmap.PixelsHigh);
+        var scale = wide / width;
         var samples = (int)bitmap.BitsPerPixel / 8;
         var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
         var rows = new List<(double Left, double Right)>();
@@ -1580,11 +1998,11 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
                 rows.Add((ended.Left / scale, (ended.Right + 1) / scale));
             run = null;
         }
-        for (var y = 0; y < bitmap.PixelsHigh; y++)
+        for (var y = 0; y < high; y++)
         {
             (int Left, int Right)? painted = null;
-            for (var x = 0; x < bitmap.PixelsWide; x++)
-                if (Marshal.ReadByte(bitmap.BitmapData, y * (int)bitmap.BytesPerRow + x * samples + alpha) != 0)
+            for (var x = 0; x < wide; x++)
+                if (Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0)
                     painted = (painted?.Left ?? x, x);
             if (painted is { } row)
                 run = (Math.Min(run?.Left ?? row.Left, row.Left), Math.Max(run?.Right ?? row.Right, row.Right));
@@ -1609,32 +2027,39 @@ static bool[][] PaintedMask(SwiftView root, double width, double height)
     var host = SwiftUIHost.CreateView(root);
     try
     {
-        host.Frame = new CGRect(0, 0, width, height);
-        host.LayoutSubtreeIfNeeded();
-        var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
-            ?? throw new Exception("The host has no bitmap to draw in.");
-        host.CacheDisplay(host.Bounds, bitmap);
-        if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
-            throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
-        var samples = (int)bitmap.BitsPerPixel / 8;
-        var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
-        // Read once: each of these is a call into the bitmap, and there is one read per pixel.
-        var (data, stride, wide) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide);
-        var mask = new bool[(int)bitmap.PixelsHigh][];
-        for (var y = 0; y < mask.Length; y++)
-        {
-            mask[y] = new bool[wide];
-            for (var x = 0; x < wide; x++)
-                mask[y][x] = Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0;
-        }
-        if (!mask.Any(line => line.Any(pixel => pixel)))
-            throw new Exception("The host painted nothing: this is the drawing, not the layout.");
-        return mask;
+        return HostMask(host, width, height);
     }
     finally
     {
         SwiftUIHost.DetachView(root, host);
     }
+}
+
+// The same for a host that is already there and stays: a mounted view can be drawn, changed
+// and drawn again.
+static bool[][] HostMask(NSView host, double width, double height)
+{
+    host.Frame = new CGRect(0, 0, width, height);
+    host.LayoutSubtreeIfNeeded();
+    var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
+        ?? throw new Exception("The host has no bitmap to draw in.");
+    host.CacheDisplay(host.Bounds, bitmap);
+    if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
+        throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
+    var samples = (int)bitmap.BitsPerPixel / 8;
+    var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
+    // Read once: each of these is a call into the bitmap, and there is one read per pixel.
+    var (data, stride, wide) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide);
+    var mask = new bool[(int)bitmap.PixelsHigh][];
+    for (var y = 0; y < mask.Length; y++)
+    {
+        mask[y] = new bool[wide];
+        for (var x = 0; x < wide; x++)
+            mask[y][x] = Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0;
+    }
+    if (!mask.Any(line => line.Any(pixel => pixel)))
+        throw new Exception("The host painted nothing: this is the drawing, not the layout.");
+    return mask;
 }
 
 // The height in points of everything a view paints in a real SwiftUI host of the given size.

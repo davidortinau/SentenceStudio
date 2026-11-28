@@ -1816,12 +1816,29 @@ public sealed class CoachSessionService : ICoachSessionService
     {
         if (agentResult.Outcome != CoachAgentOutcome.Completed
             || agentResult.Intent is not { } intent
-            || !CoachEmptyAnnouncement.IsOne(intent))
+            || !await IsAnEmptyAnnouncementAsync(intent, cancellationToken).ConfigureAwait(false))
         {
             return false;
         }
 
         return !await ShowsRowsOrACardAsync(session, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// <see cref="CoachEmptyAnnouncement.IsOne"/> for this learner: an announcement is written in
+    /// their display language, so only that language's phrases are read (issue 330). The phrases
+    /// of every language are read first, because a reply none of them finds is not one in any
+    /// language, and that is nearly every reply: it then costs no read of the learner's languages.
+    /// </summary>
+    private async Task<bool> IsAnEmptyAnnouncementAsync(CoachTurnIntent intent, CancellationToken cancellationToken)
+    {
+        if (!CoachEmptyAnnouncement.IsOne(intent))
+        {
+            return false;
+        }
+
+        var languages = await _languages.ResolveAsync(cancellationToken).ConfigureAwait(false);
+        return CoachEmptyAnnouncement.IsOne(intent, languages.DisplayLanguageTag);
     }
 
     /// <summary>
@@ -1868,7 +1885,7 @@ public sealed class CoachSessionService : ICoachSessionService
         // with the same answer for rows and cards: a tool the second call ran may have read the
         // words or recorded the proposal the message announces. A blank message with nothing
         // beside it holds nothing either, though it announces nothing (issue 306).
-        var announcedAgain = CoachEmptyAnnouncement.IsOne(retried);
+        var announcedAgain = await IsAnEmptyAnnouncementAsync(retried, cancellationToken).ConfigureAwait(false);
         var heldNothing = (announcedAgain || CoachEmptyAnnouncement.IsBlank(retried))
             && !await ShowsRowsOrACardAsync(session, cancellationToken).ConfigureAwait(false);
         if (heldNothing)

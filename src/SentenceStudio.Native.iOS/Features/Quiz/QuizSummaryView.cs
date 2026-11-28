@@ -73,14 +73,16 @@ internal static class QuizSummaryView
                         : style.Appearance.Danger.Dark)
                 .WithAccessibilityLabel(text(status))
                 .WithAccessibilityIdentifier($"{id}.status");
+            // Issue 328: the terms are drawn without the white space they were stored with
+            // (a line break after one made its row a line taller), as the question draws them.
             summary.Add(Views.HStack(
                 icon,
-                style.Text(Views.Text(result.TargetLanguageTerm),
+                style.Text(Views.Text(result.TargetLanguageTerm.Trim()),
                         SourceTextRole.Body1Bold, SourceTextTone.Primary)
                     .WithAccessibilityIdentifier($"{id}.word"),
                 style.Text(Views.Text("→"), SourceTextRole.Body1,
                     SourceTextTone.Secondary),
-                style.Text(Views.Text(result.NativeLanguageTerm),
+                style.Text(Views.Text(result.NativeLanguageTerm.Trim()),
                         SourceTextRole.Body1)
                     .WithAccessibilityIdentifier($"{id}.meaning"))
                 .WithPadding(4, 0, 4, 0)

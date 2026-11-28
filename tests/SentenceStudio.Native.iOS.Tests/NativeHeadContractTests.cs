@@ -408,7 +408,7 @@ public sealed class NativeHeadContractTests
         Assert.Contains(": NativeText.QuizCorrect", feature);
         Assert.Contains(": NativeText.QuizIncorrect", feature);
         Assert.Contains("NativeAccess.QuizSummaryResult", feature);
-        Assert.Contains("Views.Text(result.TargetLanguageTerm)", feature);
+        Assert.Contains("Views.Text(result.TargetLanguageTerm.Trim())", feature);
         Assert.Contains("text(NativeText.QuizOverride)", feedback);
         Assert.DoesNotContain("if (state.Prompt?.ShowPhoto == true)", feature);
     }

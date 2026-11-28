@@ -277,6 +277,16 @@ internal sealed partial class ApplicationController
             ? YouTubeChannelView.Page(channel, style, Text)
             : Views.Text(Text("Common_Loading"));
 
+    /// <summary>
+    /// The open channel page's rows under <paramref name="mounted"/> take the shape of the
+    /// viewport's new side of 768 points, in place (YouTubeChannelView.ViewportChanged).
+    /// </summary>
+    internal void YouTubeChannelViewportChanged(SwiftView mounted, SourceUiStyle style)
+    {
+        if (_youTubeChannel is { IsOpen: true } channel)
+            YouTubeChannelView.ViewportChanged(mounted, channel, channel.State, style, Text);
+    }
+
     internal string YouTubeChannelOverlayKey
     {
         get
