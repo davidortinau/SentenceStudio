@@ -242,6 +242,36 @@ public static class CoachTurnOutcomeOpportunityMapper
             StopReason: stopReason);
     }
 
+    /// <summary>
+    /// Maps a turn that was asked for a second time, because its first reply announced content and
+    /// held none, to its one counted row.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A separate observation from <see cref="Map"/>, like the tool-boundary and write-ledger
+    /// rows: the second call happens before the turn's outcome is known, so a turn can be both
+    /// "asked for twice" and, say, refused by validation afterwards. Folding it into the
+    /// precedence above would hide one count behind the other.
+    /// </para>
+    /// <para>
+    /// No stop reason on the row, so each of the three outcomes is one fingerprint and one number
+    /// in the rollup. Aggregate-only: no conversation, no turn, no pointers.
+    /// </para>
+    /// </remarks>
+    public static CoachOpportunitySignal MapEmptyAnnouncementRetry(CoachEmptyAnnouncementRetryOutcome outcome) =>
+        new(
+            CoachOpportunityKind.EmptyAnnouncementRetried,
+            outcome switch
+            {
+                CoachEmptyAnnouncementRetryOutcome.SecondReplyHeldContent =>
+                    CoachOpportunityCapabilityCodes.EmptyAnnouncementSecondReplyHeldContent,
+                CoachEmptyAnnouncementRetryOutcome.SecondReplyHeldNothing =>
+                    CoachOpportunityCapabilityCodes.EmptyAnnouncementSecondReplyEmpty,
+                _ => CoachOpportunityCapabilityCodes.EmptyAnnouncementSecondCallFailed
+            },
+            CoachOpportunitySurface.TurnOutcome,
+            CoachOpportunityDisposition.AggregateOnly);
+
     private static (CoachOpportunityKind Kind, string Capability) Classify(
         CoachViolationKind violation, bool answerShapeRefused) =>
         violation switch
@@ -319,4 +349,26 @@ public static class CoachTurnOutcomeOpportunityMapper
             (CoachOpportunityKind.ValidationFailure,
              CoachOpportunityCapabilityCodes.ModelOutputUnreadable)
     };
+}
+
+/// <summary>
+/// How the second call ended on a turn whose first reply announced content and held none.
+/// </summary>
+/// <remarks>Never stored: the ledger stores the capability code each member maps to.</remarks>
+public enum CoachEmptyAnnouncementRetryOutcome
+{
+    /// <summary>
+    /// The second reply held content and is the turn's reply: text that is not an empty
+    /// announcement, or rows or a card the server shows under it.
+    /// </summary>
+    SecondReplyHeldContent,
+
+    /// <summary>
+    /// The second reply held none as well: it announced again, or its message was blank, with no
+    /// rows and no card under it. It is shown as it is.
+    /// </summary>
+    SecondReplyHeldNothing,
+
+    /// <summary>The second call did not complete; the first reply is shown.</summary>
+    SecondCallFailed
 }

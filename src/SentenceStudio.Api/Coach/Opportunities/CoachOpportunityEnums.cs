@@ -72,7 +72,25 @@ public enum CoachOpportunityKind
     /// away the one signal that arrived with intent behind it.
     /// </para>
     /// </remarks>
-    UserReportedResponse = 10
+    UserReportedResponse = 10,
+
+    /// <summary>
+    /// The model's reply said content was coming and held none, so the server asked for the turn
+    /// a second time (issue 289).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not a refusal and not a stop reason: the turn usually completes, and without this row a
+    /// turn that cost two model calls leaves no trace outside the log. The capability code says
+    /// how the second call ended, so the rollup answers both "how often does the model announce
+    /// and stop" and "how often did asking again help".
+    /// </para>
+    /// <para>
+    /// Always <see cref="CoachOpportunityDisposition.AggregateOnly"/>: the rate is the signal,
+    /// and the first reply is not kept anywhere a row could point at.
+    /// </para>
+    /// </remarks>
+    EmptyAnnouncementRetried = 11
 }
 
 /// <summary>

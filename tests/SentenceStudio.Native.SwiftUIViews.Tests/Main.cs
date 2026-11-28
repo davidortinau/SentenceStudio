@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using AppKit;
 using CoreGraphics;
@@ -251,8 +252,15 @@ var cases = new (string Name, Action Test)[]
                      ("native.vocabulary.edit.lemma", "VocabWordEdit_EncodingMemoryAids"),
                      ("native.vocabulary.edit.resources.count", "VocabWordEdit_ResourceAssociations") })
         {
-            var section = Parent(page, row) ?? throw new Exception($"{row} is missing.");
-            Assert(section.Kind == "section" && section.Text == title);
+            var parent = Parent(page, row) ?? throw new Exception($"{row} is missing.");
+            // A text field's ID is on its input, the content of its labeled row (NativeForm.Field,
+            // the native form pattern); every other row here is the Section's own child.
+            var holder = row == "native.vocabulary.edit.lemma" ? "labeledContent" : "section";
+            if (parent.Kind != holder)
+                throw new Exception($"{row} is in a {parent.Kind}, not a {holder}.");
+            var section = SectionOf(page, row);
+            if (section?.Text != title)
+                throw new Exception($"{row} is in the Section '{section?.Text}', not '{title}'.");
         }
         using var withHistory = VocabularyWordEditView.Page(WordState(history: true), style, key => key, WordActions());
         Assert(Parent(withHistory, "native.vocabulary.edit.history.count")?.Text == "VocabWordEdit_HistoryTitle");
@@ -499,8 +507,13 @@ var cases = new (string Name, Action Test)[]
         Assert(Find(page, "native.vocabulary.edit.resource.res-s") is not null);
         Assert(Find(page, "native.vocabulary.edit.resource.res-b") is null);
         Assert(Find(page, "native.vocabulary.edit.resource.res-s.remove") is null);
+        // Captain 2026-11-13 (the native pattern): Remove is the row's swipe action, a Button
+        // named by its own Label, not an icon button with an accessibility label.
         var remove = Find(page, "native.vocabulary.edit.resource.res-a.remove")!;
-        Assert(remove.AccessibilityLabel == "VocabWordEdit_RemoveFromResource");
+        Assert(Parent(page, "native.vocabulary.edit.resource.res-a.remove") is {
+            Kind: "swipeRow", AccessibilityIdentifier: "native.vocabulary.edit.resource.res-a" });
+        Assert(remove.Kind == "button" && remove.Children[0].Text == "VocabWordEdit_RemoveFromResource"
+            && remove.Children[0].SystemImageName == "minus.circle");
         remove.InvokeAction();
         var add = Find(page, "native.vocabulary.edit.resources.add")!;
         Assert(add.Kind == "menu");
@@ -537,8 +550,11 @@ var cases = new (string Name, Action Test)[]
         var sections = new Dictionary<VocabularyEditSection, SwiftView>();
         using var page = VocabularyWordEditView.Page(state, style, key => key,
             WordActions(registerSection: (section, view) => sections[section] = view));
+        // Progress since 2026-11-14: a status action refills its Section in place, so the editor
+        // keeps its place.
         Assert(sections.Keys.OrderBy(key => key).SequenceEqual(
-            [VocabularyEditSection.Examples, VocabularyEditSection.Resources, VocabularyEditSection.EncodingLabel]));
+            [VocabularyEditSection.Examples, VocabularyEditSection.Resources,
+                VocabularyEditSection.EncodingLabel, VocabularyEditSection.Progress]));
         Assert(Parent(page, "native.vocabulary.edit.examples.generate")?.Text == "RefSentences_Title");
         Assert(Find(page, "native.vocabulary.edit.examples.generate")?.IsEnabled == true);
         // Add needs a sentence (source); the empty text is not shown beside sentences.
@@ -632,10 +648,12 @@ var cases = new (string Name, Action Test)[]
         var resultsContent = Find(results, "native.vocabulary.results.content")!;
         Assert(resultsContent.Children[0].AccessibilityIdentifier == "native.vocabulary.results.header");
         var stats = Find(results, "native.vocabulary.stats")!;
-        Assert(stats.Kind == "horizontalGrid" && stats.Children.Count == 1
-            && stats.Children[0].Children.Count == 5);
-        foreach (var id in new[] { "total", "unknown", "learning", "known" })
-            Assert(Find(stats, $"native.vocabulary.stats.{id}") is not null);
+        // The total and the three statuses a word has since the Known marks (2026-11-14), which
+        // took the Familiar count out.
+        Assert(stats.Kind == "horizontalGrid" && stats.Children.Count == 1);
+        Assert(stats.Children[0].Children.Select(badge => badge.AccessibilityIdentifier).SequenceEqual([
+            "native.vocabulary.stats.total", "native.vocabulary.stats.unknown",
+            "native.vocabulary.stats.learning", "native.vocabulary.stats.known"]));
         Assert(Find(results, "native.vocabulary.chips") is null);
         var cards = Find(Find(results, "native.vocabulary.results.scroll")!, "native.vocabulary.cards")!;
         Assert(cards.GridColumns == 2 && cards.Children.Count == 3);
@@ -1127,6 +1145,83 @@ var cases = new (string Name, Action Test)[]
                 throw new Exception($"The video count row is {counted:0.#} points high and Select All New alone is {button:0.#}: the button wrapped.");
         }
     }),
+    // Issue 278: bridge 0.1.0-preview.67 frames a node only when it sets a frame, but a minimum
+    // height is one, and SwiftUI's frame directly around a row can still squeeze it (the quiz's
+    // two buttons are painted 294 points wide instead of 312 when their row is given one). The
+    // app sets a minimum height on no such row, but it does on buttons whose label is a row that
+    // does not fill: the link button in the brite and sketchy themes, the plan's resource link
+    // and the number drill's hint toggle. Each has one title beside its images, and is painted
+    // as wide with the minimum height as without it, at the largest text on a narrow phone too.
+    // "Without" clears the two frames the link button sets, on the button and on its label row,
+    // and the brite button, whose border is drawn around both, must come out lower for it: a
+    // comparison that left a frame in place fails there.
+    ("Minimum height: a link button and an image-and-title button are painted as wide with it as without (issue 278)", () =>
+    {
+        const double width = 330;
+        // The two themes in which the link button's label does not fill, at the largest text.
+        SourceUiStyle Themed(string theme, double scale) => new(SourceUiAppearance.FromSelection(
+            new AppearanceSelection(theme, AppearanceSelection.Default.Mode, scale)), width);
+        SourceUiStyle Large(string theme) => Themed(theme, AppearanceSelection.MaxFontScale);
+        var (largeBrite, largeSketchy) = (Large("brite"), Large("sketchy"));
+        var (plainBrite, plainSketchy) = (Themed("brite", 1), Themed("sketchy", 1));
+        double PaintedWidth(SwiftView view)
+        {
+            var rows = PaintedRows(view, width, 400);
+            if (rows.Count != 1)
+                throw new Exception($"Expected one painted row, found {rows.Count}.");
+            return rows[0].Right - rows[0].Left;
+        }
+        SwiftView Link(SourceUiStyle large, bool minimum)
+        {
+            var link = large.TextLinkButton("Report this response", "flag", () => { }, "link");
+            if (minimum)
+                return link;
+            // In these two themes the link button comes inside a row that fills and centres it
+            // (SourceUiStyle.TextLinkButton returns Views.HStack(button)). The minimum heights
+            // are on the button and on the row that is its label; the wrapper sets none and
+            // stays as it is.
+            if (link.Kind != "hstack" || link.Children.Count != 1 || link.Children[0].Kind != "button"
+                || link.Children[0].Children.Count != 1 || link.Children[0].Children[0].Kind != "hstack")
+                throw new Exception("TextLinkButton is no longer a row around a button whose label is a row: clear the minimum heights where it sets them now.");
+            var button = link.Children[0];
+            button.WithMinimumHeight(0);
+            button.Children[0].WithMinimumHeight(0);
+            return link;
+        }
+        // Put together as NumberDrillScreen puts its hint toggle together.
+        SwiftView Toggle(bool minimum)
+        {
+            var label = Views.HStack(Views.Image("chevron.right"), Views.Image("lightbulb"),
+                largeBrite.Text(Views.Text("Show a hint for this number"), SourceTextRole.Body2, SourceTextTone.Secondary));
+            label.Spacing = 4;
+            var toggle = Views.Button(label, () => { }).WithButtonStyle(SwiftButtonStyle.Plain);
+            return minimum ? toggle.WithMinimumHeight(SourceUiLayout.MinimumTouchHeight) : toggle;
+        }
+        foreach (var (what, build) in new (string, Func<bool, SwiftView>)[]
+        {
+            ("The link button in the brite theme at the largest text", minimum => Link(largeBrite, minimum)),
+            ("The link button in the sketchy theme at the largest text", minimum => Link(largeSketchy, minimum)),
+            ("The link button in the brite theme", minimum => Link(plainBrite, minimum)),
+            ("The link button in the sketchy theme", minimum => Link(plainSketchy, minimum)),
+            ("The hint toggle", Toggle),
+        })
+        {
+            using var with = build(true);
+            using var without = build(false);
+            var (framed, free) = (PaintedWidth(with), PaintedWidth(without));
+            if (Math.Abs(framed - free) > 1)
+                throw new Exception($"{what} is painted {framed:0.#} points wide with its minimum height and {free:0.#} without: the frame squeezes its label.");
+            Console.WriteLine($"     {what}: {framed:0.#} points wide with its minimum height, {free:0.#} without.");
+        }
+        // That "without" is without: at the default text size the brite link button's border is
+        // held 44 points apart by the minimum heights and closes on the label when both are gone.
+        using var tall = Link(plainBrite, true);
+        using var low = Link(plainBrite, false);
+        var (held, natural) = (PaintedHeight(tall, width, 400), PaintedHeight(low, width, 400));
+        if (natural > held - 2)
+            throw new Exception($"The brite link button is painted {natural:0.#} points high with its minimum heights cleared and {held:0.#} with them: a minimum height frame is still in place, so the widths above compare nothing.");
+        Console.WriteLine($"     The brite link button: {held:0.#} points high with its minimum heights, {natural:0.#} without.");
+    }),
     // Issue 277: the case above draws rows it puts together itself, 330 points wide, in English,
     // at the default text size, and only "Failed" and "Retry", which fit in an equal share of
     // the row. This one draws the pages' own rows (History's and Discovery's, from a state made
@@ -1417,6 +1512,21 @@ static SwiftView? Parent(SwiftView node, string id)
     return null;
 }
 
+// The nearest Section around the view with this ID.
+static SwiftView? SectionOf(SwiftView node, string id, SwiftView? section = null)
+{
+    if (node.Kind == "section")
+        section = node;
+    foreach (var child in node.Children)
+    {
+        if (child.AccessibilityIdentifier == id)
+            return section;
+        if (SectionOf(child, id, section) is { } match)
+            return match;
+    }
+    return null;
+}
+
 static string AllText(SwiftView node) =>
     (node.Text ?? string.Empty) + string.Concat(node.Children.Select(AllText));
 
@@ -1593,10 +1703,15 @@ static double HeightOffCanvas(SwiftView root, double width, double height)
     }
 }
 
-static void Assert(bool condition)
+// A failure names the line and the expression that was false, on one line (issue 295: four
+// cases failed from 2026-11-13 with "Assertion failed." and nothing to say which expectation).
+static void Assert(bool condition,
+    [CallerArgumentExpression(nameof(condition))] string expression = "",
+    [CallerLineNumber] int line = 0)
 {
     if (!condition)
-        throw new Exception("Assertion failed.");
+        throw new Exception($"Assertion failed at line {line}: "
+            + string.Join(' ', expression.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
 }
 
 static void Throws<T>(Action action) where T : Exception

@@ -38,7 +38,8 @@ internal sealed class CoachConversationHarness : IDisposable
         int maxRunsPerDay = 50,
         SentenceStudio.Application.Practice.IPracticeHistoryQueries? practiceHistory = null,
         ICoachVocabularySetGenerator? vocabularySets = null,
-        CoachVocabularySetApplicationService? vocabularySetApplications = null)
+        CoachVocabularySetApplicationService? vocabularySetApplications = null,
+        SentenceStudio.Api.Coach.Operations.CoachWriteTurnScope? writeTurn = null)
     {
         VocabularySetApplications = vocabularySetApplications;
         App = new CoachApplicationHarness(
@@ -55,7 +56,8 @@ internal sealed class CoachConversationHarness : IDisposable
             withUnboundAnswerDetector: withUnboundAnswerDetector,
             practiceHistory: practiceHistory,
             vocabularySets: vocabularySets,
-            vocabularySetApplications: vocabularySetApplications);
+            vocabularySetApplications: vocabularySetApplications,
+            writeTurn: writeTurn);
 
         Conversations = App.Persistence.NewConversationStore(App.Db);
         Messages = App.Persistence.NewMessageStore(App.Db);

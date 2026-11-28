@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Api.Coach.Persistence;
+using SentenceStudio.Api.Coach.Persistence.Cleanup;
 
 namespace SentenceStudio.Api.Tests.Coach.Postgres;
 
@@ -83,6 +84,8 @@ public sealed class CoachPostgresCleanupLeaseTests : IAsyncLifetime
         const int Replicas = 8;
 
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var everyoneAsked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var asked = 0;
         var running = 0;
         var peak = 0;
         var granted = 0;
@@ -94,7 +97,21 @@ public sealed class CoachPostgresCleanupLeaseTests : IAsyncLifetime
 
             await gate.Task;
 
-            var handle = await lease.TryAcquireAsync();
+            ICoachCleanupLeaseHandle? handle;
+            try
+            {
+                handle = await lease.TryAcquireAsync();
+            }
+            finally
+            {
+                // Counted whether the attempt was granted, refused or threw, so a holder is
+                // never left waiting on a contender that has nothing more to ask.
+                if (Interlocked.Increment(ref asked) == Replicas)
+                {
+                    everyoneAsked.TrySetResult();
+                }
+            }
+
             if (handle is null)
             {
                 return;
@@ -104,11 +121,21 @@ public sealed class CoachPostgresCleanupLeaseTests : IAsyncLifetime
             var current = Interlocked.Increment(ref running);
             InterlockedMax(ref peak, current);
 
-            // Hold it long enough that any other winner would overlap observably.
-            await Task.Delay(60);
-
-            Interlocked.Decrement(ref running);
-            await handle.DisposeAsync();
+            try
+            {
+                // Hold it until every other replica has had its answer. A fixed delay here made
+                // the count below depend on timing: each contender opens its own connection
+                // after the gate, and one that took longer than the delay asked after the first
+                // holder had let go and was rightly granted the lease in its turn (see
+                // The_lease_is_released_when_the_holders_transaction_ends). Holding until all
+                // have asked means a second grant can only be two holders at once.
+                await everyoneAsked.Task.WaitAsync(TimeSpan.FromSeconds(60));
+            }
+            finally
+            {
+                Interlocked.Decrement(ref running);
+                await handle.DisposeAsync();
+            }
         }
 
         var contenders = Enumerable.Range(0, Replicas).Select(_ => ContendAsync()).ToArray();

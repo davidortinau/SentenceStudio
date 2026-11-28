@@ -1,7 +1,9 @@
 using FluentAssertions;
 using SentenceStudio.Api.Coach.Agents;
+using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Runtime;
 using SentenceStudio.Api.Tests.Coach.History;
+using SentenceStudio.Api.Tests.Coach.Opportunities;
 using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Contracts.Coach.Intent;
 
@@ -45,6 +47,16 @@ public class CoachEmptyAnnouncementRetryTests
         + "example sentences that use it without giving away the quiz choice.")]
     [InlineData("Sure! Here's a set of example sentences for you.")]
     [InlineData("다음은 예문 세 개입니다.")]
+    // Issue 326: quotation marks near an announcement do not hide it. The phrase is outside them,
+    // an apostrophe is not a quotation mark, and a quoted phrase does not cover an unquoted one.
+    [InlineData("\"차다\" means to kick. Here are three example sentences that use it.")]
+    [InlineData("For \"차다\", here are three example sentences.")]
+    [InlineData("Don't worry, here's a set of example sentences for you.")]
+    [InlineData("That is the learners' favourite, so here are three example sentences.")]
+    [InlineData("Here are three example sentences that use \"here are\".")]
+    [InlineData("\"차다\"는 이렇게 써요.\nHere are three example sentences.")]
+    [InlineData("'차다'를 쓴 예문은 다음과 같습니다.")]
+    [InlineData("‘차다’를 쓴 예문은 다음과 같습니다.")]
     public async Task An_announcement_with_nothing_after_it_is_asked_for_once_more_and_the_answer_is_shown(
         string announcement)
     {
@@ -79,6 +91,17 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("Here's a tip: say it with 공.")]
     [InlineData("There are two readings of that word.")]
     [InlineData("I can show the following if you like. Want them?")]
+    // Issue 326: a quoted sentence that itself begins with an announcing phrase is the content.
+    [InlineData("In English you say \"Here is your coffee.\"")]
+    [InlineData("In English you say \"Here is your coffee\".")]
+    [InlineData("In English you say “Here is your coffee.”")]
+    [InlineData("In English you say 'Here's your coffee.'")]
+    [InlineData("In English you say ‘Here’s your coffee.’")]
+    [InlineData("In English you say 'Don't worry, here is your coffee.'")]
+    [InlineData("A waiter might say \"Thank you for waiting. Here is your coffee.\"")]
+    [InlineData("한국어로는 \"다음은 제 차례예요\"라고 해요.")]
+    [InlineData("한국어로는 「다음은 제 차례예요」라고 해요.")]
+    [InlineData("한국어로는 『다음은 제 차례예요』라고 해요.")]
     public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(string reply)
     {
         var (harness, shown) = await TurnAsync(Reply(reply), Reply("This second reply must never be asked for."));
@@ -245,6 +268,12 @@ public class CoachEmptyAnnouncementRetryTests
                     ("다음은 제 차례예요.", CoachLanguageRole.Target)))
         },
         {
+            // Issue 326: the sentence is quoted inside one piece in the display language.
+            "one answer part that quotes a sentence beginning with an announcing phrase",
+            AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
+                Part(CoachAnswerBlockKind.Answer, ("In English you say \"Here is your coffee.\"", CoachLanguageRole.Display)))
+        },
+        {
             "an announcing answer part and an example part",
             AnswerReply(CoachIntentKind.PedagogicalAnswer, "",
                 Part(CoachAnswerBlockKind.Answer, ("Here are three example sentences:", CoachLanguageRole.Display)),
@@ -291,5 +320,170 @@ public class CoachEmptyAnnouncementRetryTests
         totals.RunCount.Should().Be(1, "the second call is part of the same run, not a second one");
         totals.InputTokens.Should().Be(220);
         totals.OutputTokens.Should().Be(50);
+    }
+
+    // ------------------------------------------------------------------ issue 306: the ledger
+    //
+    // The second call was only a log line, which nobody but the Captain can read and nothing
+    // counts. These name the new kind and codes by their stored values, so they build against
+    // the code before the change and fail there.
+
+    private const int EmptyAnnouncementRetriedKind = 11;
+
+    private static async Task<(IReadOnlyList<string> Shown, List<CoachOpportunitySignal> Signals)> ObservedTurnAsync(
+        params CoachAgentTurnResult[] script)
+    {
+        var recorder = new RecordingCoachOpportunityRecorder();
+        using var harness = new CoachConversationHarness(opportunities: recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        foreach (var result in script)
+        {
+            harness.Coach.Script.Enqueue(result);
+        }
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        return (turn.Value!.Result!.Messages.Select(message => message.Text).ToList(), recorder.Signals);
+    }
+
+    [Fact]
+    public async Task A_turn_asked_for_twice_leaves_one_counted_ledger_row_saying_the_second_reply_held_content()
+    {
+        // The production recorder over a real database: the row has to pass its closed-set
+        // checks and be written, not only be handed to it.
+        using var ledger = new CoachOpportunityHarness(userProfileId: CoachConversationHarness.OwnerUserId);
+        using var harness = new CoachConversationHarness(opportunities: ledger.Recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(Reply("Here are three example sentences:"));
+        harness.Coach.Script.Enqueue(Reply(Answer));
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        var row = (await ledger.RowsAsync()).Should().ContainSingle().Subject;
+        ((int)row.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        row.CapabilityCode.Should().Be("empty_announcement_second_reply_held_content");
+        row.Disposition.Should().Be(CoachOpportunityDisposition.AggregateOnly);
+        row.Surface.Should().Be(CoachOpportunitySurface.TurnOutcome);
+        row.UserProfileId.Should().Be(CoachConversationHarness.OwnerUserId);
+        row.OccurrenceCount.Should().Be(1);
+        row.ConversationId.Should().BeNull("a counted row never names a conversation");
+        row.TurnId.Should().BeNull();
+        row.EvidenceMessageId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_second_reply_that_announces_again_is_counted_under_its_own_code()
+    {
+        var (_, signals) = await ObservedTurnAsync(
+            Reply("Here are three example sentences:"),
+            Reply("Here are the three sentences you asked for:"));
+
+        var signal = signals.Should().ContainSingle().Subject;
+        ((int)signal.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        signal.CapabilityCode.Should().Be("empty_announcement_second_reply_empty");
+        signal.Disposition.Should().Be(CoachOpportunityDisposition.AggregateOnly);
+    }
+
+    [Fact]
+    public async Task A_blank_second_reply_is_counted_as_empty_not_as_content()
+    {
+        // The review of pull request 312: a second reply that is not an announcement was counted
+        // as content whatever it held, a blank one included.
+        using var ledger = new CoachOpportunityHarness(userProfileId: CoachConversationHarness.OwnerUserId);
+        using var harness = new CoachConversationHarness(opportunities: ledger.Recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(Reply("Here are three example sentences:"));
+        harness.Coach.Script.Enqueue(Reply(""));
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        harness.Coach.RunCount.Should().Be(2);
+        turn.Value!.Result!.Messages.Select(message => message.Text).Should().Equal(
+            new[] { string.Empty }, "the second reply is the turn's reply whatever it holds");
+        turn.Value.Result.WordList.Should().BeNull();
+        var row = (await ledger.RowsAsync()).Should().ContainSingle().Subject;
+        ((int)row.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        row.CapabilityCode.Should().Be("empty_announcement_second_reply_empty");
+    }
+
+    [Fact]
+    public async Task A_second_reply_that_announces_the_rows_a_list_tool_read_is_counted_as_content()
+    {
+        // The review of pull request 312: the second call ran the list tool, so the words reach
+        // the learner as rows the server builds under "Here are your words:". That reply holds
+        // what it announces, exactly as a first reply with rows does.
+        var writeTurn = new SentenceStudio.Api.Coach.Operations.CoachWriteTurnScope();
+        using var ledger = new CoachOpportunityHarness(userProfileId: CoachConversationHarness.OwnerUserId);
+        using var harness = new CoachConversationHarness(opportunities: ledger.Recorder, writeTurn: writeTurn);
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(Reply("Here are the words in your plan:"));
+        harness.Coach.Script.Enqueue(Reply("Here are your words:"));
+        harness.Coach.OnRun = _ =>
+        {
+            if (harness.Coach.RunCount == 2)
+            {
+                // What get_plan_vocabulary leaves on the turn when the model calls it.
+                writeTurn.ListedWords = new SentenceStudio.Api.Coach.Tools.SamTools.CoachListedWords(
+                    WeakestFirst: false,
+                    [
+                        new SentenceStudio.Api.Coach.Tools.PlanVocabularyEntry("word-1", "차다", "to kick", 40, 2),
+                        new SentenceStudio.Api.Coach.Tools.PlanVocabularyEntry("word-2", "공", "ball", null, null)
+                    ]);
+            }
+
+            return Task.CompletedTask;
+        };
+
+        var turn = await harness.TurnAsync(conversationId, "show me the words in my plan");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        harness.Coach.RunCount.Should().Be(2);
+        turn.Value!.Result!.Messages.Select(message => message.Text).Should().Equal("Here are your words:");
+        turn.Value.Result.WordList!.Rows.Select(word => word.WordId).Should().Equal("word-1", "word-2");
+        var row = (await ledger.RowsAsync()).Should().ContainSingle().Subject;
+        ((int)row.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        row.CapabilityCode.Should().Be("empty_announcement_second_reply_held_content");
+    }
+
+    [Fact]
+    public async Task A_second_call_that_fails_is_counted_under_its_own_code()
+    {
+        var (_, signals) = await ObservedTurnAsync(
+            Reply("Here are three example sentences:"),
+            new CoachAgentTurnResult { Outcome = CoachAgentOutcome.Timeout });
+
+        var signal = signals.Should().ContainSingle().Subject;
+        ((int)signal.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        signal.CapabilityCode.Should().Be("empty_announcement_second_call_failed");
+        signal.Disposition.Should().Be(CoachOpportunityDisposition.AggregateOnly);
+    }
+
+    [Fact]
+    public async Task A_turn_with_one_call_writes_no_ledger_row()
+    {
+        var (shown, signals) = await ObservedTurnAsync(
+            Reply("차다 means to kick."), Reply("This second reply must never be asked for."));
+
+        shown.Should().Equal("차다 means to kick.");
+        signals.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_ledger_that_cannot_be_written_does_not_change_the_reply_of_a_turn_asked_for_twice()
+    {
+        var recorder = new ThrowingCoachOpportunityRecorder();
+        using var harness = new CoachConversationHarness(opportunities: recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        harness.Coach.Script.Enqueue(Reply("Here are three example sentences:"));
+        harness.Coach.Script.Enqueue(Reply(Answer));
+
+        var turn = await harness.TurnAsync(conversationId, "give me three Korean only sentences for this word");
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        turn.Value!.Result!.Messages.Select(message => message.Text).Should().Equal(Answer);
+        recorder.Calls.Should().Be(1, "the second call was offered to the ledger, and its failure stayed there");
     }
 }

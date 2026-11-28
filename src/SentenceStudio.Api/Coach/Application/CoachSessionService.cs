@@ -876,10 +876,11 @@ public sealed class CoachSessionService : ICoachSessionService
         // A reply that says content is coming and holds none is asked for once more (issue 289).
         // Before usage is recorded, so both calls are charged to this turn's one run.
         var modelCalls = 1;
+        Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome? announcementRetry = null;
         if (await AnnouncesContentAndHoldsNoneAsync(session, agentResult, registration.Token).ConfigureAwait(false))
         {
             modelCalls = 2;
-            agentResult = await RetryAnEmptyAnnouncementAsync(
+            (agentResult, announcementRetry) = await RetryAnEmptyAnnouncementAsync(
                 session, load.AgentSessionJson, request, context, agentResult, registration.Token)
                 .ConfigureAwait(false);
         }
@@ -968,16 +969,25 @@ public sealed class CoachSessionService : ICoachSessionService
         // and stored; this observes it and cannot change it. The recorder never throws by
         // contract, and the awaited call is deliberately not guarded by a branch on its outcome
         // — there is no outcome to branch on.
-        await ObserveTurnOutcomeAsync(userProfileId, session, request, agentResult, result, cancellationToken)
+        await ObserveTurnOutcomeAsync(
+                userProfileId, session, request, agentResult, result, announcementRetry, cancellationToken)
             .ConfigureAwait(false);
 
         return result;
     }
 
     /// <summary>
-    /// Records at most one ledger row describing what this turn could not do for the learner.
+    /// Records at most one ledger row describing what this turn could not do for the learner,
+    /// and one counted row when the turn was asked for a second time (issue 306).
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>The second-call row is its own observation.</b> A reply that announced content and held
+    /// none was asked for once more before this turn's outcome existed, so that fact is recorded
+    /// whatever the outcome turned out to be, and first, so that nothing the detector below does
+    /// can lose it. It is aggregate-only: a count per learner per day, with no conversation and
+    /// no turn on it.
+    /// </para>
     /// <para>
     /// <b>Response-neutral by construction.</b> Called after <c>_idempotency.Store</c>, so the
     /// response bytes are already fixed and already replayable; it takes the result by value and
@@ -996,10 +1006,19 @@ public sealed class CoachSessionService : ICoachSessionService
         CoachTurnRequest request,
         CoachAgentTurnResult agentResult,
         CoachOperationResult<CoachTurnResponse> result,
+        Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome? announcementRetry,
         CancellationToken cancellationToken)
     {
         try
         {
+            if (announcementRetry is { } retryOutcome)
+            {
+                await _opportunities.RecordAsync(
+                        Opportunities.Mapping.CoachTurnOutcomeOpportunityMapper.MapEmptyAnnouncementRetry(retryOutcome),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             var response = result.Value;
             var stopReason = response?.StopReason ?? CoachStopReason.Failed;
 
@@ -1802,18 +1821,27 @@ public sealed class CoachSessionService : ICoachSessionService
             return false;
         }
 
-        // Rows or a card the server shows under the reply are the announced content.
-        return _writeTurn?.ListedWords is not { Words.Count: > 0 }
-            && !await HasProposalThisTurnAsync(session, cancellationToken).ConfigureAwait(false);
+        return !await ShowsRowsOrACardAsync(session, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// True when the server shows something under this turn's reply whatever the reply says: the
+    /// words a list tool read, as rows, or a proposal a tool recorded, as a card. Either is the
+    /// content an announcement could mean.
+    /// </summary>
+    private async Task<bool> ShowsRowsOrACardAsync(CoachSession session, CancellationToken cancellationToken) =>
+        _writeTurn?.ListedWords is { Words.Count: > 0 }
+        || await HasProposalThisTurnAsync(session, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asks the model once more for the same message, from the conversation as it was before the
     /// first reply, with one application line saying what was wrong with that reply. The second
     /// reply is the turn's reply whatever it holds; if the second call does not complete, the
-    /// first reply is kept. Either way the result carries the usage of both calls.
+    /// first reply is kept. Either way the result carries the usage of both calls, and the
+    /// outcome says which of the three happened, for the opportunity ledger (issue 306).
     /// </summary>
-    private async Task<CoachAgentTurnResult> RetryAnEmptyAnnouncementAsync(
+    private async Task<(CoachAgentTurnResult Result, Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome Outcome)>
+        RetryAnEmptyAnnouncementAsync(
         CoachSession session,
         string? agentSessionJson,
         CoachTurnRequest request,
@@ -1832,15 +1860,24 @@ public sealed class CoachSessionService : ICoachSessionService
                 "[Coach] Session {SessionId}: the reply announced content and held none; the second call "
                 + "ended {Outcome}, so the first reply is shown.",
                 session.Id, second.Outcome);
-            return first with { Usage = usage };
+            return (first with { Usage = usage },
+                Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome.SecondCallFailed);
         }
 
-        if (CoachEmptyAnnouncement.IsOne(retried))
+        // Whether the second reply holds content is the same question the first reply was asked,
+        // with the same answer for rows and cards: a tool the second call ran may have read the
+        // words or recorded the proposal the message announces. A blank message with nothing
+        // beside it holds nothing either, though it announces nothing (issue 306).
+        var announcedAgain = CoachEmptyAnnouncement.IsOne(retried);
+        var heldNothing = (announcedAgain || CoachEmptyAnnouncement.IsBlank(retried))
+            && !await ShowsRowsOrACardAsync(session, cancellationToken).ConfigureAwait(false);
+        if (heldNothing)
         {
             _logger.LogWarning(
-                "[Coach] Session {SessionId}: the reply announced content and held none, and so did the "
-                + "second one. Kind={IntentKind}. The second reply is shown as it is.",
-                session.Id, retried.Kind);
+                "[Coach] Session {SessionId}: the reply announced content and held none, and the second "
+                + "one held none either. Kind={IntentKind} AnnouncedAgain={AnnouncedAgain}. The second "
+                + "reply is shown as it is.",
+                session.Id, retried.Kind, announcedAgain);
         }
         else
         {
@@ -1850,7 +1887,10 @@ public sealed class CoachSessionService : ICoachSessionService
                 session.Id, retried.Kind);
         }
 
-        return second with { Usage = usage };
+        return (second with { Usage = usage },
+            heldNothing
+                ? Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome.SecondReplyHeldNothing
+                : Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome.SecondReplyHeldContent);
     }
 
     private async Task<CoachAgentTurnResult> RunAgentAsync(
