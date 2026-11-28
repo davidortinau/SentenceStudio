@@ -315,6 +315,19 @@ class DeployLogTests(unittest.TestCase):
         self.assertIn("ok:   clean checkout", done.stdout)
         self.assertIn("note: %s holds a deploy line that is not committed" % LOG, done.stdout)
 
+    def test_an_uncommitted_phone_install_line_does_not_stop_the_check(self):
+        # scripts/ios-phone.sh leaves its line uncommitted too, and a publish does both.
+        install_log = self.tree / "docs" / "app-install-log.md"
+        install_log.write_text("# App install log\n\n## Installs\n\n")
+        self.git("add", "-A")
+        self.commit("docs: the app install log", "2026-11-26T01:05:00+00:00")
+        with install_log.open("a") as log:
+            log.write("- 2026-11-26 01:20 UTC `0123abc` an install (phone `Duotopia`)\n")
+        done = self.script("check")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertIn("ok:   clean checkout", done.stdout)
+        self.assertIn("note: docs/app-install-log.md holds an install line that is not committed", done.stdout)
+
     def test_any_other_uncommitted_change_still_stops_the_check(self):
         (self.tree / "src" / "app.txt").write_text("changed\n")
         done = self.script("check")

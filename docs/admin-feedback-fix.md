@@ -91,6 +91,17 @@ result and stop; the Captain will read them.
    were, and `main` already had the fix. Read the code as it was in the build that answered
    (`git show <commit>:<path>`), then as it is now, and find the cause. Prefer a failing
    test that reproduces it. Say plainly what you know and what you are guessing.
+
+   **A fault in a native screen** (a layout, a control, a flow in the native iOS app) is shown
+   by the build installed on the phone, not by the server's. `docs/app-install-log.md` says
+   what each of the Captain's phones ran: one line per install made by `scripts/ios-phone.sh`,
+   with its time in UTC, the commit built and the phone, and a phone runs a line's commit
+   until that phone's next line. Read it on `origin/main` too, and date the report against it
+   the same way. It records only that script's installs on those phones: an install made
+   another way has no line, a line marked `built with uncommitted changes` is its commit plus
+   something the log cannot name, and a report from before the log's first line, or from any
+   other device or app, is not dated by it. Say which of these you are assuming. A fault that
+   may lie on either side (the screen shows what the API sent) is dated against both logs.
 3. **Fix the cause**, with a regression test that fails before the fix and passes after it.
    Keep the change as small as the cause allows; "How wide to go" says what else belongs in
    it and what becomes a task for later. Match the surrounding code.
