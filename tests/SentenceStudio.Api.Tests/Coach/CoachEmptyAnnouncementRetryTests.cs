@@ -1,5 +1,6 @@
 using FluentAssertions;
 using SentenceStudio.Api.Coach.Agents;
+using SentenceStudio.Api.Coach.Application;
 using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Runtime;
 using SentenceStudio.Api.Tests.Coach.History;
@@ -554,5 +555,164 @@ public class CoachEmptyAnnouncementRetryTests
         turn.IsOk.Should().BeTrue(turn.Detail);
         turn.Value!.Result!.Messages.Select(message => message.Text).Should().Equal(Answer);
         recorder.Calls.Should().Be(1, "the second call was offered to the ledger, and its failure stayed there");
+    }
+
+    // ------------------------------------------------------------------ issue 333: a cancelled turn
+    //
+    // The cancel check sits between the second call and the place the ledger was told of it, so a
+    // turn asked for twice and then cancelled was charged for two calls and counted nowhere.
+
+    private const string Ask = "give me three Korean only sentences for this word";
+
+    /// <summary>
+    /// A turn whose model calls are scripted and whose cancel is requested while one of them
+    /// runs, as a learner's cancel from another request is: it is seen at the stage boundary
+    /// after the model has answered.
+    /// </summary>
+    private static async Task<CoachOperationResult<CoachTurnOperationDto>> CancelledTurnAsync(
+        CoachConversationHarness harness, int cancelDuringCall, params CoachAgentTurnResult[] script)
+    {
+        var conversationId = await harness.CreateConversationAsync();
+        foreach (var result in script)
+        {
+            harness.Coach.Script.Enqueue(result);
+        }
+
+        harness.Coach.OnRun = async _ =>
+        {
+            if (harness.Coach.RunCount == cancelDuringCall)
+            {
+                var operationId = await harness.LatestOperationIdAsync(conversationId);
+                await harness.Operations.RequestCancelAsync(harness.Owner, conversationId, operationId!);
+            }
+        };
+
+        return await harness.TurnAsync(conversationId, Ask);
+    }
+
+    [Fact]
+    public async Task A_turn_asked_for_twice_and_then_cancelled_is_still_counted_once()
+    {
+        // The production recorder over a real database, as above: the row has to be written.
+        using var ledger = new CoachOpportunityHarness(userProfileId: CoachConversationHarness.OwnerUserId);
+        using var harness = new CoachConversationHarness(opportunities: ledger.Recorder);
+
+        var turn = await CancelledTurnAsync(
+            harness, cancelDuringCall: 2, Reply("Here are three example sentences:"), Reply(Answer));
+
+        turn.IsOk.Should().BeTrue(turn.Detail);
+        turn.Value!.State.Should().Be(CoachTurnOperationState.Cancelled);
+        harness.Coach.RunCount.Should().Be(2);
+        var row = (await ledger.RowsAsync()).Should().ContainSingle().Subject;
+        ((int)row.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        row.CapabilityCode.Should().Be("empty_announcement_second_reply_held_content");
+        row.Disposition.Should().Be(CoachOpportunityDisposition.AggregateOnly);
+        row.UserProfileId.Should().Be(CoachConversationHarness.OwnerUserId);
+        row.OccurrenceCount.Should().Be(1);
+        row.ConversationId.Should().BeNull("a counted row never names a conversation");
+        row.TurnId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_cancelled_turn_whose_second_call_failed_is_counted_under_that_code()
+    {
+        var recorder = new RecordingCoachOpportunityRecorder();
+        using var harness = new CoachConversationHarness(opportunities: recorder);
+
+        var turn = await CancelledTurnAsync(
+            harness,
+            cancelDuringCall: 2,
+            Reply("Here are three example sentences:"),
+            new CoachAgentTurnResult { Outcome = CoachAgentOutcome.Timeout });
+
+        turn.Value!.State.Should().Be(CoachTurnOperationState.Cancelled);
+        var signal = recorder.Signals.Should().ContainSingle().Subject;
+        ((int)signal.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        signal.CapabilityCode.Should().Be("empty_announcement_second_call_failed");
+    }
+
+    [Fact]
+    public async Task A_cancelled_turn_with_one_call_writes_no_ledger_row()
+    {
+        var recorder = new RecordingCoachOpportunityRecorder();
+        using var harness = new CoachConversationHarness(opportunities: recorder);
+
+        var turn = await CancelledTurnAsync(
+            harness,
+            cancelDuringCall: 1,
+            Reply("차다 means to kick."),
+            Reply("This second reply must never be asked for."));
+
+        turn.Value!.State.Should().Be(CoachTurnOperationState.Cancelled);
+        harness.Coach.RunCount.Should().Be(1);
+        recorder.Signals.Should().BeEmpty("a cancelled turn asked for once is not a gap in what the coach can do");
+    }
+
+    [Fact]
+    public async Task A_ledger_that_cannot_be_written_does_not_change_how_a_cancelled_turn_ends()
+    {
+        // With no recorder at all, for what a cancelled turn asked for twice looks like.
+        using var plain = new CoachConversationHarness();
+        var expected = await CancelledTurnAsync(
+            plain, cancelDuringCall: 2, Reply("Here are three example sentences:"), Reply(Answer));
+
+        // The recorder swallows its own failures by contract; these two break that contract, one
+        // with a fault and one with a cancellation, and the turn must end the same way.
+        var throwing = new ThrowingCoachOpportunityRecorder();
+        using var first = new CoachConversationHarness(opportunities: throwing);
+        var afterAFault = await CancelledTurnAsync(
+            first, cancelDuringCall: 2, Reply("Here are three example sentences:"), Reply(Answer));
+
+        var cancelling = new CancellingCoachOpportunityRecorder();
+        using var second = new CoachConversationHarness(opportunities: cancelling);
+        var afterACancellation = await CancelledTurnAsync(
+            second, cancelDuringCall: 2, Reply("Here are three example sentences:"), Reply(Answer));
+
+        expected.Value!.State.Should().Be(CoachTurnOperationState.Cancelled);
+        foreach (var turn in new[] { afterAFault, afterACancellation })
+        {
+            turn.IsOk.Should().BeTrue(turn.Detail);
+            turn.Status.Should().Be(expected.Status);
+            turn.Value!.State.Should().Be(CoachTurnOperationState.Cancelled);
+            turn.Value.Result.Should().BeEquivalentTo(expected.Value.Result);
+        }
+
+        throwing.Calls.Should().Be(1, "the second call was offered to the ledger, and its failure stayed there");
+        cancelling.Calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_turn_asked_for_twice_whose_lease_was_lost_is_counted_though_its_token_is_cancelled()
+    {
+        // The conversation layer's probe also says yes when the worker has lost its lease, and
+        // the turn's token is the lease's, so it is cancelled by then. The two calls are charged
+        // without a token; the count goes with the charge.
+        using var ledger = new CoachOpportunityHarness(userProfileId: CoachConversationHarness.OwnerUserId);
+        using var harness = new CoachConversationHarness(opportunities: ledger.Recorder);
+        var conversationId = await harness.CreateConversationAsync();
+        await harness.TurnAsync(conversationId, "Set us up");
+        (await ledger.RowsAsync()).Should().BeEmpty();
+        harness.Coach.Script.Enqueue(Reply("Here are three example sentences:"));
+        harness.Coach.Script.Enqueue(Reply(Answer));
+        using var lease = new CancellationTokenSource();
+
+        var turn = await harness.App.Service.SubmitTurnAsync(
+            conversationId,
+            new CoachTurnRequest { InputKind = CoachTurnInputKind.Text, Text = Ask },
+            new CoachTurnExecutionContext
+            {
+                BypassProcessIdempotency = true,
+                IsCancelRequested = _ =>
+                {
+                    lease.Cancel();
+                    return new ValueTask<bool>(true);
+                }
+            },
+            lease.Token);
+
+        turn.Status.Should().Be(CoachOperationStatus.RunCancelled);
+        var row = (await ledger.RowsAsync()).Should().ContainSingle().Subject;
+        ((int)row.Kind).Should().Be(EmptyAnnouncementRetriedKind);
+        row.CapabilityCode.Should().Be("empty_announcement_second_reply_held_content");
     }
 }
