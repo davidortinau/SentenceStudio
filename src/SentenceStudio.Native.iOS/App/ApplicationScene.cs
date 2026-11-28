@@ -919,6 +919,10 @@ internal sealed partial class ApplicationScene : IDisposable
                 UpdateVocabularyList(replaceAll: true);
             if (_vocabularyWordSlot is not null && _app.IsVocabularyWordOpen)
                 UpdateVocabularyWord();
+            // A failed video's row has two lines under this breakpoint and one from it (issue
+            // 308): the open channel page's rows change in place, the rest of it stays.
+            if (_youTubeChannelContent is not null && _app.IsYouTubeChannelOpen)
+                _app.YouTubeChannelViewportChanged(_youTubeChannelContent, _style);
             // Sam moves between the sheet and the side panel at this breakpoint.
             if (_updating)
                 _updateRequested = true;
