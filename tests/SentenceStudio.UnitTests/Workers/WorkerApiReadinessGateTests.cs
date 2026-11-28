@@ -112,7 +112,7 @@ public sealed class WorkerApiReadinessGateTests
                 TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(10)));
 
         Assert.Contains("PostgreSQL database identity or migration history unavailable", failure.Message);
-        Assert.True(queries > 1);
+        Assert.Equal(PollsInsideTheShortDeadline, queries);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class WorkerApiReadinessGateTests
 
         Assert.Contains("API migration owner", failure.Message);
         Assert.Contains("API connection unavailable", failure.Message);
-        Assert.True(handler.Requests > 1);
+        Assert.Equal(PollsInsideTheShortDeadline, handler.Requests);
         Assert.Equal(0, queries);
         Assert.Equal(0, identityQueries);
     }
@@ -157,7 +157,7 @@ public sealed class WorkerApiReadinessGateTests
                 TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(10)));
 
         Assert.Contains("1 application migration(s) still pending", failure.Message);
-        Assert.True(queries > 1);
+        Assert.Equal(PollsInsideTheShortDeadline, queries);
     }
 
     [Fact]
@@ -192,8 +192,9 @@ public sealed class WorkerApiReadinessGateTests
         using var api = Client(handler);
         using var shutdown = new CancellationTokenSource();
 
-        var waiting = WaitForReadinessAsync(
-            api, _ => Task.FromResult(0), ReadLocalIdentity, ExpectedMigrationId,
+        // Nobody moves this clock: neither the backoff nor the deadline can end the wait.
+        var waiting = StartWaitingForReadiness(
+            new ManualClock(), api, _ => Task.FromResult(0), ReadLocalIdentity, ExpectedMigrationId,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(1), shutdown.Token);
         await receivedRequest.Task.WaitAsync(TimeSpan.FromSeconds(2));
         shutdown.Cancel();
@@ -383,7 +384,7 @@ public sealed class WorkerApiReadinessGateTests
 
         Assert.Contains("database identity unavailable (MissingSchemaMarker)", failure.Message);
         Assert.Equal(0, historyQueries);
-        Assert.True(handler.Requests > 1);
+        Assert.Equal(PollsInsideTheShortDeadline, handler.Requests);
     }
 
     [Fact]
@@ -393,8 +394,10 @@ public sealed class WorkerApiReadinessGateTests
         using var api = Client(handler);
         var localAttempts = 0;
 
+        var clock = new ManualClock();
+
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            WorkerApiReadinessGate.WaitAsync(
+            clock.RunAsync(WorkerApiReadinessGate.WaitAsync(
                 api,
                 _ =>
                 {
@@ -402,13 +405,14 @@ public sealed class WorkerApiReadinessGateTests
                     return Task.FromException<PostgresDatabaseReadiness>(
                         new PostgresDatabaseIdentityException(PostgresDatabaseIdentityFailure.BackendChanged));
                 },
-                ExpectedMigrationId, TimeSpan.FromMilliseconds(180), TimeSpan.FromMilliseconds(10)));
+                ExpectedMigrationId, TimeSpan.FromMilliseconds(180), TimeSpan.FromMilliseconds(10),
+                timeProvider: clock)));
 
         Assert.Contains("database identity unavailable (BackendChanged)", failure.Message);
-        Assert.True(localAttempts > 1);
-        // Every local read follows an API answer. The deadline can fall after the last answer
-        // and before its local read, so the API may have been asked once more.
-        Assert.InRange(handler.Requests - localAttempts, 0, 1);
+        Assert.Equal(PollsInsideTheShortDeadline, localAttempts);
+        // Every local read follows an API answer, and on the test's clock the deadline can only
+        // fall while the gate waits between polls, never between an answer and its local read.
+        Assert.Equal(localAttempts, handler.Requests);
     }
 
     [Fact]
@@ -480,7 +484,31 @@ public sealed class WorkerApiReadinessGateTests
             WorkerApiReadinessGate.NextRetryDelay(TimeSpan.FromMilliseconds(previousMilliseconds)));
     }
 
+    // With a 10 ms first wait the gate polls at 0, 10, 30, 70 and 150 ms; its next wait, 160 ms,
+    // is still running when a 180 or 200 ms deadline ends it.
+    private const int PollsInsideTheShortDeadline = 5;
+
+    /// <summary>
+    /// Runs the wait to its end on a clock of its own, which moves only while the gate waits
+    /// between polls. No test here depends on how fast the machine reaches the next poll.
+    /// </summary>
     private static Task WaitForReadinessAsync(
+        HttpClient api,
+        Func<CancellationToken, Task<int>> getPendingMigrationCount,
+        Func<CancellationToken, Task<string>> getLocalDatabaseIdentity,
+        string expectedMigrationId,
+        TimeSpan? timeout = null,
+        TimeSpan? retryDelay = null,
+        CancellationToken cancellationToken = default)
+    {
+        var clock = new ManualClock();
+        return clock.RunAsync(StartWaitingForReadiness(
+            clock, api, getPendingMigrationCount, getLocalDatabaseIdentity, expectedMigrationId,
+            timeout, retryDelay, cancellationToken));
+    }
+
+    private static Task StartWaitingForReadiness(
+        ManualClock clock,
         HttpClient api,
         Func<CancellationToken, Task<int>> getPendingMigrationCount,
         Func<CancellationToken, Task<string>> getLocalDatabaseIdentity,
@@ -492,7 +520,7 @@ public sealed class WorkerApiReadinessGateTests
             api,
             async ct => new PostgresDatabaseReadiness(
                 await getLocalDatabaseIdentity(ct), await getPendingMigrationCount(ct)),
-            expectedMigrationId, timeout, retryDelay, cancellationToken);
+            expectedMigrationId, timeout, retryDelay, cancellationToken, clock);
 
     internal static HttpClient Client(HttpMessageHandler handler) =>
         new(handler) { BaseAddress = new Uri("https://api.example.invalid/") };
@@ -531,4 +559,134 @@ public sealed class WorkerApiReadinessGateTests
     }
 
     private sealed class TemporaryDatabaseException : DbException { }
+
+    /// <summary>
+    /// A clock that stands still until a test moves it. The gate takes its deadline and its
+    /// wait between polls from it as one-shot timers, which is all this clock keeps.
+    /// </summary>
+    private sealed class ManualClock : TimeProvider
+    {
+        private readonly object _sync = new();
+        private readonly List<ManualTimer> _waiting = [];
+        private TaskCompletionSource _timerStarted = NewSignal();
+        private DateTimeOffset _now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        private long _started;
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (_sync)
+            {
+                return _now;
+            }
+        }
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => GetUtcNow().Ticks;
+
+        public override ITimer CreateTimer(
+            TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ManualTimer(this, callback, state);
+            timer.Change(dueTime, period);
+            return timer;
+        }
+
+        /// <summary>
+        /// Runs <paramref name="waiting"/> to its end. The gate holds one timer, its deadline,
+        /// from start to end and a second only while it waits between polls, so time moves to
+        /// the next timer only then: an API call or a local read takes no time at all.
+        /// </summary>
+        public async Task RunAsync(Task waiting)
+        {
+            while (!waiting.IsCompleted)
+            {
+                Task timerStarted;
+                ManualTimer? next = null;
+                lock (_sync)
+                {
+                    timerStarted = _timerStarted.Task;
+                    if (_waiting.Count >= 2)
+                    {
+                        next = _waiting.OrderBy(timer => timer.Due).ThenBy(timer => timer.Order).First();
+                        _waiting.Remove(next);
+                        if (next.Due > _now)
+                        {
+                            _now = next.Due;
+                        }
+                    }
+                }
+
+                if (next is null)
+                {
+                    // Not a deadline a test can miss by being slow: it only turns a wait that
+                    // stopped using this clock into a failure instead of a run that never ends.
+                    await Task.WhenAny(waiting, timerStarted).WaitAsync(TimeSpan.FromSeconds(30));
+                }
+                else
+                {
+                    next.Fire();
+                }
+            }
+
+            await waiting;
+        }
+
+        private void Start(ManualTimer timer, TimeSpan dueTime)
+        {
+            TaskCompletionSource started;
+            lock (_sync)
+            {
+                _waiting.Remove(timer);
+                timer.Due = _now + dueTime;
+                timer.Order = ++_started;
+                _waiting.Add(timer);
+                started = _timerStarted;
+                _timerStarted = NewSignal();
+            }
+
+            started.TrySetResult();
+        }
+
+        private bool Stop(ManualTimer timer)
+        {
+            lock (_sync)
+            {
+                return _waiting.Remove(timer);
+            }
+        }
+
+        private static TaskCompletionSource NewSignal() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private sealed class ManualTimer(ManualClock clock, TimerCallback callback, object? state) : ITimer
+        {
+            public DateTimeOffset Due { get; set; }
+            public long Order { get; set; }
+
+            public void Fire() => callback(state);
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                if (dueTime == Timeout.InfiniteTimeSpan)
+                {
+                    clock.Stop(this);
+                }
+                else
+                {
+                    clock.Start(this, dueTime);
+                }
+
+                return true;
+            }
+
+            public void Dispose() => clock.Stop(this);
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
 }
