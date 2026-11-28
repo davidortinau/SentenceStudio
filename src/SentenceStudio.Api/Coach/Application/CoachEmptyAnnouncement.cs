@@ -25,13 +25,16 @@ public static class CoachEmptyAnnouncement
 {
     /// <summary>
     /// Phrases that say content follows. Matched in the last sentence only, case-insensitively.
-    /// English and Korean, the two display languages.
+    /// One list for each of the two display languages, English and Korean.
     /// </summary>
-    private static readonly string[] AnnouncingPhrases =
+    private static readonly string[] EnglishAnnouncingPhrases =
     [
-        "here are", "here is", "here's", "here’s", "below are", "below is", "the following", "as follows",
-        "다음은", "다음과 같", "아래는", "아래와 같"
+        "here are", "here is", "here's", "here’s", "below are", "below is", "the following", "as follows"
     ];
+
+    private static readonly string[] KoreanAnnouncingPhrases = ["다음은", "다음과 같", "아래는", "아래와 같"];
+
+    private static readonly string[] AnnouncingPhrases = [.. EnglishAnnouncingPhrases, .. KoreanAnnouncingPhrases];
 
     private static readonly char[] SentenceEnds = ['.', '!', '?', '。', '\n'];
 
@@ -44,7 +47,11 @@ public static class CoachEmptyAnnouncement
     /// True when <paramref name="intent"/> is a reply that carries nothing but its message, or
     /// nothing but one direct-answer part, and that text announces content it does not hold.
     /// </summary>
-    public static bool IsOne(CoachTurnIntent intent)
+    /// <param name="intent">The model's reply.</param>
+    /// <param name="displayLanguageTag">
+    /// The language the reply is written in, as <see cref="Announces"/> reads it.
+    /// </param>
+    public static bool IsOne(CoachTurnIntent intent, string? displayLanguageTag = null)
     {
         ArgumentNullException.ThrowIfNull(intent);
 
@@ -69,7 +76,7 @@ public static class CoachEmptyAnnouncement
         var parts = PartsWithText(intent.PedagogicalAnswer);
         if (parts.Count == 0)
         {
-            return Announces(intent.CoachMessage);
+            return Announces(intent.CoachMessage, displayLanguageTag);
         }
 
         // Answer parts are what a message announces, with one exception (issue 305): an answer
@@ -97,7 +104,7 @@ public static class CoachEmptyAnnouncement
         }
 
         // Joined as the answer's plain text joins them.
-        return Announces(string.Join(' ', pieces.Select(span => span.Text.Trim())));
+        return Announces(string.Join(' ', pieces.Select(span => span.Text.Trim())), displayLanguageTag);
     }
 
     /// <summary>
@@ -122,7 +129,15 @@ public static class CoachEmptyAnnouncement
     }
 
     /// <summary>True when <paramref name="message"/> ends by announcing content and stops there.</summary>
-    public static bool Announces(string? message)
+    /// <param name="message">The text the learner would be shown.</param>
+    /// <param name="displayLanguageTag">
+    /// The learner's display language. An announcement is written in it, so only that language's
+    /// phrases are read (issue 330): for a learner who reads English and studies Korean,
+    /// "You can say it like this. 다음은 제 차례예요." ends with the sentence asked for, and 다음은
+    /// announces nothing. With no tag, or one that is neither English nor Korean, both lists are
+    /// read. A closing colon announces in any language.
+    /// </param>
+    public static bool Announces(string? message, string? displayLanguageTag = null)
     {
         var text = (message ?? string.Empty).Trim().TrimEnd(Closers).TrimEnd();
         if (text.Length == 0)
@@ -145,7 +160,7 @@ public static class CoachEmptyAnnouncement
         var sentenceStart = body.LastIndexOfAny(SentenceEnds) + 1;
         var lineStart = body.LastIndexOf('\n') + 1;
 
-        foreach (var phrase in AnnouncingPhrases)
+        foreach (var phrase in PhrasesFor(displayLanguageTag))
         {
             // Every place the phrase stands in the last sentence, last first: one that does not
             // count must not hide an earlier one that does.
@@ -224,6 +239,26 @@ public static class CoachEmptyAnnouncement
         }
 
         return closer != '\0';
+    }
+
+    /// <summary>The announcing phrases of one display language, or of both when it is neither.</summary>
+    private static string[] PhrasesFor(string? displayLanguageTag)
+    {
+        if (IsLanguage(displayLanguageTag, "en"))
+        {
+            return EnglishAnnouncingPhrases;
+        }
+
+        return IsLanguage(displayLanguageTag, "ko") ? KoreanAnnouncingPhrases : AnnouncingPhrases;
+    }
+
+    /// <summary>True when the tag's language is <paramref name="language"/>: "ko" and "ko-KR", not "kok-IN".</summary>
+    private static bool IsLanguage(string? tag, string language)
+    {
+        var trimmed = tag?.Trim();
+        return trimmed is not null
+            && trimmed.StartsWith(language, StringComparison.OrdinalIgnoreCase)
+            && (trimmed.Length == language.Length || trimmed[language.Length] is '-' or '_');
     }
 
     private static bool IsLatinLetter(char letter) => letter < '\u0250' && char.IsLetter(letter);
