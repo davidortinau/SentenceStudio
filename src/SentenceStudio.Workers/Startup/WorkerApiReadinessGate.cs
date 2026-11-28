@@ -47,7 +47,8 @@ internal static class WorkerApiReadinessGate
         string expectedApplicationMigrationId,
         TimeSpan? timeout = null,
         TimeSpan? initialRetryDelay = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(api);
         ArgumentNullException.ThrowIfNull(getLocalReadiness);
@@ -62,8 +63,11 @@ internal static class WorkerApiReadinessGate
         }
 
         retryDelay = TimeSpan.FromMilliseconds(Math.Min(retryDelay.TotalMilliseconds, MaximumRetryDelay.TotalMilliseconds));
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(startupTimeout);
+        // The deadline and the wait between polls run on one clock, so a test can move it
+        // itself and count the polls; a host leaves it out and gets the system clock.
+        var clock = timeProvider ?? TimeProvider.System;
+        using var timeLimit = new CancellationTokenSource(startupTimeout, clock);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeLimit.Token);
         var lastObservation = "no response from the API";
 
         try
@@ -149,7 +153,7 @@ internal static class WorkerApiReadinessGate
                     }
                 }
 
-                await Task.Delay(retryDelay, deadline.Token);
+                await Task.Delay(retryDelay, clock, deadline.Token);
                 retryDelay = NextRetryDelay(retryDelay);
             }
         }
