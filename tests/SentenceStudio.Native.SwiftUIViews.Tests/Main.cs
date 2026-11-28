@@ -1805,6 +1805,100 @@ var cases = new (string Name, Action Test)[]
         if (faults.Count > 0)
             throw new Exception($"{faults.Count} of {drawn.Count} turns: {string.Join("; ", faults)}.");
     }),
+    // Issue 354: Retry's label was a Text with no role, so it drew in the system font at the
+    // system's size whatever the app's text size was (the source button is btn-sm, whose text
+    // follows the page). This takes Retry out of the pages' own rows (the import row and the
+    // channel's video row, on an iPhone and at iPad width, in English and Korean, resting and
+    // with its spinner while the retry runs) and draws it alone at the default and the largest
+    // app text size. At the largest its text is half as large again, so with its fixed padding
+    // (8 points each side, 4 above and below) the resting button must be at least a quarter
+    // wider and a quarter higher. With its spinner it must be at least 15 points wider and no
+    // lower: the spinner keeps its size (this host's is 32 points, higher than the text at
+    // either size), so only the icon and the words grow, and they cannot change the height
+    // here. ISSUE_354_DRAWN prints every measurement.
+    ("YouTube rows: Retry alone is larger at the largest app text size than at the default (issue 354)", () =>
+    {
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var created = new DateTime(2026, 11, 25, 12, 0, 0, DateTimeKind.Utc);
+        using var import = new YouTubeImportCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeImportCoordinator>.Instance);
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        var opens = new YouTubeImportActions(_ => { }, null, null);
+        YouTubeImportState History(bool retrying) => new(true, false, YouTubeImportTab.History, "",
+            false, false, false, false, [], 0, "", null, null, false, [], false,
+            [new("1", "A video", true, null, VideoImportStatus.Failed, null, created, null, false)],
+            1, retrying ? "1" : null, []);
+        YouTubeChannelState Videos(bool retrying) => new(true, false, false, false, false, false, null,
+            "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+            [new YouTubeDiscoveredVideo("v0", "A video", "https://youtu.be/v0", VideoImportStatus.Failed)],
+            System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null,
+            retrying, retrying ? "v0" : null, []);
+        static (SwiftView Parent, int Index)? Place(SwiftView node, SwiftView wanted)
+        {
+            for (var index = 0; index < node.Children.Count; index++)
+                if (ReferenceEquals(node.Children[index], wanted))
+                    return (node, index);
+                else if (Place(node.Children[index], wanted) is { } below)
+                    return below;
+            return null;
+        }
+        var faults = new List<string>();
+        var drawn = new List<string>();
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var page in new[] { 402d, 1000d })
+        foreach (var retrying in new[] { false, true })
+        foreach (var which in new[] { "import row", "channel's video row" })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            if (Words("Import_Retry") == "Import_Retry" || (language == "ko") != Words("Import_Retry").Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: Retry is \"{Words("Import_Retry")}\".");
+            (double Wide, double High) Retry(double scale)
+            {
+                var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
+                    AppearanceSelection.Default.WithFontScale(scale)), page);
+                SwiftView row;
+                if (which == "import row")
+                {
+                    var state = History(retrying);
+                    row = (SwiftView)typeof(YouTubeImportView).GetMethod("ImportRow", flags)!
+                        .Invoke(null, [import, state, state.DisplayedImports[0], look, (Func<string, string>)Words, opens])!;
+                }
+                else
+                {
+                    var state = Videos(retrying);
+                    row = (SwiftView)typeof(YouTubeChannelView).GetMethod("VideoRow", flags)!
+                        .Invoke(null, [channel, state, state.Videos[0], 0, look, (Func<string, string>)Words])!;
+                }
+                using (row)
+                {
+                    var id = $"{row.AccessibilityIdentifier}.retry";
+                    var retry = Find(row, id) ?? throw new Exception($"The {which} has no Retry ({id}).");
+                    var (parent, index) = Place(row, retry) ?? throw new Exception($"The {which}'s Retry has no place in it.");
+                    parent.RemoveAt(index);
+                    using var alone = Views.HStack(retry);
+                    var mask = PaintedMask(alone, 400, 160);
+                    var perPoint = mask[0].Length / 400d;
+                    var columns = Enumerable.Range(0, mask[0].Length).Where(x => mask.Any(line => line[x])).ToArray();
+                    var lines = Enumerable.Range(0, mask.Length).Where(y => mask[y].Any(pixel => pixel)).ToArray();
+                    return ((columns[^1] + 1 - columns[0]) / perPoint, (lines[^1] + 1 - lines[0]) / perPoint);
+                }
+            }
+            var (small, large) = (Retry(AppearanceSelection.DefaultFontScale), Retry(AppearanceSelection.MaxFontScale));
+            var what = $"Retry of the {which}{(retrying ? ", its retry running" : "")} ({language}, a {page}-point page)";
+            drawn.Add($"{what}: {small.Wide:0.#} by {small.High:0.#} at text size {AppearanceSelection.DefaultFontScale:0.##}, {large.Wide:0.#} by {large.High:0.#} at {AppearanceSelection.MaxFontScale:0.##}");
+            var grew = retrying
+                ? large.Wide >= small.Wide + 15 && large.High >= small.High
+                : large.Wide >= small.Wide * 1.25 && large.High >= small.High * 1.25;
+            if (!grew)
+                faults.Add($"{what} is {small.Wide:0.#} by {small.High:0.#} points at the default text size and {large.Wide:0.#} by {large.High:0.#} at the largest: {(retrying ? "not 15 points wider" : "not a quarter larger each way")}");
+        }
+        if (Environment.GetEnvironmentVariable("ISSUE_354_DRAWN") is not null)
+            Console.WriteLine(string.Join(Environment.NewLine, drawn));
+        if (faults.Count > 0)
+            throw new Exception($"{faults.Count} of {drawn.Count} buttons: {string.Join("; ", faults)}.");
+    }),
 };
 
 var failures = 0;
