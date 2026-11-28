@@ -25,8 +25,8 @@
 #
 # What it decides, from the commit main is at:
 #   - the version in the project file has a tag on main: nothing to pack. If main's code (src,
-#     native) has changed since that tag, it says so: a change reaches the app only under a
-#     new version. If the feed has no package of that version, it says that too.
+#     native, less the Swift side's tests) has changed since that tag, it says so: a change
+#     reaches the app only under a new version. If the feed has no package of that version, it says that too.
 #   - the version has no tag: it is packed. A failure is tried again after an hour, three times
 #     in all for one commit; after that it waits for main to change, or for the file
 #     state/bridge-release-seen to be removed.
@@ -131,7 +131,9 @@ decide() {
   seen nothing
   if ! sgit merge-base --is-ancestor "$tag" "$SHA" 2>/dev/null; then
     note nothing "The bridge's main ($SHORT) names version $VERSION, and the tag v$VERSION is at a commit that is not on main, so nothing was packed. Give main the next version to have it packed."
-  elif ! sgit diff --quiet "$tag" "$SHA" -- src native 2>/dev/null; then
+  # The Swift side's tests are under native and are in no package: a change to them alone
+  # (issue 349 was one) is not a change to the bridge's code and needs no version.
+  elif ! sgit diff --quiet "$tag" "$SHA" -- src native ':(exclude)native/MicrosoftSwiftUIShim/Tests' 2>/dev/null; then
     note nothing "The bridge's main ($SHORT) has changed the bridge's code since v$VERSION without a new version, so nothing was packed. A change reaches the app only under the next version."
   elif [ ! -f "$FEED/Microsoft.SwiftUI.$VERSION.nupkg" ]; then
     # A tag is not proof that the Captain gave the version out: the sessions' login can make one.

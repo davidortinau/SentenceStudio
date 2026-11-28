@@ -501,7 +501,12 @@ a release or a package in anyone else's feed are, and stay his. The steps:
 4. `scripts/session-bridge.sh test` runs the bridge's own tests: it builds the native
    framework, runs the managed test program and then the Swift side's tests (`swift test` in
    `native/MicrosoftSwiftUIShim`), says each count ("Managed tests: 82/82 passed", "Swift
-   tests: 91/91 passed") with the failures, and stops when a test of either fails. Allow five
+   tests: 91/91 passed") with the failures, and stops when a test of either fails. When
+   SwiftUI complained while a Swift test ran, it says "Swift test warnings: N" and the first
+   one: they fail nothing, and the bridge's tests have had none since issue 349, so one that
+   appears is your change's. (A test that only needs a body built calls `buildHosted(node)` from
+   `Tests/MicrosoftSwiftUIShimTests/HostedBody.swift`, never `SwiftUINodeView(node:).body`:
+   outside a hosted view SwiftUI warns and reads the environment's defaults.) Allow five
    minutes: the native framework takes most of it, the Swift tests half a minute to a minute.
    To run one Swift suite alone while you work on it:
    `swift test --package-path ~/sstudio/bridge/native/MicrosoftSwiftUIShim --filter <its class>`.

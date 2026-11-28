@@ -48,6 +48,10 @@ if [ -f "$STUB/swift-fails" ]; then
   echo "	 Executed 4 tests, with 2 failures (0 unexpected) in 2.638 (2.660) seconds"
   status=1
 else
+  # What SwiftUI says of a body built outside a hosted view. It fails nothing.
+  [ ! -f "$STUB/swift-warns" ] || for line in 2160 2458; do
+    echo "$PWD/native/MicrosoftSwiftUIShim/Sources/MicrosoftSwiftUIShim/SwiftUINode.swift:$line: warning: -[MicrosoftSwiftUIShimTests.FixedWidthTests testARowKeepsItsWidth] : Accessing Environment<<private>>'s value outside of being installed on a View. This will always read the default value and will not update."
+  done
   echo "Test Case '-[MicrosoftSwiftUIShimTests.FixedWidthTests testARowKeepsItsWidth]' passed (0.004 seconds)."
   echo "Test Suite 'FixedWidthTests' passed at 2026-11-25 19:03:31.893."
   echo "	 Executed 1 test, with 0 failures (0 unexpected) in 0.004 (0.004) seconds"
@@ -106,6 +110,20 @@ class SessionBridgeTestStepTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(done.stdout.splitlines(), ["Managed tests: 3/3 passed", "Swift tests: 4/4 passed"])
         self.assertEqual(self.ran(), ["managed", f"swift test --package-path native/MicrosoftSwiftUIShim in {self.bridge}"])
+
+    def test_warnings_from_swiftui_in_a_passing_run_are_counted_and_the_first_is_said(self):
+        # A clean run says the two counts and nothing more (the test above); this one passes too.
+        self.mark("swift-warns")
+        done = self.run_step()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        log = self.dir / "logs/session-bridge-test.log"
+        self.assertEqual(done.stdout.splitlines(), [
+            "Managed tests: 3/3 passed", "Swift tests: 4/4 passed",
+            f"Swift test warnings: 2 (they fail nothing; all are in {log}). The first:",
+            "native/MicrosoftSwiftUIShim/Sources/MicrosoftSwiftUIShim/SwiftUINode.swift:2160: warning: "
+            "-[MicrosoftSwiftUIShimTests.FixedWidthTests testARowKeepsItsWidth] : Accessing Environment<<private>>'s "
+            "value outside of being installed on a View. This will always read the default value and will not update."])
+        self.assertEqual(log.read_text(encoding="utf-8").count("Accessing Environment"), 2)
 
     def test_a_swift_test_that_fails_stops_the_step_and_is_named(self):
         self.mark("swift-fails")
