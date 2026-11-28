@@ -905,10 +905,17 @@ public sealed class CoachSessionService : ICoachSessionService
         if (context.IsCancelRequested is { } cancelProbe
             && await cancelProbe(cancellationToken).ConfigureAwait(false))
         {
-            return CoachOperationResult<CoachTurnResponse>.Problem(
+            var cancelled = CoachOperationResult<CoachTurnResponse>.Problem(
                 CoachOperationStatus.RunCancelled,
                 CoachProblemTypes.RunCancelled,
                 "That turn was cancelled.");
+
+            // This return is before ObserveTurnOutcomeAsync, the one place the second call is
+            // counted, and both calls were charged just above (issue 333). The result is already
+            // built, so the observation cannot change how the cancelled turn ends.
+            await ObserveSecondCallOfACancelledTurnAsync(announcementRetry).ConfigureAwait(false);
+
+            return cancelled;
         }
 
         var modelIntentWasReplaced = false;
@@ -986,7 +993,8 @@ public sealed class CoachSessionService : ICoachSessionService
     /// none was asked for once more before this turn's outcome existed, so that fact is recorded
     /// whatever the outcome turned out to be, and first, so that nothing the detector below does
     /// can lose it. It is aggregate-only: a count per learner per day, with no conversation and
-    /// no turn on it.
+    /// no turn on it. A turn cancelled after its second call never reaches this method, and
+    /// <see cref="ObserveSecondCallOfACancelledTurnAsync"/> records the same row for it.
     /// </para>
     /// <para>
     /// <b>Response-neutral by construction.</b> Called after <c>_idempotency.Store</c>, so the
@@ -1110,6 +1118,51 @@ public sealed class CoachSessionService : ICoachSessionService
             _logger.LogWarning(
                 "[Coach] A turn outcome could not be observed; the turn is unaffected. " +
                 "Category={FailureCategory} InnerDepth={InnerDepth}",
+                facts.Category,
+                facts.InnerDepth);
+        }
+    }
+
+    /// <summary>
+    /// Records the one counted row of a turn that was asked for a second time and then cancelled
+    /// before its reply was used (issue 333), and nothing when the turn was asked for once.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same row <see cref="ObserveTurnOutcomeAsync"/> writes first for a turn that was not
+    /// cancelled, under the same three codes: the code says how the second call ended, and on
+    /// this path no reply was shown. Nothing else is observed here. A cancelled turn has no
+    /// outcome for the detector or the mapper to read.
+    /// </para>
+    /// <para>
+    /// <b>No token.</b> The cancel check also returns when the worker has lost its lease, and
+    /// the turn's token is cancelled by then. The usage of both calls is recorded without a
+    /// token for that reason, and the count goes with the charge.
+    /// </para>
+    /// </remarks>
+    private async Task ObserveSecondCallOfACancelledTurnAsync(
+        Opportunities.Mapping.CoachEmptyAnnouncementRetryOutcome? announcementRetry)
+    {
+        if (announcementRetry is not { } retryOutcome)
+        {
+            return;
+        }
+
+        try
+        {
+            await _opportunities.RecordAsync(
+                    Opportunities.Mapping.CoachTurnOutcomeOpportunityMapper.MapEmptyAnnouncementRetry(retryOutcome),
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Including OperationCanceledException, as in ObserveRunDeniedAsync: the cancelled
+            // result is already decided and is about to be returned.
+            var facts = CoachExceptionSanitizer.Describe(ex);
+            _logger.LogWarning(
+                "[Coach] The second call of a cancelled turn could not be observed; the response is " +
+                "unaffected. Category={FailureCategory} InnerDepth={InnerDepth}",
                 facts.Category,
                 facts.InnerDepth);
         }

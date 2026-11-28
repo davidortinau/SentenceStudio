@@ -92,6 +92,10 @@ public static class CoachOpportunityCapabilityCodes
     public const string AnswerLeakRefusal = "answer_leak_refusal";
 
     // ---------------------------------------------------------------- empty announcement
+    //
+    // Each code says how the second call ended. "Was shown" holds for a turn that went on to its
+    // end; a turn cancelled after its second call is counted under the same code and showed the
+    // learner nothing (issue 333).
 
     /// <summary>
     /// A reply announced content and held none; the second reply held content (its own text, or
