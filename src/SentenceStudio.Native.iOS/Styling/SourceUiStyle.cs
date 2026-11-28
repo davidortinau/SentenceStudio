@@ -216,8 +216,16 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
             .WithAccessibilityIdentifier(accessibilityIdentifier);
     }
 
+    /// <param name="fillsWidth">
+    /// True (the default): the link fills the width it is given and its label is centred in
+    /// it, for a link with a row to itself. False: the link is as wide as its glyph and
+    /// title and sits at the leading edge, for a link that shares its row (issue 335: two
+    /// links that each filled half a row had their titles wrapped). Outside the two themes
+    /// that draw a border around it, it then has no side padding either, so that its glyph
+    /// lines up with the text above it.
+    /// </param>
     internal SwiftView TextLinkButton(string title, string symbol, Action action,
-        string accessibilityIdentifier)
+        string accessibilityIdentifier, bool fillsWidth = true)
     {
         var sourceClass = appearance.Selection.ThemeId is "brite" or "sketchy";
         var metrics = SourceUiTypography.For(SourceTextRole.Button,
@@ -232,8 +240,10 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
                 appearance.TertiaryText.Dark)
             .WithPadding(6, 16, 6, 16)
             .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight);
-        if (!sourceClass)
+        if (!sourceClass && fillsWidth)
             label.WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center);
+        else if (!sourceClass)
+            label.WithPadding(6, 0, 6, 0);
         label.Spacing = 4;
         var button = Views.Button(label, action)
             .WithButtonStyle(SwiftButtonStyle.Plain)
@@ -256,7 +266,8 @@ internal sealed class SourceUiStyle(SourceUiAppearance appearance, double viewpo
         }
         return sourceClass
             ? Views.HStack(button).WithFlexibleWidth(
-                alignment: SwiftHorizontalAlignment.Center)
+                alignment: fillsWidth ? SwiftHorizontalAlignment.Center
+                    : SwiftHorizontalAlignment.Leading)
             : button.WithFlexibleWidth();
     }
 
