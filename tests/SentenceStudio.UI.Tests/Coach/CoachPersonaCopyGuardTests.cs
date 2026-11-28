@@ -128,11 +128,9 @@ public class CoachPersonaCopyGuardTests
     /// A coach key declared twice would resolve unpredictably, and the loser would be invisible.
     /// </summary>
     /// <remarks>
-    /// Coach-scoped on purpose. Nine keys elsewhere in the file are declared twice today, several
-    /// with different values — <c>Mastered</c> is both "Mastered" and "Mastered!", and
-    /// <c>ScenarioCreated</c> exists with and without a <c>{0}</c> placeholder. That is a real
-    /// defect and is reported, but it belongs to the areas that own those strings; widening this
-    /// test to the whole file would make coach copy hostage to it.
+    /// Coach-scoped on purpose. Nine keys elsewhere in the file were declared twice when this was
+    /// written; issue 296 removed them, and <c>ResourceDuplicateKeyTests</c> in the unit tests now
+    /// holds the whole file to one declaration per key.
     /// </remarks>
     [Theory]
     [InlineData("AppResources.resx")]
@@ -147,7 +145,7 @@ public class CoachPersonaCopyGuardTests
             .ToList();
 
         duplicates.Should().BeEmpty(
-            $"a coach key declared twice in {fileName} resolves to whichever the loader saw last, "
+            $"a coach key declared twice in {fileName} resolves to the first declaration, "
             + "and the other value is unreachable and untestable");
     }
 
