@@ -143,27 +143,48 @@ public sealed class PostgresCoachCleanupLease : ICoachCleanupLease
 }
 
 /// <summary>
-/// Single-process lease for providers without advisory locks — the SQLite test provider, and any
+/// The gate one host's <see cref="InProcessCoachCleanupLease"/> instances share. Registered as a
+/// singleton, so every scope of a host contends for the same one.
+/// </summary>
+/// <remarks>
+/// It belongs to the host and not to the process. A process-wide static gate also joined every
+/// other host in the process, which only a test run has: a lease held by one test host refused
+/// an unrelated lease taken at the same moment, and the test asking for it failed.
+/// </remarks>
+public sealed class InProcessCoachCleanupGate
+{
+    internal SemaphoreSlim Semaphore { get; } = new(1, 1);
+}
+
+/// <summary>
+/// Single-host lease for providers without advisory locks — the SQLite test provider, and any
 /// single-instance local run.
 /// </summary>
 /// <remarks>
-/// This guarantees mutual exclusion <b>within one process only</b>. It is selected only when the
+/// This guarantees mutual exclusion <b>within one host only</b>. It is selected only when the
 /// provider is not PostgreSQL, so a deployed multi-replica host always gets the database lease
-/// instead. The static semaphore is deliberate: a per-instance one would guard nothing, since
-/// each scope resolves its own lease.
+/// instead. The gate is shared through <see cref="InProcessCoachCleanupGate"/>, which the host
+/// registers once: a per-instance one would guard nothing, since each scope resolves its own
+/// lease.
 /// </remarks>
 public sealed class InProcessCoachCleanupLease : ICoachCleanupLease
 {
-    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private readonly SemaphoreSlim _gate;
+
+    public InProcessCoachCleanupLease(InProcessCoachCleanupGate gate)
+    {
+        ArgumentNullException.ThrowIfNull(gate);
+        _gate = gate.Semaphore;
+    }
 
     /// <inheritdoc />
     public async Task<ICoachCleanupLeaseHandle?> TryAcquireAsync(CancellationToken cancellationToken = default)
     {
-        var acquired = await Gate.WaitAsync(TimeSpan.Zero, cancellationToken);
-        return acquired ? new SemaphoreLeaseHandle() : null;
+        var acquired = await _gate.WaitAsync(TimeSpan.Zero, cancellationToken);
+        return acquired ? new SemaphoreLeaseHandle(_gate) : null;
     }
 
-    private sealed class SemaphoreLeaseHandle : ICoachCleanupLeaseHandle
+    private sealed class SemaphoreLeaseHandle(SemaphoreSlim gate) : ICoachCleanupLeaseHandle
     {
         private bool _released;
 
@@ -174,7 +195,7 @@ public sealed class InProcessCoachCleanupLease : ICoachCleanupLease
             if (!_released)
             {
                 _released = true;
-                Gate.Release();
+                gate.Release();
             }
 
             return ValueTask.CompletedTask;

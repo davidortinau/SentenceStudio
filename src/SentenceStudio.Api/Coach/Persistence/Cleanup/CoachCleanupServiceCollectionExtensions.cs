@@ -44,6 +44,9 @@ public static class CoachCleanupServiceCollectionExtensions
         services.TryAddScoped<ICoachExpiredSessionFilter, CheckpointOnlyExpiredSessionFilter>();
         services.TryAddScoped<CoachCleanupRunner>();
 
+        // One gate per host: every scope's in-process lease shares it, and no other host's does.
+        services.TryAddSingleton<InProcessCoachCleanupGate>();
+
         services.TryAddScoped<ICoachCleanupLease>(static provider =>
         {
             var db = provider.GetRequiredService<CoachDbContext>();
@@ -52,7 +55,8 @@ public static class CoachCleanupServiceCollectionExtensions
                 ? new PostgresCoachCleanupLease(
                     db,
                     provider.GetRequiredService<ILogger<PostgresCoachCleanupLease>>())
-                : new InProcessCoachCleanupLease();
+                : new InProcessCoachCleanupLease(
+                    provider.GetRequiredService<InProcessCoachCleanupGate>());
         });
 
         if (environment.IsEnvironment("Testing"))
