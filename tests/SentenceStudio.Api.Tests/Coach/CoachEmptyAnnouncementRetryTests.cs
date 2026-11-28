@@ -72,6 +72,39 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("\"차다\"는 이렇게 써요.\nHere are three example sentences.")]
     [InlineData("'차다'를 쓴 예문은 다음과 같습니다.", Korean)]
     [InlineData("‘차다’를 쓴 예문은 다음과 같습니다.", Korean)]
+    // Issue 331: emphasis near an announcement does not hide it. An announcement that is itself
+    // in emphasis, from the start of the message, of a line or of a sentence, is still one; so
+    // is one after a word in emphasis, and a mark that is not emphasis opens nothing.
+    [InlineData("**Here are three example sentences.**")]
+    [InlineData("*Here are three example sentences.*")]
+    [InlineData("__Here are three example sentences.__")]
+    [InlineData("`Here are three example sentences.`")]
+    [InlineData("Sure! **Here are three example sentences.**")]
+    [InlineData("**Sure!** *Here are three example sentences.*")]
+    [InlineData("차다는 이렇게 써요.\n**Here are three example sentences.**")]
+    [InlineData("For **차다**, here are three example sentences.")]
+    [InlineData("**차다**를 쓴 예문은 다음과 같습니다.", Korean)]
+    [InlineData("The word is kick_ball in the list, and here are three example sentences.")]
+    [InlineData("That is 2*3 words, and here are three example sentences.")]
+    [InlineData("* Here are three example sentences.")]
+    [InlineData("The plural is **kick**s, and here are three example sentences.")]
+    [InlineData("See the note below*. Here are three example sentences.")]
+    [InlineData("Sure, **here are three example sentences.**")]
+    [InlineData("Good question, and *here's a set of example sentences for you.*")]
+    [InlineData("In English you say *Hello.* **Here are three example sentences.**")]
+    // The review of pull request 348: emphasis after a comma, a semicolon or a dash is the
+    // reply's own clause, in a capital or in Korean as much as in small letters.
+    [InlineData("Sure, **Here are three example sentences.**")]
+    [InlineData("좋아요, **다음은 예문 세 개입니다.**", Korean)]
+    [InlineData("Sure, *Here are three example sentences.*")]
+    [InlineData("네， __아래는 예문 세 개입니다.__", Korean)]
+    [InlineData("Good question; **Here's a set of example sentences for you.**")]
+    [InlineData("Sure - **Here are three example sentences.**")]
+    [InlineData("좋아요 – **다음은 예문 세 개입니다.**", Korean)]
+    [InlineData("**Sure**, **Here are three example sentences.**")]
+    [InlineData("**Sure,** *Here are three example sentences.*")]
+    [InlineData("For **차다**, **Here are three example sentences.**")]
+    [InlineData("In English you say *Hello.* Sure, **The following are three example sentences.**")]
     // Issue 330: an announcement is written in the display language, so the Korean rows above are
     // for a learner who reads Korean. A colon ends an announcement in any language, an English
     // announcement is read for a tag without a region, and a display language that is neither
@@ -126,6 +159,23 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("한국어로는 \"다음은 제 차례예요\"라고 해요.", Korean)]
     [InlineData("한국어로는 「다음은 제 차례예요」라고 해요.", Korean)]
     [InlineData("한국어로는 『다음은 제 차례예요』라고 해요.", Korean)]
+    // Issue 331: a sentence set off with emphasis and no quotation marks is the content too.
+    [InlineData("In English you say **Here is your coffee.**")]
+    [InlineData("In English you say *Here is your coffee.*")]
+    [InlineData("In English you say __Here is your coffee.__")]
+    [InlineData("In English you say _Here is your coffee._")]
+    [InlineData("In English you say `Here is your coffee.`")]
+    [InlineData("In English you say ***Here is your coffee.***")]
+    [InlineData("In English you say: **Here is your coffee.**")]
+    [InlineData("A waiter might say **Thank you for waiting. Here is your coffee.**")]
+    [InlineData("In English you say **Here is *your* coffee.**")]
+    [InlineData("In English you say **\"Here is your coffee.\"**")]
+    [InlineData("In English you say **_Here is your coffee._**")]
+    [InlineData("한국어로는 **다음은 제 차례예요**라고 해요.", Korean)]
+    // The review of pull request 348: a comma earlier in the lead does not cut the lead off.
+    [InlineData("In English, you say **Here is your coffee.**")]
+    [InlineData("Sure, in English you say **Here is your coffee.**")]
+    [InlineData("네, 한국어로는 **다음은 제 차례예요**라고 해요.", Korean)]
     public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(
         string reply, string displayLanguageTag = English)
     {
@@ -261,6 +311,9 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("Here are three example sentences:", "Here are three example sentences:")]
     [InlineData("Here are three Korean-only example sentences that use it without giving away the quiz choice.", "")]
     [InlineData("다음은 예문 세 개입니다.", "", Korean)]
+    // The review of pull request 348, through the answer path.
+    [InlineData("Sure, **Here are three example sentences.**", "")]
+    [InlineData("좋아요, **다음은 예문 세 개입니다.**", "", Korean)]
     public async Task An_answer_whose_only_part_is_an_announcement_is_asked_for_once_more_and_the_answer_is_shown(
         string announcement, string message, string displayLanguageTag = English)
     {
