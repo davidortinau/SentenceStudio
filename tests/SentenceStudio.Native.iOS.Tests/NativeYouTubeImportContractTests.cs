@@ -94,6 +94,27 @@ public sealed class NativeYouTubeImportContractTests
     }
 
     [Fact]
+    public void AnOpenChannelPageReshapesItsFailedRowsWhenTheWidthCrossesTheBreakpoint()
+    {
+        // Issue 308: a failed video's row has two lines under 768 points and one from there, and
+        // the row chose between them only when it was built, so a page open while the phone
+        // turned kept the other width's shape. The scene tells the open page at the breakpoint
+        // and the page changes those rows in place (drawn and measured across the turn in
+        // tests/SentenceStudio.Native.SwiftUIViews.Tests).
+        var scene = Source("App/ApplicationScene.cs");
+        var viewport = scene[scene.IndexOf("private void ViewportChanged(", StringComparison.Ordinal)
+            ..scene.IndexOf("private static SwiftView? FindFocusedInput(", StringComparison.Ordinal)];
+        var atBreakpoint = viewport[viewport.IndexOf("if (crossedDesktopBreakpoint)", StringComparison.Ordinal)..];
+        Assert.Contains("if (_youTubeChannelContent is not null && _app.IsYouTubeChannelOpen)\n"
+            + "                _app.YouTubeChannelViewportChanged(_youTubeChannelContent, _style);", atBreakpoint);
+        Assert.Contains("YouTubeChannelView.ViewportChanged(mounted, channel, channel.State, style, Text);",
+            Source("App/ApplicationController.YouTube.cs"));
+        var view = Source("Features/Import/YouTubeChannelView.cs");
+        Assert.Contains("private static bool FailedOnTwoLines(SourceUiStyle style) => style.ViewportWidth < 768;", view);
+        Assert.Contains("(view.Children.Count > 1) == FailedOnTwoLines(style)", view);
+    }
+
+    [Fact]
     public void BadgesAndShortButtonsKeepTheirWidthBesideATruncatedTitle()
     {
         // Source badges are nowrap and the title truncates. A row offers each item an equal share

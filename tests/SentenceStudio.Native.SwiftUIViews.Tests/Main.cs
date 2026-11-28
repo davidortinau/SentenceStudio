@@ -1340,6 +1340,121 @@ var cases = new (string Name, Action Test)[]
         if (faults.Count > 0)
             throw new Exception($"{faults.Count} of {drawn.Count - 1} rows: {string.Join("; ", faults)}.");
     }),
+    // Issue 308, the review of pull request 315: the case above builds a fresh row at each
+    // width, and the row chose its shape only when it was built, so a channel page that was open
+    // while the phone turned kept the shape of the width it was opened at. This one mounts the
+    // page's own video section once, in one host that stays (a failed video whose retry is
+    // running: the row with the least room), and then does what ApplicationScene.ViewportChanged
+    // does when the width crosses 768 points: the style takes the new width, the fonts are
+    // refreshed, and the page is told (YouTubeChannelView.ViewportChanged, which is what
+    // ApplicationController.YouTubeChannelViewportChanged calls). It turns an 844-point page to
+    // 375 points and a 375-point page to 844, in English and Korean, at the default and the
+    // largest app text size. After the turn the mounted section must draw as one built fresh at
+    // the new width does (the same title room, the same height), stay inside its row, and on
+    // the phone show its title. The section is in a column, not in its Form: a Form paints its
+    // own background, and the title is measured by what it paints. The page's method is looked
+    // up by name, like the page's other private parts here, so that this case also builds
+    // against the code from before the method was there, where nothing reshaped the row, and
+    // fails on what is drawn. ISSUE_308_TURNED prints the measurements.
+    ("YouTube channel page: turning the phone with the page open gives a failed video's row the new width's shape, both ways (issue 308)", () =>
+    {
+        const double margin = 100;
+        const double high = 400;
+        const double phoneSwitch = 51;
+        const string title = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        YouTubeChannelState Videos(string name) => new(true, false, false, false, false, false, null,
+            "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+            [new YouTubeDiscoveredVideo("v0", name, "https://youtu.be/v0", VideoImportStatus.Failed)],
+            System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null,
+            true, "v0", []);
+        double hostToggle;
+        using (var alone = Views.HStack(Views.Toggle("Select", false, _ => { }).WithLabelsHidden()))
+        {
+            var mask = PaintedMask(alone, 200, 80);
+            var painted = Enumerable.Range(0, mask[0].Length).Where(x => mask.Any(line => line[x])).ToArray();
+            hostToggle = (painted[^1] + 1 - painted[0]) / (mask[0].Length / 200d);
+        }
+        if (hostToggle is < 8 or > phoneSwitch)
+            throw new Exception($"This host's toggle is {hostToggle:0.#} points wide: not the checkbox this case allows for.");
+        // The Form row of a page that wide, less the room an iPhone's switch takes over this host's checkbox.
+        double RowWidth(double page) => Math.Floor(page - 72 - (phoneSwitch - hostToggle));
+        var turned = typeof(YouTubeChannelView).GetMethod("ViewportChanged", flags);
+        var faults = new List<string>();
+        var drawn = new List<string>();
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var (from, to) in new[] { (844d, 375d), (375d, 844d) })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            if (Words("Import_Retry") == "Import_Retry" || (language == "ko") != Words("Import_Retry").Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: Retry is \"{Words("Import_Retry")}\".");
+            var appearance = SourceUiAppearance.FromSelection(AppearanceSelection.Default.WithFontScale(scale));
+            SwiftView Section(string name, SourceUiStyle look, double page) =>
+                Views.VStack((SwiftView)typeof(YouTubeChannelView).GetMethod("Discovery", flags)!
+                    .Invoke(null, [channel, Videos(name), look, (Func<string, string>)Words])!)
+                    .WithFixedWidth(RowWidth(page));
+            // What the title paints (the columns that differ from the same section with a blank
+            // title), how far the paint reaches past the row on either side, and its height.
+            (double Title, double Left, double Right, double High) Measure(bool[][] with, bool[][] without, double page)
+            {
+                var perPoint = with[0].Length / (RowWidth(page) + 2 * margin);
+                var columns = Enumerable.Range(0, with[0].Length).ToArray();
+                var painted = columns.Where(x => with.Any(line => line[x])).ToArray();
+                return (columns.Count(x => Enumerable.Range(0, with.Length).Any(y => with[y][x] != without[y][x])) / perPoint,
+                    painted[0] / perPoint - margin, (painted[^1] + 1) / perPoint - margin,
+                    with.Count(line => line.Any(pixel => pixel)) / perPoint);
+            }
+            var look = new SourceUiStyle(appearance, from);
+            using var titled = Section(title, look, from);
+            using var blank = Section(" ", look, from);
+            var (titledHost, blankHost) = (SwiftUIHost.CreateView(titled), SwiftUIHost.CreateView(blank));
+            (double Title, double Left, double Right, double High) before, after, fresh;
+            try
+            {
+                before = Measure(HostMask(titledHost, RowWidth(from) + 2 * margin, high),
+                    HostMask(blankHost, RowWidth(from) + 2 * margin, high), from);
+                // The turn, as ApplicationScene.ViewportChanged makes it.
+                look.ViewportWidth = to;
+                foreach (var (mounted, name) in new[] { (titled, title), (blank, " ") })
+                {
+                    SourceUiStyle.RefreshTypography(mounted, appearance, to);
+                    turned?.Invoke(null, [mounted, channel, Videos(name), look, (Func<string, string>)Words]);
+                    mounted.WithFixedWidth(RowWidth(to));
+                }
+                // SwiftUI applies a mounted view's changes on the run loop.
+                Foundation.NSRunLoop.Current.RunUntil(Foundation.NSDate.FromTimeIntervalSinceNow(0.05));
+                after = Measure(HostMask(titledHost, RowWidth(to) + 2 * margin, high),
+                    HostMask(blankHost, RowWidth(to) + 2 * margin, high), to);
+            }
+            finally
+            {
+                SwiftUIHost.DetachView(titled, titledHost);
+                SwiftUIHost.DetachView(blank, blankHost);
+            }
+            var freshLook = new SourceUiStyle(appearance, to);
+            using (var freshTitled = Section(title, freshLook, to))
+            using (var freshBlank = Section(" ", freshLook, to))
+                fresh = Measure(PaintedMask(freshTitled, RowWidth(to) + 2 * margin, high),
+                    PaintedMask(freshBlank, RowWidth(to) + 2 * margin, high), to);
+            var what = $"The open channel page's failed video, its retry running ({language}, text size {scale:0.##}), turned from a {from}-point page to a {to}-point one";
+            drawn.Add($"{what}: title {before.Title:0.#} and {before.High:0.#} high before; title {after.Title:0.#}, {after.High:0.#} high, paint {after.Left:0.#} to {after.Right:0.#} after; built fresh at {to}: title {fresh.Title:0.#}, {fresh.High:0.#} high");
+            if (after.Left < -1 || after.Right > RowWidth(to) + 1)
+                faults.Add($"{what} is painted from {after.Left:0.#} to {after.Right:0.#}, past its {RowWidth(to)} points");
+            else if (Math.Abs(after.High - fresh.High) > 1 || Math.Abs(after.Title - fresh.Title) > 1)
+                faults.Add($"{what} shows {after.Title:0.#} points of its title and is {after.High:0.#} points high; a page opened at {to} points shows {fresh.Title:0.#} and is {fresh.High:0.#} high");
+            // Three letters and the ellipsis of the title at this text size.
+            else if (to < 768 && after.Title < 40 * scale)
+                faults.Add($"{what} shows {after.Title:0.#} points of its title, under {40 * scale:0.#}");
+        }
+        if (Environment.GetEnvironmentVariable("ISSUE_308_TURNED") is not null)
+            Console.WriteLine(string.Join(Environment.NewLine, drawn));
+        if (faults.Count > 0)
+            throw new Exception($"{faults.Count} of {drawn.Count} turns: {string.Join("; ", faults)}.");
+    }),
 };
 
 var failures = 0;
@@ -1544,32 +1659,39 @@ static bool[][] PaintedMask(SwiftView root, double width, double height)
     var host = SwiftUIHost.CreateView(root);
     try
     {
-        host.Frame = new CGRect(0, 0, width, height);
-        host.LayoutSubtreeIfNeeded();
-        var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
-            ?? throw new Exception("The host has no bitmap to draw in.");
-        host.CacheDisplay(host.Bounds, bitmap);
-        if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
-            throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
-        var samples = (int)bitmap.BitsPerPixel / 8;
-        var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
-        // Read once: each of these is a call into the bitmap, and there is one read per pixel.
-        var (data, stride, wide) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide);
-        var mask = new bool[(int)bitmap.PixelsHigh][];
-        for (var y = 0; y < mask.Length; y++)
-        {
-            mask[y] = new bool[wide];
-            for (var x = 0; x < wide; x++)
-                mask[y][x] = Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0;
-        }
-        if (!mask.Any(line => line.Any(pixel => pixel)))
-            throw new Exception("The host painted nothing: this is the drawing, not the layout.");
-        return mask;
+        return HostMask(host, width, height);
     }
     finally
     {
         SwiftUIHost.DetachView(root, host);
     }
+}
+
+// The same for a host that is already there and stays: a mounted view can be drawn, changed
+// and drawn again.
+static bool[][] HostMask(NSView host, double width, double height)
+{
+    host.Frame = new CGRect(0, 0, width, height);
+    host.LayoutSubtreeIfNeeded();
+    var bitmap = host.BitmapImageRepForCachingDisplayInRect(host.Bounds)
+        ?? throw new Exception("The host has no bitmap to draw in.");
+    host.CacheDisplay(host.Bounds, bitmap);
+    if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
+        throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
+    var samples = (int)bitmap.BitsPerPixel / 8;
+    var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
+    // Read once: each of these is a call into the bitmap, and there is one read per pixel.
+    var (data, stride, wide) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide);
+    var mask = new bool[(int)bitmap.PixelsHigh][];
+    for (var y = 0; y < mask.Length; y++)
+    {
+        mask[y] = new bool[wide];
+        for (var x = 0; x < wide; x++)
+            mask[y][x] = Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0;
+    }
+    if (!mask.Any(line => line.Any(pixel => pixel)))
+        throw new Exception("The host painted nothing: this is the drawing, not the layout.");
+    return mask;
 }
 
 // The height in points of everything a view paints in a real SwiftUI host of the given size.
