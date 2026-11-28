@@ -1094,6 +1094,100 @@ var cases = new (string Name, Action Test)[]
     // The quiz page keeps 16 points each side of its content (QuizPage), so on a phone the row is
     // offered the screen's width less 32: the last two drawings are that row on a 375-point and
     // on a 402-point phone, with the style the page builds for that screen.
+    // Issue 335: under a reply the two links shared the row in halves, each title centred in
+    // its half, and "Report this response" wrapped to two lines on every phone in English
+    // (the bubble at a 402-point screen was 122 points high with both links and 112 with Copy
+    // alone). Each link is now as wide as its glyph and title, at the leading edge, 12 apart,
+    // and the report link goes under Copy where the two do not fit one row. Drawn through
+    // SamView.Stream, so the row has the width a reply's bubble gives it: the screen less the
+    // stream's 16 points and the bubble's 12 on each side. A bubble paints its whole card, so
+    // its painted height is the reply's height; three bubbles are compared, with both links,
+    // with Copy alone (reporting unavailable) and with no row (a reply not yet settled).
+    ("Sam reply: Copy and Report this response keep one line each under a reply, side by side where they fit and stacked where they do not, in English and Korean (issue 335)", () =>
+    {
+        const double gap = 12, inset = 2 * (16 + 12), partSpacing = 4;
+        var wrong = new List<string>();
+        var (sideBySide, stacked) = (0, 0);
+        foreach (var theme in new[] { AppearanceSelection.Default.ThemeId, "brite" })
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var screen in new[] { 402d, 375d, 330d })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            var (copyTitle, reportTitle) = (Words("Coach_Copy"), Words("Coach_ReportResponse"));
+            if (copyTitle == "Coach_Copy" || reportTitle == "Coach_ReportResponse"
+                || (language == "ko") != reportTitle.Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: the links are \"{copyTitle}\" and \"{reportTitle}\".");
+            var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
+                new AppearanceSelection(theme, AppearanceSelection.Default.Mode, scale)), screen);
+            double Bubble(bool settled, bool reporting)
+            {
+                using var stream = SamView.Stream(look, new NativeSamState(PersonaCulture: language,
+                    Entries: [SamReply(settled)], ReportingAvailable: reporting), Words, NoSamActions());
+                if ((Find(stream, "native.sam.copy.0") is not null) != settled
+                    || (Find(stream, "native.sam.report.0") is not null) != (settled && reporting))
+                    throw new Exception($"The reply's links are not the ones asked for (settled {settled}, reporting {reporting}).");
+                return PaintedHeight(stream, screen, 800);
+            }
+            var (both, copyAlone, noRow) = (Bubble(true, true), Bubble(true, false), Bubble(false, false));
+            // One link's own height, with room: what it adds to a card under a line of text.
+            // The two differ at the largest text, where Copy's glyph is the taller.
+            double InCard(params SwiftView[] parts)
+            {
+                var stack = Views.VStack(parts).WithFlexibleWidth();
+                stack.Spacing = 0;
+                using var card = look.Card(stack, radius: 12);
+                return PaintedHeight(card, 1200, 400);
+            }
+            double LinkHeight(string title, string symbol) =>
+                InCard(look.Text(Views.Text("A reply."), SourceTextRole.Body1),
+                    look.TextLinkButton(title, symbol, () => { }, "link"))
+                - InCard(look.Text(Views.Text("A reply."), SourceTextRole.Body1));
+            var (copyLink, reportLink) = (LinkHeight(copyTitle, "doc.on.doc"), LinkHeight(reportTitle, "flag"));
+            var inOneRow = noRow + partSpacing + Math.Max(copyLink, reportLink);
+            var inTwoRows = noRow + partSpacing + copyLink + gap + reportLink;
+            var at = $"{theme}, {language}, text size {scale:0.##}, {screen} points";
+            var drawn = $"the bubble is {both:0.#} high with both links, {copyAlone:0.#} with Copy alone, {noRow:0.#} with no row; the links are {copyLink:0.#} and {reportLink:0.#} high, so one row is {inOneRow:0.#} and two are {inTwoRows:0.#}";
+            if (copyLink < 20 || reportLink < 20 || Math.Abs(copyAlone - (noRow + partSpacing + copyLink)) > 0.5)
+                throw new Exception($"{at}: the links' own heights do not account for the row of Copy alone, so the row cannot be judged ({drawn}).");
+            // Heights come out in whole points; a title on one more line adds ten or more,
+            // except that three lines side by side come within a point of two rows.
+            var oneRow = Math.Abs(both - inOneRow) <= 0.5;
+            var twoRows = Math.Abs(both - inTwoRows) <= 0.5;
+            if (Environment.GetEnvironmentVariable("ISSUE_335_DRAWN") is not null)
+                Console.WriteLine($"{at}: {(oneRow ? "one row" : twoRows ? "two rows" : "a title wraps")}; {drawn}");
+            if (!oneRow && !twoRows)
+            {
+                wrong.Add($"{at}: a title wraps ({drawn})");
+                continue;
+            }
+            sideBySide += oneRow ? 1 : 0;
+            stacked += twoRows ? 1 : 0;
+            if (theme != AppearanceSelection.Default.ThemeId)
+                continue;
+            // Outside the themes that draw a border around a link, each link is as wide as its
+            // glyph and title: what the link paints by itself with room.
+            double Own(string title, string symbol)
+            {
+                using var alone = look.TextLinkButton(title, symbol, () => { }, "link");
+                var rows = PaintedRows(alone, 1200, 400);
+                return rows.Max(row => row.Right) - rows.Min(row => row.Left);
+            }
+            var needed = Own(copyTitle, "doc.on.doc") + gap + Own(reportTitle, "flag");
+            var room = screen - inset;
+            // Within two points of the room either is right: the paint is not the measure.
+            if (needed <= room - 2 && !oneRow)
+                wrong.Add($"{at}: the two need {needed:0.#} of {room:0.#} points and are not side by side ({drawn})");
+            if (needed >= room + 2 && !twoRows)
+                wrong.Add($"{at}: the two need {needed:0.#} of {room:0.#} points and are not stacked ({drawn})");
+        }
+        if (wrong.Count > 0)
+            throw new Exception(string.Join("; ", wrong) + ".");
+        // Both arrangements must have been met, or the widths above no longer cover the fix.
+        if (sideBySide == 0 || stacked == 0)
+            throw new Exception($"{sideBySide} side by side and {stacked} stacked: both were to be drawn.");
+    }),
     ("Quiz correction: at the largest text size Submit and I was correct stack on a phone when they do not fit one row, in English and Korean (issue 279)", () =>
     {
         const double room = 1200;
@@ -2309,6 +2403,23 @@ static SwiftView FloatingPage(out SwiftView scroll, out SwiftView entry)
     entry = Views.HStack(Views.Button("Ask", () => { }));
     return Views.BottomInset(scroll, entry);
 }
+
+// One settled reply of Sam's, as the stream draws it under the learner's question.
+// A reply that is not settled yet (a local echo) has no row of links under it.
+static NativeSamEntry SamReply(bool settled = true) =>
+    new(settled ? "m-1" : "local:m-1", NativeSamEntryKind.Sam, "A reply.", default, 1, default, default, null, default);
+
+static SamActions NoSamActions() => new(
+    Open: () => { }, Close: () => { }, ToggleSize: () => { }, ToggleConversations: () => { },
+    NewConversation: () => { }, OpenConversation: _ => { }, DraftChanged: _ => { }, Send: () => { },
+    Retry: () => { }, Stop: () => { }, Dismiss: () => { }, ReloadPlan: () => { }, Accept: () => { },
+    Reject: () => { }, Undo: () => { }, Starter: (_, _) => { }, ToggleEvidence: _ => { },
+    ApproveSet: () => { }, DeclineSet: () => { }, StartReview: () => { }, OpenWord: _ => { },
+    StartActivity: () => { }, CancelActivity: () => { }, DismissActivity: () => { },
+    Writes: new SamWriteActions(_ => { }, _ => { }, () => { }, () => { }, _ => { }, _ => { }, _ => { }),
+    Memory: new SamMemoryActions(() => { }, () => { }, _ => { }, () => { }, () => { }, () => { }),
+    Messages: new SamMessageActions(_ => { }, _ => { }, _ => { }, () => { }, () => { }),
+    ManageConversations: new SamConversationActions((_, _) => { }, _ => { }, () => { }, () => { }, _ => { }));
 
 static NativeQuizState QuizCorrection() =>
     new(NativePhase.Feedback, NativeDestination.VocabularyQuiz,

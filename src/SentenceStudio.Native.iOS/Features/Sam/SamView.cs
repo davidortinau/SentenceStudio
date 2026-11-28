@@ -393,6 +393,13 @@ internal static class SamView
     }
 
     /// <summary>Copy and the report flag share one row; the report panel opens below it.</summary>
+    /// <remarks>
+    /// Issue 335: each link is as wide as its own glyph and title, at the leading edge, 12
+    /// apart (as the web's are since 1c12ae91). They used to share the row in halves, and on
+    /// every phone the English titles wrapped to two lines. Where the two do not fit one row
+    /// (a 330-point screen in English, the largest text) the report link goes under Copy, so
+    /// neither title wraps.
+    /// </remarks>
     private static IEnumerable<SwiftView> MessageActions(SourceUiStyle style, NativeSamState state,
         NativeSamEntry entry, int index, Func<string, string> text, SamMessageActions actions)
     {
@@ -402,21 +409,22 @@ internal static class SamView
         var buttons = new List<SwiftView>
         {
             style.TextLinkButton(copyLabel, state.CopiedMessageId == id ? "checkmark" : "doc.on.doc",
-                () => actions.Copy(id), $"native.sam.copy.{index}")
+                () => actions.Copy(id), $"native.sam.copy.{index}", fillsWidth: false)
         };
         var reportable = state.ReportingAvailable && entry.IsReportable;
         if (reportable && state.IsReported(id))
             buttons.Add(style.Text(Views.Text(text("Coach_ReportDone")), SourceTextRole.Caption1,
                     SourceTextTone.Secondary)
+                .WithFlexibleWidth()
                 .WithAccessibilityIdentifier($"native.sam.reported.{index}"));
         else if (reportable && state.ReportingMessageId != id)
         {
             var flag = style.TextLinkButton(text("Coach_ReportResponse"), "flag", () => actions.OpenReport(id),
-                $"native.sam.report.{index}");
+                $"native.sam.report.{index}", fillsWidth: false);
             flag.IsEnabled = !state.Busy && !state.ReportBusy;
             buttons.Add(flag);
         }
-        var row = Views.HStack(buttons.ToArray());
+        var row = Views.HStack(buttons.ToArray()).WithStackingWhenTooWide();
         row.Spacing = 12;
         yield return row;
         if (state.ReportFailedId == id && state.ReportingMessageId != id)
