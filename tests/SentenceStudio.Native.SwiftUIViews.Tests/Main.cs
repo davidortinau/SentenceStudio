@@ -2096,6 +2096,134 @@ var cases = new (string Name, Action Test)[]
         if (faults.Count > 0)
             throw new Exception($"{faults.Count} of {drawn.Count} turns: {string.Join("; ", faults)}.");
     }),
+    // Issue 336 (from issue 278): since bridge 0.1.0-preview.67 a row gives each child its own
+    // width unless a frame is put directly around the row, and pull request 284 read and drew
+    // only the rows that set a minimum height. This one takes the rows the pages build: on each
+    // page the cases here already build, every HStack with two or more children of which none
+    // fills the width, one row of each shape, at most eight a page. Each is drawn alone twice:
+    // as it is at the page's width, and with every child at its ideal width (fixed size on the
+    // children, not on the row: the bridge applies a row's fixed size outside its minimum
+    // height frame, and that frame would squeeze both drawings alike). When the row with its
+    // children at their ideal widths fits the page, the row as it is must be painted as high
+    // and no narrower; if not, a child was given less than it measured. The case first shows
+    // that this finds the known squeeze: the quiz's two buttons with a minimum height on
+    // their row.
+    ("Rows: no row a page builds squeezes a child below its own width (issue 336)", () =>
+    {
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        SwiftView Quiz()
+        {
+            var items = new List<SwiftView>();
+            QuizQuestionView.Add(items, QuizCorrection(), "", false, false, style, QuizEnglish,
+                _ => { }, _ => { }, false, _ => { }, () => { }, _ => { }, () => { }, () => { },
+                () => { }, () => { }, _ => { }, (_, _) => { }, () => { }, () => { }, null,
+                QuizFeedbackView.Override(style, QuizEnglish, () => { }));
+            return Views.VStack(items.ToArray());
+        }
+        // The comparison finds a squeeze: the row of Submit and "I was correct" as the quiz
+        // builds it is not squeezed, and is as a plain row with a minimum height put on it (294
+        // points painted instead of 312 at 402: pull request 284). Plain, because since issue
+        // 279 the quiz's row is measured (WithStackingWhenTooWide) and no frame squeezes it.
+        using (var quiz = Quiz())
+        {
+            var pair = RowsNoChildFills(quiz).SingleOrDefault(row =>
+                    Find(row, "native.quiz.correction") is not null && Find(row, "native.quiz.override") is not null)
+                ?? throw new Exception("The quiz no longer has one row that holds Submit and I was correct and has no child that fills.");
+            var asBuilt = RowSqueeze(pair, 402);
+            if (asBuilt.Verdict != "kept")
+                throw new Exception($"The quiz's two buttons as built: {asBuilt.Verdict} ({asBuilt.Detail}).");
+            pair.WithMinimumHeight(60);
+            var measured = RowSqueeze(pair, 402);
+            if (measured.Verdict != "kept")
+                throw new Exception($"The quiz's two buttons in their measured row with a minimum height: {measured.Verdict} ({measured.Detail}).");
+            pair.WithStackingWhenTooWide(false);
+            var framed = RowSqueeze(pair, 402);
+            if (framed.Verdict != "squeezed")
+                throw new Exception($"The quiz's two buttons in a plain row with a minimum height should be found squeezed, and the comparison says {framed.Verdict} ({framed.Detail}): it would miss a squeezed row.");
+            Console.WriteLine($"     The known squeeze is found: the quiz's two buttons in a plain row with a minimum height are {framed.Detail}.");
+        }
+        var created = new DateTime(2026, 11, 25, 12, 0, 0, DateTimeKind.Utc);
+        using var import = new YouTubeImportCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeImportCoordinator>.Instance);
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        var opens = new YouTubeImportActions(_ => { }, null, null);
+        // The states of the issue 277 case, with a title that fits a row.
+        var history = new YouTubeImportState(true, false, YouTubeImportTab.History, "",
+            false, false, false, false, [], 0, "", null, null, false, [], false,
+            [
+                new("1", "Vlog one", true, null, VideoImportStatus.Failed, null, created, null, false),
+                new("2", "Vlog two", false, "Channel", VideoImportStatus.Completed, null, created, "res-1", false),
+                new("3", "Vlog three", false, null, VideoImportStatus.GeneratingVocabulary, null, created, null, true),
+            ], 3, null, []);
+        var videos = new YouTubeChannelState(true, false, false, false, false, false, null,
+            "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+            [
+                new("a", "Vlog one", "https://youtu.be/a", VideoImportStatus.Failed),
+                new("b", "Vlog two", "https://youtu.be/b", VideoImportStatus.Completed),
+                new("c", "Vlog three", "https://youtu.be/c", VideoImportStatus.CleaningTranscript),
+                new("d", "Vlog four", "https://youtu.be/d", null),
+            ], System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null, false, null, []);
+        string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key,
+            System.Globalization.CultureInfo.GetCultureInfo("en"));
+        var duplicateActions = new VocabularyDuplicateActions(() => { }, () => { }, _ => { }, _ => { });
+        var pages = new (string Name, double Width, Func<SwiftView> Build)[]
+        {
+            ("Recent lookups", 402, () => RecentLookupsView.Page(Ready(withDestinations, withoutDestinations), style, Text, actions)),
+            ("Vocabulary list", 402, () => VocabularyListView.Page(ListState(), style, Counts, ListActions())),
+            ("Vocabulary list as a list", 402, () => VocabularyListView.Page(ListState(listMode: true), style, Counts, ListActions())),
+            ("Vocabulary list, wide", 1000, () => VocabularyListView.Page(ListState(), wideStyle, Counts, ListActions())),
+            ("Vocabulary editor", 402, () => VocabularyWordEditView.Page(WordState(history: true), style, key => key, WordActions())),
+            ("Vocabulary duplicates", 402, () => VocabularyDuplicatesView.Page(DuplicatePanel(), style, key => key, duplicateActions)),
+            ("Resources", 402, () => LearningResourcesView.Page(Resources(), null, style, key => key, ResourceActions())),
+            ("Resources as a list", 402, () => LearningResourcesView.Page(Resources() with { ViewMode = NativeResourceViewMode.List },
+                null, style, key => key, ResourceActions())),
+            ("Quiz correction", 402, Quiz),
+            // In English: the two counts sit in a card 320 points wide, and their keys are wider.
+            ("Matching complete", 402, () => VocabularyMatchingCompleteView.Render(
+                new NativeMatchingState(NativePhase.Summary, MatchedPairs: 6, TotalPairs: 6), style,
+                key => key switch { NativeMatchingText.Matched => "Matched", NativeMatchingText.Misses => "Misses", _ => key },
+                () => { })),
+            ("YouTube import history", 402, () => NativeForm.Page(style,
+                (IEnumerable<SwiftView>)typeof(YouTubeImportView).GetMethod("History", flags)!
+                    .Invoke(null, [import, history, style, (Func<string, string>)Words, opens])!, "form", "page")),
+            ("YouTube channel videos", 402, () => NativeForm.Page(style,
+                [(SwiftView)typeof(YouTubeChannelView).GetMethod("Discovery", flags)!
+                    .Invoke(null, [channel, videos, style, (Func<string, string>)Words])!], "form", "page")),
+        };
+        const int most = 8;
+        var squeezed = new List<string>();
+        var (drawnInAll, comparedInAll) = (0, 0);
+        foreach (var (name, width, build) in pages)
+        {
+            using var page = build();
+            var rows = RowsNoChildFills(page);
+            var shapes = rows.GroupBy(Shape).Select(shape => shape.First()).ToArray();
+            var counts = new Dictionary<string, int>();
+            foreach (var row in shapes.Take(most))
+            {
+                var (verdict, detail) = RowSqueeze(row, width);
+                counts[verdict] = counts.GetValueOrDefault(verdict) + 1;
+                var label = AllText(row) is { Length: > 40 } text ? text[..40] : AllText(row);
+                if (verdict == "squeezed")
+                    squeezed.Add($"{name}, the row \"{label}\" ({Shape(row)}) at {width} points is {detail}");
+                if (Environment.GetEnvironmentVariable("ISSUE_336_ROWS") is not null)
+                    Console.WriteLine($"     {name}: \"{label}\" {Shape(row)}: {verdict} {detail}");
+            }
+            var drawn = Math.Min(shapes.Length, most);
+            var compared = counts.GetValueOrDefault("kept") + counts.GetValueOrDefault("squeezed");
+            drawnInAll += drawn;
+            comparedInAll += compared;
+            Console.WriteLine($"     {name} ({width} points): {rows.Count} rows with no child that fills, {shapes.Length} shapes, {drawn} drawn; "
+                + $"{compared} compared, {counts.GetValueOrDefault("wide")} wider than their room or painted across it, "
+                + $"{counts.GetValueOrDefault("tall")} taller than the canvas, {counts.GetValueOrDefault("nothing")} paint nothing.");
+        }
+        Console.WriteLine($"     In all {drawnInAll} rows drawn on {pages.Length} pages, {comparedInAll} compared, {squeezed.Count} squeezed.");
+        if (comparedInAll == 0)
+            throw new Exception("No row was compared, so nothing was checked.");
+        if (squeezed.Count > 0)
+            throw new Exception($"{squeezed.Count} of {comparedInAll} rows squeeze a child: {string.Join("; ", squeezed)}.");
+    }),
 };
 
 var failures = 0;
@@ -2382,6 +2510,125 @@ static bool[][] PaintedMask(SwiftView root, double width, double height)
     {
         SwiftUIHost.DetachView(root, host);
     }
+}
+
+// Issue 336: the rows of a built page that a frame around them could squeeze: every HStack with
+// two or more children of which none fills the width (a child that fills takes what is left,
+// so the row has the whole width to share out).
+static List<SwiftView> RowsNoChildFills(SwiftView page)
+{
+    var rows = new List<SwiftView>();
+    void Walk(SwiftView node)
+    {
+        if (node.Kind == "hstack" && node.Children.Count >= 2 && !node.Children.Any(FillsWidth))
+            rows.Add(node);
+        foreach (var child in node.Children)
+            Walk(child);
+    }
+    Walk(page);
+    return rows;
+}
+
+// SwiftView has no public getter for WithFlexibleWidth (it has for the fixed width and the
+// fixed size), so it is read from the native node the view keeps.
+static bool FillsWidth(SwiftView node) => (bool)NativeValue(node, "FillsWidth");
+
+// What the row has to share out when it is drawn alone at the page's width: the page's width,
+// or the row's own maximum width when it sets a smaller one (a card's), less its own padding.
+// The padding is taken off whether or not the row paints it, so a row that only just fits is
+// left out and never failed.
+static double RoomInRow(SwiftView row, double width)
+{
+    var most = (double)NativeValue(row, "MaxWidth");
+    return (most > 0 ? Math.Min(most, width) : width) - 2 * (double)NativeValue(row, "PaddingPoints")
+        - (double)NativeValue(row, "PaddingLeft") - (double)NativeValue(row, "PaddingRight");
+}
+
+static object NativeValue(SwiftView node, string name)
+{
+    const System.Reflection.BindingFlags any = System.Reflection.BindingFlags.Instance
+        | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+    var native = typeof(SwiftView).GetField("_native", any)?.GetValue(node)
+        ?? throw new Exception($"SwiftView no longer keeps its native node in _native: read {name} where the bridge has it now.");
+    var property = native.GetType().GetProperty(name, any)
+        ?? throw new Exception($"The native node no longer has {name}: read it where the bridge has it now.");
+    return property.GetValue(native)!;
+}
+
+// A row's shape: its kinds, without its text, so that a list's rows count once.
+static string Shape(SwiftView node) => node.Children.Count == 0
+    ? node.Kind
+    : $"{node.Kind}({string.Join(",", node.Children.Select(Shape))})";
+
+// Draws one row of a built page alone, twice: as it is at the page's width, and with each
+// child at its ideal width (SwiftUI fixedSize on the children; the row keeps its own frames) on
+// a canvas twice as wide, so that a row wider than the page shows as one. Says "squeezed" when
+// the second drawing fits the page and the first is not as high or is narrower, "kept" when
+// they agree, and when they cannot be compared why: "wide" (the row at its children's widths
+// does not fit the room it has, RoomInRow, or the row paints across the canvas), "tall" or
+// "nothing" (painted).
+// The row stays in its page: a host takes only a view without a parent, so the parent is put
+// aside while the row is drawn (a button's label row cannot be removed and put back), and the
+// children's fixed sizes are put back as they were.
+static (string Verdict, string Detail) RowSqueeze(SwiftView row, double width)
+{
+    const double canvas = 600;
+    var parentField = typeof(SwiftView).GetField("_parent",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+        ?? throw new Exception("SwiftView no longer keeps its parent in _parent: take the row out of its page another way.");
+    var parent = parentField.GetValue(row);
+    var kept = row.Children.Select(child => (child.FixedHorizontalSize, child.FixedVerticalSize)).ToArray();
+    parentField.SetValue(row, null);
+    try
+    {
+        var asItIs = PaintedBox(row, width, canvas);
+        foreach (var child in row.Children)
+            if (child.FixedWidth is null)
+                child.WithFixedSize(true, child.FixedVerticalSize);
+        var atOwnWidths = PaintedBox(row, width * 2, canvas);
+        if (asItIs is not { } drawn || atOwnWidths is not { } own)
+            return ("nothing", "");
+        var detail = $"{drawn.Width:0.#} points wide and {drawn.Height:0.#} high as it is, {own.Width:0.#} wide and {own.Height:0.#} high with each child at its own width";
+        if (own.Width > RoomInRow(row, width) + 0.5)
+            return ("wide", detail);
+        if (drawn.Height >= canvas - 1 || own.Height >= canvas - 1)
+            return ("tall", detail);
+        return Math.Abs(drawn.Height - own.Height) > 1 || drawn.Width < own.Width - 1 ? ("squeezed", detail) : ("kept", detail);
+    }
+    finally
+    {
+        for (var index = 0; index < kept.Length; index++)
+            if (row.Children[index].FixedWidth is null)
+                row.Children[index].WithFixedSize(kept[index].Item1, kept[index].Item2);
+        parentField.SetValue(row, parent);
+    }
+}
+
+// The width and height in points of everything a view paints in a real SwiftUI host of the
+// given size, or null when it paints nothing.
+static (double Width, double Height)? PaintedBox(SwiftView root, double width, double height)
+{
+    bool[][] mask;
+    try
+    {
+        mask = PaintedMask(root, width, height);
+    }
+    catch (Exception nothing) when (nothing.Message.StartsWith("The host painted nothing", StringComparison.Ordinal))
+    {
+        return null;
+    }
+    int top = -1, bottom = -1, left = int.MaxValue, right = -1;
+    for (var y = 0; y < mask.Length; y++)
+        for (var x = 0; x < mask[y].Length; x++)
+            if (mask[y][x])
+            {
+                top = top < 0 ? y : top;
+                bottom = y;
+                left = Math.Min(left, x);
+                right = Math.Max(right, x);
+            }
+    var scale = mask.Length / height;
+    return ((right + 1 - left) / scale, (bottom + 1 - top) / scale);
 }
 
 // The same for a host that is already there and stays: a mounted view can be drawn, changed
