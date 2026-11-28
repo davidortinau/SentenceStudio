@@ -223,10 +223,12 @@ public static class CoachEmptyAnnouncement
                 // not from inside a word: 2*3 and kick_ball open nothing. A Korean particle
                 // joins a closing run directly (**차다**를), so only Latin letters and digits
                 // make a word of it. A run inside a word may still close ("**kick**s"): closing
-                // early can only let an announcement be seen.
+                // early can only let an announcement be seen. A mark between a word and
+                // punctuation ("the note below*.") opens nothing either, as in Markdown.
                 var closes = !char.IsWhiteSpace(before);
                 var opens = !char.IsWhiteSpace(after)
-                    && (mark == '`' || !IsLatinLetterOrDigit(before) || !IsLatinLetterOrDigit(after));
+                    && (mark == '`' || !IsLatinLetterOrDigit(before) || !IsLatinLetterOrDigit(after))
+                    && (!IsMark(after) || char.IsWhiteSpace(before) || IsMark(before));
 
                 if (closer != '\0')
                 {
@@ -303,6 +305,8 @@ public static class CoachEmptyAnnouncement
     private static bool IsLatinLetter(char letter) => letter < '\u0250' && char.IsLetter(letter);
 
     private static bool IsLatinLetterOrDigit(char letter) => letter < '\u0250' && char.IsLetterOrDigit(letter);
+
+    private static bool IsMark(char mark) => char.IsPunctuation(mark) || char.IsSymbol(mark);
 
     /// <summary>The answer's parts that hold text: the ones the shape repair keeps.</summary>
     private static List<CoachAnswerBlockIntent> PartsWithText(CoachPedagogicalAnswerIntent? answer) =>

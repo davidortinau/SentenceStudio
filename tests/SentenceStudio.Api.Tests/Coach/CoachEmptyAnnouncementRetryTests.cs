@@ -73,6 +73,7 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("That is 2*3 words, and here are three example sentences.")]
     [InlineData("* Here are three example sentences.")]
     [InlineData("The plural is **kick**s, and here are three example sentences.")]
+    [InlineData("See the note below*. Here are three example sentences.")]
     [InlineData("In English you say *Hello.* **Here are three example sentences.**")]
     public async Task An_announcement_with_nothing_after_it_is_asked_for_once_more_and_the_answer_is_shown(
         string announcement)
@@ -129,6 +130,8 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("In English you say: **Here is your coffee.**")]
     [InlineData("A waiter might say **Thank you for waiting. Here is your coffee.**")]
     [InlineData("In English you say **Here is *your* coffee.**")]
+    [InlineData("In English you say **\"Here is your coffee.\"**")]
+    [InlineData("In English you say **_Here is your coffee._**")]
     [InlineData("한국어로는 **다음은 제 차례예요**라고 해요.")]
     public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(string reply)
     {
