@@ -13,7 +13,8 @@
 #
 # The deploy log (docs/deploy-log.md): the one record of what production ran and since when.
 # after appends the line and does not commit it: commit and push it, because a reader finds
-# it on main. check does not count that file as an uncommitted change (it does not ship).
+# it on main. check does not count that file as an uncommitted change (it does not ship),
+# nor docs/app-install-log.md, where scripts/ios-phone.sh leaves a phone install's line.
 # The line's commit is the one deploy shipped: after keeps it, with the revision it made, in
 # this checkout's git directory, so a rerun of after names it even after a pull. after run
 # where deploy did not make the revision takes this checkout's HEAD and says so.
@@ -40,6 +41,8 @@ VAULT=dbkv-rsn72awybem6s
 COACH_QUERY="properties.template.containers[0].env[?starts_with(name,'Coach__')]"
 ADMIN_QUERY="properties.template.containers[0].env[?starts_with(name,'Admin__')]"
 LOG=docs/deploy-log.md
+# The phones' counterpart, written by scripts/ios-phone.sh. It does not ship either.
+INSTALL_LOG=docs/app-install-log.md
 # In this checkout's git directory: "<API revision> <commit>" for the last deploy made here.
 DEPLOYED=sstudio-deployed
 DEPLOYED_COMMIT=
@@ -58,7 +61,7 @@ check() {
   else
     fail "no .azure here; cp -Rp /Users/davidortinau/work/SentenceStudio/.azure .azure"
   fi
-  if [ -z "$(git status --porcelain --untracked-files=no -- . ":(exclude)$LOG")" ] \
+  if [ -z "$(git status --porcelain --untracked-files=no -- . ":(exclude)$LOG" ":(exclude)$INSTALL_LOG")" ] \
      && [ -z "$(git status --porcelain -- src | grep '^??' || true)" ]; then
     ok "clean checkout at $(git rev-parse --short HEAD) ($(git rev-parse --abbrev-ref HEAD))"
   else
@@ -66,6 +69,8 @@ check() {
   fi
   [ -z "$(git status --porcelain -- "$LOG")" ] \
     || echo "note: $LOG holds a deploy line that is not committed; commit and push it"
+  [ -z "$(git status --porcelain -- "$INSTALL_LOG")" ] \
+    || echo "note: $INSTALL_LOG holds an install line that is not committed; commit and push it"
 
   local state lock
   state=$(az postgres flexible-server show -g "$RG" -n "$SERVER" --subscription "$S" --query state -o tsv)

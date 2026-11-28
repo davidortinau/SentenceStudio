@@ -1163,6 +1163,8 @@ push at the latest, because the sessions read the file on `main`.
   docs/app-install-log.md`, leaves the file as it was, prints the line and exits non-zero
   after opening the app: the app is installed, only its record is missing. Add the printed
   line by hand.
+- An uncommitted line does not stop the next `scripts/prod-deploy.sh check` (the file does
+  not ship); `check` prints a note that it is waiting.
 - An install made another way (Xcode, `xcrun devicectl` by hand) is added by hand in the same
   form, at the end of the file.
 
