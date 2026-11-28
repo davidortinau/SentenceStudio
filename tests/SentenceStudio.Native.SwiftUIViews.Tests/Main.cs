@@ -1300,60 +1300,69 @@ var cases = new (string Name, Action Test)[]
         }
     }),
     // Issue 260, the Captain's follow-up: the YouTube pages' badges, Retry and Select All New
-    // keep one line beside a title that truncates. The rows are put together here as ImportRow,
-    // VideoRow and the count row put them together, from the views' own badges and buttons, and
-    // drawn 330 points wide (an iPhone's Form row): a row whose badge or button wrapped would be
-    // taller. Issue 260 also took fixed size off the badges and Retry, and this case refused it;
-    // issue 277 drew the wider badges, which wrap without it, and put it back (the next case).
-    // Select All New is still not fixed-size.
-    // Since issue 292 the import row put together here is no longer the row a phone draws: on a
-    // page under 768 points the view's ImportRow puts the date and Retry of a row with Retry on
-    // a second line, and this one keeps all four on one. It still shows that the badge and
-    // Retry keep one line where they share a line with a long title; the pages' own rows are
-    // drawn by the two cases below.
+    // keep one line beside a title that truncates. The rows are the pages' own (issue 345):
+    // YouTubeImportView.ImportRow and YouTubeChannelView.VideoRow, called as the issue 277 case
+    // below calls them, from a state made here, built for a 402-point page and drawn 330 points
+    // wide (that page's Form row), in English at the default text size. Each row is drawn with a
+    // short title and with one too long for it: a row whose title wrapped, or pushed what is
+    // beside it onto another line, would be taller. Since issues 292 and 308 a row with Retry
+    // has two lines on a page under 768 points (the badge or the switch beside the title, then
+    // the date or the badge beside Retry), with a short title and a long one alike.
+    // What this comparison cannot show is a badge that wraps by itself: the title's button fills
+    // the width whatever its length, so the badge is offered the same share of the row either
+    // way. The next case shows that one, against the same row drawn with room (issue 277).
+    // ISSUE_345_DRAWN prints every row's measurements. Select All New is not fixed-size.
     ("YouTube rows: the badges, Retry and Select All New keep one line beside a long title (issue 260)", () =>
     {
         const double width = 330;
         const string longTitle = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
         var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
-        var phone = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), width);
-        SwiftView StatusBadge() => (SwiftView)typeof(YouTubeImportView).GetMethod("StatusBadge", flags)!
-            .Invoke(null, [VideoImportStatus.Failed, phone, (Func<string, string>)(_ => "Failed"), "status"])!;
-        SwiftView VideoBadge() => (SwiftView)typeof(YouTubeChannelView).GetMethod("Badge", flags)!
-            .Invoke(null, [phone, "xmark.circle", "Failed", phone.Appearance.Danger, new SourceColorPair("#FFFFFF", "#FFFFFF"), "failed"])!;
-        SwiftView Retry()
+        var phone = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), 402);
+        var english = System.Globalization.CultureInfo.GetCultureInfo("en");
+        string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, english);
+        if (Words("Import_Retry") == "Import_Retry")
+            throw new Exception("The app's English strings were not read.");
+        var created = new DateTime(2026, 11, 25, 12, 0, 0, DateTimeKind.Utc);
+        // The rows take their coordinator only for what a tap does; nothing is tapped here.
+        using var import = new YouTubeImportCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeImportCoordinator>.Instance);
+        using var channel = new YouTubeChannelCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeChannelCoordinator>.Instance);
+        var opens = new YouTubeImportActions(_ => { }, null, null);
+        // A failed import: its badge, its title, its date and Retry.
+        SwiftView ImportRow(string title)
         {
-            var label = Views.HStack(Views.Image("arrow.clockwise"), Views.Text("Retry"));
-            label.Spacing = 4;
-            return YouTubeImportView.OutlineWarningButton(label, () => { }, phone);
+            var history = new YouTubeImportState(true, false, YouTubeImportTab.History, "",
+                false, false, false, false, [], 0, "", null, null, false, [], false,
+                [new("1", title, true, null, VideoImportStatus.Failed, null, created, null, false)], 1, null, []);
+            return (SwiftView)typeof(YouTubeImportView).GetMethod("ImportRow", flags)!
+                .Invoke(null, [import, history, history.DisplayedImports[0], phone, (Func<string, string>)Words, opens])!;
+        }
+        // A failed video: its switch, its title, its badge and Retry.
+        SwiftView VideoRow(string title)
+        {
+            var videos = new YouTubeChannelState(true, false, false, false, false, false, null,
+                "https://www.youtube.com/@channel", "Korean", 24, true, true, true, null, false,
+                [new("a", title, "https://youtu.be/a", VideoImportStatus.Failed)],
+                System.Collections.Immutable.ImmutableHashSet<string>.Empty, false, false, true, null, false, null, []);
+            return (SwiftView)typeof(YouTubeChannelView).GetMethod("VideoRow", flags)!
+                .Invoke(null, [channel, videos, videos.Videos[0], 0, phone, (Func<string, string>)Words])!;
         }
         SwiftView SelectAll() => NativeForm.Bordered(phone, "Select All New", () => { }, "select-all") is { FixedHorizontalSize: false } button
             ? button : throw new Exception("Select All New is fixed-size; beside one caption it keeps its width without that.");
         SwiftView Caption(string value) => phone.Text(Views.Text(value), SourceTextRole.Caption1, SourceTextTone.Secondary);
-        SwiftView ImportRow(string title)
-        {
-            var open = Views.Button(phone.Text(Views.Text(title), SourceTextRole.Body1Strong).WithLineLimit(1), () => { })
-                .WithButtonStyle(SwiftButtonStyle.Plain).WithFlexibleWidth();
-            var line = Views.HStack(StatusBadge(), open, Caption("11/25/2026"), Retry()).WithFlexibleWidth();
-            line.Spacing = SourceUiLayout.ItemGap + 4;
-            return line;
-        }
-        SwiftView VideoRow(string title)
-        {
-            var row = Views.HStack(Views.Toggle(title, false, _ => { }).WithLabelsHidden(),
-                phone.Text(Views.Text(title), SourceTextRole.Body2).WithLineLimit(1).WithFlexibleWidth(),
-                VideoBadge(), Retry()).WithFlexibleWidth();
-            row.Spacing = SourceUiLayout.ItemGap + 4;
-            return row;
-        }
+        var drawn = new List<string>();
         foreach (var (what, row) in new (string, Func<string, SwiftView>)[] { ("The import's row", ImportRow), ("The channel's video row", VideoRow) })
         {
             using var brief = row("Short");
             using var full = row(longTitle);
-            var (one, tall) = (PaintedHeight(brief, width, 120), PaintedHeight(full, width, 120));
+            var (one, tall) = (PaintedHeight(brief, width, 200), PaintedHeight(full, width, 200));
+            drawn.Add($"{what}: {one:0.#} points high with a short title, {tall:0.#} with a long one");
             if (Math.Abs(tall - one) > 1)
-                throw new Exception($"{what} is {tall:0.#} points high with a long title and {one:0.#} with a short one: something beside the title wrapped.");
+                throw new Exception($"{what} is {tall:0.#} points high with a long title and {one:0.#} with a short one: the title wrapped, or something beside it did.");
         }
+        if (Environment.GetEnvironmentVariable("ISSUE_345_DRAWN") is not null)
+            Console.WriteLine(string.Join(Environment.NewLine, drawn));
         using var alone = SelectAll();
         var countRow = Views.HStack(Caption("128 videos found").WithFlexibleWidth(), SelectAll());
         countRow.Spacing = SourceUiLayout.ItemGap;
