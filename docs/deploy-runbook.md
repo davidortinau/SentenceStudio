@@ -837,9 +837,16 @@ your next push at the latest, because the sessions read the file on `main`.
 - Rerunning `after` does not add the same revision twice.
 - An uncommitted line does not stop the next `check` (the file does not ship); `check` prints
   a note that it is waiting.
-- `after` records this checkout's `HEAD`. Run it from the checkout that deployed, before
-  pulling. If `HEAD` was committed after the revision was created, the script says so, writes
-  nothing and prints the line for you to add by hand with the right commit.
+- The line's commit is the one `deploy` shipped. `deploy` keeps it, with the revision it made,
+  in the checkout's git directory (`sstudio-deployed`, never in the working tree), so `after`
+  rerun from that checkout names it even after a pull or a switch of branch.
+- `after` run where `deploy` did not make the revision (a deploy by hand, another checkout, a
+  `deploy` that stopped before its checks began) records that checkout's `HEAD` and prints
+  `note: deploy did not make <revision> from this checkout`: the script cannot check that
+  commit against Azure, so correct the line before committing it if the deploy was made from
+  another commit. If `HEAD` was committed after the revision was created, it cannot be what
+  was deployed: the script says so, writes nothing and prints the line for you to add by hand
+  with the right commit.
 - If the line cannot be written (the file cannot be written, the disk is full), `after` says
   `FAIL: could not write to docs/deploy-log.md`, leaves the file as it was, prints the line and
   exits non-zero: the deploy's checks passed, only its record is missing. Rerun `after` once
