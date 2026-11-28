@@ -1,4 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Api.Coach.Persistence;
@@ -50,25 +54,50 @@ public class CoachCleanupSchedulingTests
     [Fact]
     public async Task InProcessLease_AdmitsOneHolderAtATime()
     {
-        var lease = new InProcessCoachCleanupLease();
+        await using var host = NewSqliteHost();
+        await using var firstScope = host.CreateAsyncScope();
+        await using var secondScope = host.CreateAsyncScope();
 
-        await using var first = await lease.TryAcquireAsync();
+        await using var first = await LeaseOf(firstScope).TryAcquireAsync();
         first.Should().NotBeNull();
 
-        var second = await lease.TryAcquireAsync();
+        // Each scope resolves its own lease, as each pass does; the host's gate is what they share.
+        var second = await LeaseOf(secondScope).TryAcquireAsync();
         second.Should().BeNull("two concurrent passes deadlock on overlapping batched deletes");
     }
 
     [Fact]
     public async Task InProcessLease_ReleasesOnDisposeSoTheNextPassCanRun()
     {
-        var lease = new InProcessCoachCleanupLease();
+        await using var host = NewSqliteHost();
+        await using var firstScope = host.CreateAsyncScope();
+        await using var secondScope = host.CreateAsyncScope();
 
-        var first = await lease.TryAcquireAsync();
+        var first = await LeaseOf(firstScope).TryAcquireAsync();
+        first.Should().NotBeNull();
         await first!.DisposeAsync();
 
-        await using var second = await lease.TryAcquireAsync();
+        await using var second = await LeaseOf(secondScope).TryAcquireAsync();
         second.Should().NotBeNull("a lease that is never released stops retention forever");
+    }
+
+    [Fact]
+    public async Task InProcessLease_HeldInOneHostDoesNotRefuseAnotherHost()
+    {
+        // Issue 341: the gate was one static for the whole process, so a lease held by any host
+        // in a test run refused every other host's, and the two tests above failed whenever one
+        // was held at the moment they asked.
+        await using var busyHost = NewSqliteHost();
+        await using var busyScope = busyHost.CreateAsyncScope();
+        await using var held = await LeaseOf(busyScope).TryAcquireAsync();
+        held.Should().NotBeNull();
+
+        await using var otherHost = NewSqliteHost();
+        await using var otherScope = otherHost.CreateAsyncScope();
+        await using var other = await LeaseOf(otherScope).TryAcquireAsync();
+
+        other.Should().NotBeNull(
+            "the in-process lease guards one host's passes; another host has its own database and its own gate");
     }
 
     [Fact]
@@ -202,6 +231,38 @@ public class CoachCleanupSchedulingTests
     private static CoachCleanupRunner NewRunner(
         CoachPersistenceHarness harness, CoachDbContext db, ICoachCleanupLease lease) =>
         new(lease, harness.NewCleanupService(db), NullLogger<CoachCleanupRunner>.Instance);
+
+    /// <summary>
+    /// A host's services as <c>AddCoachCleanupScheduling</c> registers them, with the coach
+    /// context on SQLite, so the lease is the in-process one and comes from the real registration.
+    /// </summary>
+    private static ServiceProvider NewSqliteHost()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<CoachDbContext>(options => options.UseSqlite("Filename=:memory:"));
+        services.AddCoachCleanupScheduling(new ConfigurationBuilder().Build(), new TestingEnvironment());
+
+        return services.BuildServiceProvider();
+    }
+
+    private static ICoachCleanupLease LeaseOf(AsyncServiceScope scope)
+    {
+        var lease = scope.ServiceProvider.GetRequiredService<ICoachCleanupLease>();
+        lease.Should().BeOfType<InProcessCoachCleanupLease>();
+        return lease;
+    }
+
+    private sealed class TestingEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Testing";
+
+        public string ApplicationName { get; set; } = "SentenceStudio.Api.Tests";
+
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
 
     private sealed class AlwaysGrantsLease : ICoachCleanupLease
     {
