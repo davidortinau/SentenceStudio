@@ -26,7 +26,8 @@ case "$1" in
   test)
     cp "$FEEDBACK_CHECK_DIR/state/bridge-release-note" "$STUB/note-during-the-build"
     [ ! -f "$STUB/fail-test" ] || { echo "STOP: the bridge's tests did not all pass. The whole output is nowhere." >&2; exit 1; }
-    echo "Managed tests: 81/81 passed" ;;
+    echo "Managed tests: 81/81 passed"
+    echo "Swift tests: 91/91 passed" ;;
   package)
     [ ! -f "$STUB/fail-package" ] || { echo "STOP: the bridge's pack and verify failed." >&2; exit 1; }
     # An annotated tag, as a person's `git tag -a` makes; the release's own is a plain one.
@@ -180,7 +181,11 @@ class BridgeReleaseTests(unittest.TestCase):
         note = self.read("bridge-release-note")
         self.assertTrue(note.startswith("released\n"), note)
         self.assertIn("put in your feed and tagged v0.1.0-preview.8", note)
-        self.assertIn("Managed tests: 81/81 passed", note)
+        # Both counts the test step said are in the status, the release's notes and the record.
+        counts = "Managed tests: 81/81 passed, Swift tests: 91/91 passed"
+        self.assertIn(f"after the bridge's own tests passed ({counts}): https://", note)
+        self.assertIn(f"after the bridge's own tests passed ({counts}). Download into", whole)
+        self.assertEqual(self.read("bridge-release-fed").splitlines()[1], counts)
         # The copy it was built in is gone, and a second look does nothing.
         self.assertFalse((self.out / "bridge-release" / "build").exists())
         self.assertEqual(self.run_script("due").stdout, "")
@@ -281,7 +286,7 @@ class BridgeReleaseTests(unittest.TestCase):
         # The package the first try put in the feed is the one released: built once, never replaced.
         self.assertEqual(self.built(), ["test", "package"])
         self.assertEqual(self.package("0.1.0-preview.8").read_text(encoding="utf-8"), kept)
-        self.assertIn("Managed tests: 81/81 passed", self.read("bridge-release-note"))
+        self.assertIn("(Managed tests: 81/81 passed, Swift tests: 91/91 passed)", self.read("bridge-release-note"))
 
     def test_another_build_of_the_version_in_the_feed_is_never_replaced(self):
         self.commit("0.1.0-preview.8", "fix: something (0.1.0-preview.8)")
