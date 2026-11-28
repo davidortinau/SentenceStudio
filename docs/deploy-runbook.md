@@ -13,6 +13,8 @@
 > - Native iOS on a phone: `scripts/ios-phone.sh Duotopia|DX24` builds and checks the
 >   Release app, then stops; rerun with `--yes --no-build` after the Captain approves the
 >   install. The MAUI DX24 steps in "Step 2" below are unchanged.
+> - The record of the install: once the install has succeeded, the script adds one line to
+>   `docs/app-install-log.md`. Commit and push it. See "Step 2d" below.
 
 > **Architecture: Azure PostgreSQL Flexible Server (managed)**
 >
@@ -1132,6 +1134,37 @@ xcrun devicectl device process launch \
 > **`FBSOpenApplicationErrorDomain error 7 (Locked)` on launch:** The iPhone
 > is screen-locked. Unlock it and either retry the launch command or just tap
 > the app icon. Install already succeeded — only launch was blocked.
+
+### 2d. Record the native app's install in `docs/app-install-log.md`
+
+This step is for the native iOS app that `scripts/ios-phone.sh` installs, not for the MAUI
+steps above. `docs/app-install-log.md` is the record of what each phone runs and since when:
+one line per install with the time (UTC), the commit built and its subject, and the phone.
+The feedback check's fix sessions read it to find which build showed a learner a faulty
+screen (`docs/admin-feedback-fix.md`, "The work", step 2), as they read `docs/deploy-log.md`
+for what the server answered.
+
+`scripts/ios-phone.sh ... --yes` adds the line as soon as the install has succeeded, before
+it opens the app. The script does not commit: **commit and push the line**, with your next
+push at the latest, because the sessions read the file on `main`.
+
+- A run that stops before installing (no `--yes`, a phone that cannot be reached, the app
+  running, an install that fails twice) adds nothing.
+- An install whose launch then fails still has its line: the build is on the phone.
+- The line's commit is the one the script built. The build keeps it in the checkout's git
+  directory (`sstudio-phone-built`, never in the working tree), so the rerun with
+  `--yes --no-build` names it even after a pull or a switch of branch.
+- An app the script did not build itself (`scripts/ios-build.sh device` or `dotnet build` by
+  hand, then `--no-build`) is recorded as that checkout's `HEAD`, with
+  `note: this script did not build the app it installed`: the script cannot check that commit
+  against the app, so correct the line before committing it if the app was built from another.
+- A build that took in uncommitted tracked changes is marked `built with uncommitted changes`.
+- If the line cannot be written, the script says `FAIL: could not write to
+  docs/app-install-log.md`, leaves the file as it was, prints the line and exits non-zero
+  after opening the app: the app is installed, only its record is missing. Add the printed
+  line by hand.
+- An install made another way (Xcode, `xcrun devicectl` by hand) is added by hand in the same
+  form, at the end of the file.
 
 ---
 
