@@ -81,6 +81,7 @@ public sealed class AdminReportsTests : IDisposable
     [InlineData("GET", "/api/admin/reports/attention-count")]
     [InlineData("GET", "/api/admin/reports/sam")]
     [InlineData("GET", "/api/admin/reports/sam/{id}")]
+    [InlineData("GET", "/api/admin/reports/sam/counts")]
     [InlineData("POST", "/api/admin/reports/sam/{id}/exchange")]
     [InlineData("POST", "/api/admin/reports/sam/{id}/triage")]
     [InlineData("GET", "/api/admin/reports/github")]
@@ -645,6 +646,210 @@ public sealed class AdminReportsTests : IDisposable
         JsonDocument.Parse(detail).RootElement.GetProperty("learner").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
+    // ------------------------------------------------------------------ what the server counted
+
+    private const string CountsRoute = "/api/admin/reports/sam/counts";
+
+    /// <summary>
+    /// A counter the server keeps about its own turns: one learner, one code, one UTC day. The
+    /// recorder writes these without pointers; <paramref name="conversationId"/> and
+    /// <paramref name="turnId"/> are for the test that proves the answer would not carry them.
+    /// </summary>
+    private async Task<string> SeedCounterAsync(
+        ApplicationUser learner,
+        CoachOpportunityKind kind,
+        string capabilityCode,
+        int count,
+        DateTime firstUtc,
+        DateTime lastUtc,
+        CoachOpportunityDisposition disposition = CoachOpportunityDisposition.AggregateOnly,
+        string? conversationId = null,
+        string? turnId = null)
+    {
+        var id = Guid.NewGuid().ToString("n");
+        await _factory.WithCoachDbAsync(async db =>
+        {
+            db.CoachOpportunities.Add(new CoachOpportunity
+            {
+                Id = id,
+                UserProfileId = learner.UserProfileId!,
+                ConversationId = conversationId,
+                TurnId = turnId,
+                Kind = kind,
+                Disposition = disposition,
+                Surface = CoachOpportunitySurface.TurnOutcome,
+                CapabilityCode = capabilityCode,
+                Fingerprint = Guid.NewGuid().ToString("n"),
+                DedupBucketDate = DateOnly.FromDateTime(lastUtc),
+                OccurrenceCount = count,
+                FirstObservedAtUtc = firstUtc,
+                LastObservedAtUtc = lastUtc
+            });
+            await db.SaveChangesAsync();
+        });
+        return id;
+    }
+
+    /// <summary>The answer's lines as (kind, code) to (count, learners), read as plain JSON.</summary>
+    private static Dictionary<(string Kind, string Code), (long Count, int Learners)> LinesOf(JsonElement root) =>
+        root.GetProperty("items").EnumerateArray().ToDictionary(
+            line => (line.GetProperty("kind").GetString()!, line.GetProperty("capabilityCode").GetString()!),
+            line => (line.GetProperty("count").GetInt64(), line.GetProperty("learners").GetInt32()));
+
+    [Fact]
+    public async Task The_counts_add_up_what_the_server_counted_about_its_own_turns_across_learners_by_kind_and_code()
+    {
+        var admin = await _factory.SeedAdminAsync(AdminEmail);
+        var a = await _factory.SeedAccountAsync("a@admin-tests.local");
+        var b = await _factory.SeedAccountAsync("b@admin-tests.local");
+        var now = _factory.Time.GetUtcNow().UtcDateTime;
+        const string heldContent = "empty_announcement_second_reply_held_content";
+
+        // Kind 11 is the retried empty announcement (issue 306): two days for one learner, one for the other.
+        await SeedCounterAsync(a, (CoachOpportunityKind)11, heldContent, 3, now.AddDays(-2), now.AddDays(-2).AddMinutes(5));
+        await SeedCounterAsync(a, (CoachOpportunityKind)11, heldContent, 2, now.AddHours(-3), now.AddHours(-2));
+        await SeedCounterAsync(b, (CoachOpportunityKind)11, heldContent, 4, now.AddHours(-1), now.AddMinutes(-10));
+        await SeedCounterAsync(a, (CoachOpportunityKind)11, "empty_announcement_second_reply_empty", 1, now.AddHours(-4), now.AddHours(-4));
+        await SeedCounterAsync(a, CoachOpportunityKind.OutOfScopeRequest, "off_topic", 5, now.AddHours(-6), now.AddHours(-5));
+        await SeedCounterAsync(b, CoachOpportunityKind.OutOfScopeRequest, "off_topic", 1, now.AddHours(-7), now.AddHours(-7));
+        await SeedCounterAsync(b, CoachOpportunityKind.CapacityOrBudgetRefusal, "daily_run_limit", 2, now.AddHours(-8), now.AddHours(-8));
+
+        // Not counters: a learner's flag, and a row the server recorded to be reviewed one by one.
+        await _factory.SeedFlaggedAnswerAsync(a, Question, Answer);
+        await SeedCounterAsync(b, CoachOpportunityKind.AmbiguousFollowUp, "referent_lost_after_offer", 9,
+            now.AddHours(-1), now.AddHours(-1), CoachOpportunityDisposition.Product);
+
+        using var client = _factory.CreateClientFor(admin);
+        var response = await client.GetAsync(CountsRoute);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        LinesOf(body.RootElement).Should().BeEquivalentTo(new Dictionary<(string, string), (long, int)>
+        {
+            [("empty_announcement_retried", heldContent)] = (9, 2),
+            [("out_of_scope_request", "off_topic")] = (6, 2),
+            [("capacity_or_budget_refusal", "daily_run_limit")] = (2, 1),
+            [("empty_announcement_retried", "empty_announcement_second_reply_empty")] = (1, 1)
+        });
+
+        // The largest count first, and the first and last time anyone was counted.
+        var first = body.RootElement.GetProperty("items")[0];
+        first.GetProperty("capabilityCode").GetString().Should().Be(heldContent);
+        first.GetProperty("firstObservedAtUtc").GetDateTime().Should().Be(now.AddDays(-2));
+        first.GetProperty("lastObservedAtUtc").GetDateTime().Should().Be(now.AddMinutes(-10));
+        body.RootElement.GetProperty("truncated").GetBoolean().Should().BeFalse();
+        body.RootElement.GetProperty("sinceUtc").ValueKind.Should().Be(JsonValueKind.Null);
+
+        var audit = (await _factory.ReadAuditAsync()).Single(r => r.Action == "reports.sam_counts");
+        audit.TargetId.Should().BeNull();
+        audit.Outcome.Should().Be(AdminAuditOutcome.Succeeded);
+    }
+
+    [Fact]
+    public async Task The_counts_name_no_learner_conversation_turn_or_row()
+    {
+        var admin = await _factory.SeedAdminAsync(AdminEmail);
+        var a = await _factory.SeedAccountAsync("a@admin-tests.local");
+        var b = await _factory.SeedAccountAsync("b@admin-tests.local");
+        var now = _factory.Time.GetUtcNow().UtcDateTime;
+
+        // More than the recorder would leave on such a row, to show the answer takes none of it.
+        var conversationId = Guid.NewGuid().ToString("n");
+        var turnId = Guid.NewGuid().ToString("n");
+        var rowA = await SeedCounterAsync(a, CoachOpportunityKind.OutOfScopeRequest, "off_topic", 2,
+            now.AddHours(-2), now.AddHours(-1), conversationId: conversationId, turnId: turnId);
+        var rowB = await SeedCounterAsync(b, CoachOpportunityKind.OutOfScopeRequest, "off_topic", 1,
+            now.AddHours(-2), now.AddHours(-1));
+        var token = await _factory.IssueTokenAsync(admin, AdminTokenPermissionWire.Reports);
+
+        using var asAdmin = _factory.CreateClientFor(admin);
+        using var asToken = _factory.CreateClientForToken(token.Token);
+        foreach (var client in new[] { asAdmin, asToken })
+        {
+            var response = await client.GetAsync(CountsRoute);
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var text = await response.Content.ReadAsStringAsync();
+
+            text.Should().NotContain(a.UserProfileId!).And.NotContain(b.UserProfileId!)
+                .And.NotContain(a.Email!).And.NotContain(b.Email!)
+                .And.NotContain(conversationId).And.NotContain(turnId)
+                .And.NotContain(rowA).And.NotContain(rowB);
+
+            // Exactly these fields, so a later one is added here on purpose.
+            using var body = JsonDocument.Parse(text);
+            body.RootElement.EnumerateObject().Select(p => p.Name)
+                .Should().BeEquivalentTo("items", "sinceUtc", "truncated");
+            body.RootElement.GetProperty("items").EnumerateArray().Should().ContainSingle()
+                .Which.EnumerateObject().Select(p => p.Name)
+                .Should().BeEquivalentTo(
+                    "kind", "capabilityCode", "count", "learners", "firstObservedAtUtc", "lastObservedAtUtc");
+        }
+    }
+
+    [Fact]
+    public async Task The_counts_since_a_day_leave_out_the_days_before_it()
+    {
+        var admin = await _factory.SeedAdminAsync(AdminEmail);
+        var a = await _factory.SeedAccountAsync("a@admin-tests.local");
+        var b = await _factory.SeedAccountAsync("b@admin-tests.local");
+        var today = _factory.Time.GetUtcNow().UtcDateTime.Date;
+
+        await SeedCounterAsync(a, CoachOpportunityKind.CapacityOrBudgetRefusal, "turn_timeout", 7,
+            today.AddDays(-1).AddHours(9), today.AddDays(-1).AddHours(23));
+        await SeedCounterAsync(a, CoachOpportunityKind.CapacityOrBudgetRefusal, "turn_timeout", 2, today, today.AddMinutes(1));
+        await SeedCounterAsync(b, CoachOpportunityKind.CapacityOrBudgetRefusal, "turn_timeout", 1,
+            today.AddDays(-3), today.AddDays(-3));
+
+        using var client = _factory.CreateClientFor(admin);
+        using var sinceToday = JsonDocument.Parse(await client.GetStringAsync($"{CountsRoute}?since={today:yyyy-MM-dd}"));
+        using var everything = JsonDocument.Parse(await client.GetStringAsync(CountsRoute));
+
+        LinesOf(sinceToday.RootElement)[("capacity_or_budget_refusal", "turn_timeout")].Should().Be((2, 1));
+        sinceToday.RootElement.GetProperty("sinceUtc").GetDateTime().Should().Be(today);
+        LinesOf(everything.RootElement)[("capacity_or_budget_refusal", "turn_timeout")].Should().Be((10, 2));
+    }
+
+    [Theory]
+    [InlineData("since=")]
+    [InlineData("since=yesterday")]
+    [InlineData("since=2026-11-27T10:00:00Z")]
+    [InlineData("since=11/27/2026")]
+    [InlineData("since=2026-13-01")]
+    public async Task A_bad_since_on_the_counts_is_the_routes_own_400(string query)
+    {
+        var admin = await _factory.SeedAdminAsync(AdminEmail);
+        using var client = _factory.CreateClientFor(admin);
+
+        var response = await client.GetAsync($"{CountsRoute}?{query}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await CodeOf(response)).Should().Be(AdminFailureCodes.InvalidRequest);
+    }
+
+    [Fact]
+    public async Task With_nothing_counted_the_counts_are_an_empty_list_and_not_a_refusal()
+    {
+        var (admin, _, _) = await SeedOneAsync();
+        using var client = _factory.CreateClientFor(admin);
+
+        using var body = JsonDocument.Parse(await client.GetStringAsync(CountsRoute));
+
+        body.RootElement.GetProperty("items").GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_token_without_the_reports_permission_is_refused_the_counts()
+    {
+        var admin = await _factory.SeedAdminAsync(AdminEmail);
+        var token = await _factory.IssueTokenAsync(admin, AdminTokenPermissionWire.Triage);
+        using var client = _factory.CreateClientForToken(token.Token);
+
+        var response = await client.GetAsync(CountsRoute);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await CodeOf(response)).Should().Be("not_allowed_for_token");
+    }
+
     // ------------------------------------------------------------------ triage
 
     [Fact]
@@ -916,6 +1121,16 @@ public sealed class AdminReportCodeTests
             ["text", "clarification", "suggestion", "receipt", "notice", "pedagogical_answer", "unrecognized"];
 
         All<CoachMessageKind>().Should().Equal(expected);
+    }
+
+    [Fact]
+    public void Ledger_kinds_as_the_counts_name_them()
+    {
+        All<CoachOpportunityKind>().Should().Equal(
+            "unsupported_capability", "tool_unavailable", "proposal_refused_by_policy", "ambiguous_follow_up",
+            "validation_failure", "tool_execution_failure", "confirmation_lifecycle_failure", "out_of_scope_request",
+            "harmful_or_unsafe_request", "capacity_or_budget_refusal", "user_reported_response",
+            "empty_announcement_retried");
     }
 
     [Fact]

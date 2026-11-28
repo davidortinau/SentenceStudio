@@ -318,6 +318,7 @@ public sealed class AdminAgentTokenTests : IDisposable
         {
             (() => client.GetAsync("/api/admin/reports/sam"), mayRead),
             (() => client.GetAsync($"/api/admin/reports/sam/{reportId}"), mayRead),
+            (() => client.GetAsync("/api/admin/reports/sam/counts"), mayRead),
             (() => client.GetAsync("/api/admin/reports/github"), mayRead),
             (() => client.PostAsync($"/api/admin/reports/sam/{reportId}/exchange", null), mayOpen),
             (() => client.PostAsync("/api/admin/reports/github/screen-states/fs-000000000000", null), mayOpen),

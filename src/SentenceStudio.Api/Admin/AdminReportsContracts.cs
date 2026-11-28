@@ -243,6 +243,34 @@ public sealed record AdminSamExchangeResponse(
     bool Truncated,
     int OpenedCount);
 
+/// <summary>
+/// One line of what Sam's ledger counts about its own turns: every learner's count for one kind
+/// and one capability code, added up. A count, how many learners, and two times.
+/// </summary>
+/// <remarks>
+/// It names no learner, conversation, turn or row: the ledger keeps these as counters (one row
+/// per learner, code and UTC day), and only their sums leave.
+/// </remarks>
+/// <param name="Kind">The ledger kind by name, for example <c>empty_announcement_retried</c>.</param>
+/// <param name="CapabilityCode">The ledger's own code for what happened, for example <c>off_topic</c>.</param>
+/// <param name="Count">How many times it happened, across learners.</param>
+/// <param name="Learners">How many different learners it happened to.</param>
+public sealed record AdminSamCountRow(
+    string Kind,
+    string CapabilityCode,
+    long Count,
+    int Learners,
+    DateTime FirstObservedAtUtc,
+    DateTime LastObservedAtUtc);
+
+/// <summary>What <c>GET /api/admin/reports/sam/counts</c> returns, the largest count first.</summary>
+/// <param name="SinceUtc">The start of the UTC day asked for with <c>since</c>, or null for everything still kept.</param>
+/// <param name="Truncated">True when more lines matched than were returned.</param>
+public sealed record AdminSamCountList(
+    IReadOnlyList<AdminSamCountRow> Items,
+    DateTime? SinceUtc,
+    bool Truncated);
+
 /// <summary>One report a learner filed to GitHub through the app. Public issue facts and codes only.</summary>
 /// <param name="Status">A GitHub code from <see cref="AdminReportCodes"/>.</param>
 /// <param name="ScreenStateReference">The saved screen state's reference, when one was saved.</param>

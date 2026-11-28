@@ -20,6 +20,7 @@ public static class AdminActions
     public const string ReportsSamRead = "reports.sam_read";
     public const string ReportsSamExchangeRead = "reports.sam_exchange_read";
     public const string ReportsSamTriage = "reports.sam_triage";
+    public const string ReportsSamCounts = "reports.sam_counts";
     public const string ReportsGitHubList = "reports.github_list";
     public const string ReportsScreenStateRead = "reports.screen_state_read";
     public const string TokensList = "tokens.list";

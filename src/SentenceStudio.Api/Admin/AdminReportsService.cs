@@ -43,10 +43,15 @@ internal readonly record struct AdminReportResult<T>(AdminReportOutcome Outcome,
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Only what a learner's own flag created.</b> Every query here is fixed to ledger rows of kind
-/// <see cref="CoachOpportunityKind.UserReportedResponse"/>. Rows the server recorded about its
-/// own refusals are not listed, cannot be triaged here and can never be opened: an id that names
-/// one is answered as though it named nothing.
+/// <b>Only what a learner's own flag created.</b> Every query that returns a report is fixed to
+/// ledger rows of kind <see cref="CoachOpportunityKind.UserReportedResponse"/>. Rows the server
+/// recorded about its own refusals are not listed, cannot be triaged here and can never be
+/// opened: an id that names one is answered as though it named nothing.
+/// </para>
+/// <para>
+/// <b>What the server counts about itself leaves only as sums.</b> <see cref="CountSamAsync"/>
+/// adds up the aggregate-only rows across learners, by kind and capability code. No row, learner
+/// or conversation is named in what it returns.
 /// </para>
 /// <para>
 /// <b>Not scoped to the caller.</b> Unlike every learner-facing service, this one reads across
@@ -74,6 +79,12 @@ internal sealed class AdminReportsService(
 
     /// <summary>No real issue number is larger; a bigger one is a mistake, not an issue.</summary>
     public const int MaxIssueNumber = 9_999_999;
+
+    /// <summary>
+    /// How many lines the counts hold. Kinds and capability codes are closed sets, so this is a
+    /// bound on the answer and not a page: reaching it says so.
+    /// </summary>
+    public const int MaxCountLines = 200;
 
     private IQueryable<CoachOpportunity> FlaggedRows => coachDb.CoachOpportunities
         .Where(row => row.Kind == CoachOpportunityKind.UserReportedResponse
@@ -149,6 +160,70 @@ internal sealed class AdminReportsService(
         }
 
         return (Project(row), [.. flags.Select(ProjectFlag)], truncated);
+    }
+
+    // ------------------------------------------------------------------ Sam: what the server counted
+
+    /// <summary>
+    /// What the ledger counts about Sam's own turns, added up across learners: one line per kind
+    /// and capability code, the largest count first.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only rows of disposition <see cref="CoachOpportunityDisposition.AggregateOnly"/>: the
+    /// recorder strips every pointer from those before it writes them, and a learner's flag is
+    /// never one. The answer still takes nothing from a row but its kind, its code, its count and
+    /// its two times, so it would name nobody whatever the row held.
+    /// </para>
+    /// <para>
+    /// A row is one learner, one code and one UTC day, which is why <paramref name="sinceUtc"/>
+    /// is the start of a UTC day: a row last observed on or after it was counted wholly on or
+    /// after it. The retention sweep ages these rows out, so "everything" is everything still
+    /// kept.
+    /// </para>
+    /// </remarks>
+    /// <param name="sinceUtc">The start of a UTC day, or null for every row still kept.</param>
+    public async Task<(List<AdminSamCountRow> Items, bool Truncated)> CountSamAsync(
+        DateTime? sinceUtc, CancellationToken cancellationToken)
+    {
+        var query = coachDb.CoachOpportunities.AsNoTracking()
+            .Where(row => row.Disposition == CoachOpportunityDisposition.AggregateOnly);
+        if (sinceUtc is { } since)
+        {
+            query = query.Where(row => row.LastObservedAtUtc >= since);
+        }
+
+        // One more than the bound, to know whether anything was left out.
+        var lines = await query
+            .GroupBy(row => new { row.Kind, row.CapabilityCode })
+            .Select(group => new
+            {
+                group.Key.Kind,
+                group.Key.CapabilityCode,
+                Count = group.Sum(row => (long)row.OccurrenceCount),
+                Learners = group.Select(row => row.UserProfileId).Distinct().Count(),
+                FirstObservedAtUtc = group.Min(row => row.FirstObservedAtUtc),
+                LastObservedAtUtc = group.Max(row => row.LastObservedAtUtc)
+            })
+            .OrderByDescending(line => line.Count)
+            .ThenBy(line => line.Kind)
+            .ThenBy(line => line.CapabilityCode)
+            .Take(MaxCountLines + 1)
+            .ToListAsync(cancellationToken);
+
+        var truncated = lines.Count > MaxCountLines;
+        if (truncated)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        return ([.. lines.Select(line => new AdminSamCountRow(
+            AdminReportCodes.Describe(line.Kind),
+            line.CapabilityCode,
+            line.Count,
+            line.Learners,
+            line.FirstObservedAtUtc,
+            line.LastObservedAtUtc))], truncated);
     }
 
     // ------------------------------------------------------------------ Sam: triage

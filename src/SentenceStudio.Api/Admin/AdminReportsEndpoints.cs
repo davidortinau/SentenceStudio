@@ -6,7 +6,8 @@ using SentenceStudio.Data;
 namespace SentenceStudio.Api.Admin;
 
 /// <summary>
-/// The feedback inbox: the Sam answers learners flagged and the reports they filed to GitHub.
+/// The feedback inbox: the Sam answers learners flagged and the reports they filed to GitHub, and
+/// the counts Sam's ledger keeps about its own turns.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,6 +36,12 @@ internal static class AdminReportsEndpoints
         group.MapGet($"{Prefix}/sam", ListSamAsync)
             .WithName("ListAdminSamReports")
             .WithAdminAction(AdminActions.ReportsSamList)
+            .AllowAdminToken(AdminTokenPermissions.Reports);
+
+        // A literal segment, so it is matched before {reportId}; no report's id is "counts".
+        group.MapGet($"{Prefix}/sam/counts", CountSamAsync)
+            .WithName("CountAdminSamTurns")
+            .WithAdminAction(AdminActions.ReportsSamCounts)
             .AllowAdminToken(AdminTokenPermissions.Reports);
 
         group.MapGet($"{Prefix}/sam/{{reportId}}", GetSamAsync)
@@ -108,6 +115,29 @@ internal static class AdminReportsEndpoints
             wanted, attention is not null, pageSize, cancellationToken);
         var learners = await NamesForAsync(http, db, [.. items.Select(i => i.LearnerId)], cancellationToken);
         return Results.Ok(new AdminSamReportList(items, learners, attentionCount, unlisted, truncated));
+    }
+
+    private static async Task<IResult> CountSamAsync(
+        HttpContext http,
+        [FromServices] AdminReportsService reports,
+        CancellationToken cancellationToken,
+        [FromQuery] string? since = null)
+    {
+        // A whole UTC day, because that is what a ledger row counts: a time within a day would
+        // promise a split the rows cannot make.
+        DateTime? sinceUtc = null;
+        if (since is not null)
+        {
+            if (!DateOnly.TryParseExact(since, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
+            {
+                return Invalid(http, "since must be a UTC date as yyyy-MM-dd, or left out.");
+            }
+
+            sinceUtc = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        }
+
+        var (items, truncated) = await reports.CountSamAsync(sinceUtc, cancellationToken);
+        return Results.Ok(new AdminSamCountList(items, sinceUtc, truncated));
     }
 
     private static async Task<IResult> GetSamAsync(

@@ -1,14 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using SentenceStudio.Api.Admin;
 using SentenceStudio.Api.Admin.Persistence;
+using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Persistence;
 using SentenceStudio.Api.Feedback.Persistence;
 using SentenceStudio.Api.Startup;
 using SentenceStudio.Api.Tests.Coach.Postgres;
 using SentenceStudio.Contracts.Feedback;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Tests.Admin;
 
@@ -180,5 +183,60 @@ public sealed class AdminReportsPostgresTests : IAsyncLifetime
         again.AttentionCount.Should().Be(1);
         again.Items.Should().ContainSingle().Which.Should().Match<AdminSamReportRow>(
             r => r.Status == AdminReportCodes.StatusAccepted && r.NeedsAttention && r.FlagCount == 2);
+    }
+
+    [PostgresFact]
+    public async Task The_counts_are_grouped_summed_and_windowed_by_PostgreSQL()
+    {
+        using var factory = new AdminApiFactory(_connectionString) { ReportsOnPostgres = true };
+        var admin = await factory.SeedAdminAsync("captain@admin-tests.local");
+        var a = await factory.SeedAccountAsync("a@admin-tests.local");
+        var b = await factory.SeedAccountAsync("b@admin-tests.local");
+        var now = factory.Time.GetUtcNow().UtcDateTime;
+        await factory.SeedFlaggedAnswerAsync(a, "the question", "the answer");
+        await factory.WithCoachDbAsync(async db =>
+        {
+            CoachOpportunity Counter(ApplicationUser learner, string code, int count, DateTime at) => new()
+            {
+                Id = Guid.NewGuid().ToString("n"),
+                UserProfileId = learner.UserProfileId!,
+                Kind = (CoachOpportunityKind)11,
+                Disposition = CoachOpportunityDisposition.AggregateOnly,
+                Surface = CoachOpportunitySurface.TurnOutcome,
+                CapabilityCode = code,
+                Fingerprint = Guid.NewGuid().ToString("n"),
+                DedupBucketDate = DateOnly.FromDateTime(at),
+                OccurrenceCount = count,
+                FirstObservedAtUtc = at,
+                LastObservedAtUtc = at
+            };
+
+            db.CoachOpportunities.AddRange(
+                Counter(a, "empty_announcement_second_reply_held_content", 3, now.AddDays(-2)),
+                Counter(a, "empty_announcement_second_reply_held_content", 2, now.AddHours(-1)),
+                Counter(b, "empty_announcement_second_reply_held_content", 4, now),
+                Counter(b, "empty_announcement_second_reply_empty", 1, now.AddDays(-2)));
+            await db.SaveChangesAsync();
+        });
+
+        using var client = factory.CreateClientFor(admin);
+        using var everything = JsonDocument.Parse(await client.GetStringAsync("/api/admin/reports/sam/counts"));
+        using var sinceToday = JsonDocument.Parse(
+            await client.GetStringAsync($"/api/admin/reports/sam/counts?since={now:yyyy-MM-dd}"));
+
+        var lines = everything.RootElement.GetProperty("items");
+        lines.GetArrayLength().Should().Be(2);
+        lines[0].GetProperty("kind").GetString().Should().Be("empty_announcement_retried");
+        lines[0].GetProperty("capabilityCode").GetString().Should().Be("empty_announcement_second_reply_held_content");
+        lines[0].GetProperty("count").GetInt64().Should().Be(9);
+        lines[0].GetProperty("learners").GetInt32().Should().Be(2);
+        lines[0].GetProperty("firstObservedAtUtc").GetDateTime().Should().Be(now.AddDays(-2));
+        lines[0].GetProperty("lastObservedAtUtc").GetDateTime().Should().Be(now);
+        lines[1].GetProperty("count").GetInt64().Should().Be(1);
+
+        var today = sinceToday.RootElement.GetProperty("items");
+        today.GetArrayLength().Should().Be(1);
+        today[0].GetProperty("count").GetInt64().Should().Be(6);
+        today[0].GetProperty("learners").GetInt32().Should().Be(2);
     }
 }

@@ -15,6 +15,11 @@
 #                                                        since). Set the status, or keep it; with a
 #                                                        number, link that GitHub issue; with none,
 #                                                        unlink it; with neither, the link stays
+#   scripts/admin-api.sh sam-counts [sinceDate]          what Sam's ledger counts about its own turns
+#                                                        (retried empty announcements, off-topic,
+#                                                        limits, timeouts), added up across learners
+#                                                        by kind and code. sinceDate is a UTC day,
+#                                                        yyyy-mm-dd; without it, everything still kept
 #   scripts/admin-api.sh github                          reports filed to GitHub from the app
 #   scripts/admin-api.sh screen-state <reference>        a GitHub report's saved screen state (LEARNER CONTENT)
 #
@@ -56,7 +61,7 @@ else
   while [ "${BASE%/}" != "$BASE" ]; do BASE="${BASE%/}"; done
 fi
 
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 # An id travels in the URL path, so it is held to the characters a real id uses.
 check_id() {
@@ -99,6 +104,15 @@ case "${1:-}" in
       esac
     fi
     BODY="$BODY}" ;;
+  sam-counts)
+    [ $# -le 2 ] || usage
+    ROUTE=/api/admin/reports/sam/counts
+    if [ $# -eq 2 ]; then
+      case "$2" in
+        [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ROUTE="$ROUTE?since=$2" ;;
+        *) echo "STOP: sinceDate must be a UTC day as yyyy-mm-dd" >&2; exit 2 ;;
+      esac
+    fi ;;
   github) [ $# -eq 1 ] || usage; ROUTE="/api/admin/reports/github?take=200" ;;
   screen-state) [ $# -eq 2 ] || usage; check_id "$2"; METHOD=POST; ROUTE="/api/admin/reports/github/screen-states/$2" ;;
   *) usage ;;
