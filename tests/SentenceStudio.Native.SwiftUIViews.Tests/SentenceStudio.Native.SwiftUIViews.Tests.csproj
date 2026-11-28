@@ -62,5 +62,11 @@
              Link="Features/LearningResources/LearningResourceRowView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeResourceDateFormatter.cs"
              Link="Platform/NativeResourceDateFormatter.cs" />
+    <!-- The fonts the flatly, vapor and sketchy themes name
+         (SourceUiAppearance.FontPostScriptName). The iOS app bundles the same files and lists
+         them in its Info.plist; this program registers them when it starts (Main.cs), so a
+         themed text is drawn and measured in its own font and not in a fallback (issue 337). -->
+    <BundleResource Include="../../src/SentenceStudio.Native.iOS/Resources/Fonts/*.ttf"
+                    Link="Fonts/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

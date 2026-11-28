@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using AppKit;
 using CoreGraphics;
+using CoreText;
+using Foundation;
 using Microsoft.SwiftUI;
 using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Data;
@@ -22,6 +24,11 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 
 // Real Microsoft.SwiftUI facade nodes need the native bridge and the main thread.
 NSApplication.Init();
+
+// The app's own fonts, as its Info.plist's UIAppFonts gives them to the iOS app. Without them
+// every flatly, vapor and sketchy text here was drawn in a fallback font, and SwiftUI logged
+// "Unable to update Font Descriptor's weight" for each draw (issue 337).
+RegisterAppFonts();
 
 var style = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), 402);
 var wideStyle = new SourceUiStyle(SourceUiAppearance.FromSelection(AppearanceSelection.Default), 1000);
@@ -1468,6 +1475,63 @@ var cases = new (string Name, Action Test)[]
     // "Without" clears the two frames the link button sets, on the button and on its label row,
     // and the brite button, whose border is drawn around both, must come out lower for it: a
     // comparison that left a frame in place fails there.
+    // Seen in the sessions for issue 278: SwiftUI logged "Unable to update Font Descriptor's
+    // weight" for a descriptor that named Neucha, on every draw of the sketchy link button. The
+    // font was not registered in this program (the app registers it), so the name found no
+    // font, the text was drawn in a fallback and the weight had nothing to change.
+    ("Fonts: a themed text is drawn in the font its theme names, without SwiftUI's weight warning (issue 337)", () =>
+    {
+        const double width = 330;
+        SourceUiAppearance Themed(string theme) => SourceUiAppearance.FromSelection(
+            new AppearanceSelection(theme, AppearanceSelection.Default.Mode, 1));
+        // Every face a theme can name: body, source heading and strong, at each weight
+        // SourceUiTypography gives a role.
+        var named = new HashSet<string>();
+        foreach (var id in ThemeCatalog.All.Select(theme => theme.Id))
+            foreach (var weight in new[] { 400, 500, 600, 700 })
+                foreach (var (heading, strong) in new[] { (false, false), (true, false), (false, true) })
+                    if (Themed(id).FontPostScriptName(weight, heading, strong) is { } name)
+                        named.Add(name);
+        foreach (var expected in new[] { "Neucha", "Lato-Regular", "Lato-Bold", "CabinSketch-Regular", "CabinSketch-Bold" })
+            if (!named.Contains(expected))
+                throw new Exception($"No theme names {expected} any more: bring this list up to date.");
+        foreach (var name in named)
+        {
+            using var font = NSFont.FromFontName(name, 14);
+            if (font is null || font.FontName != name)
+                throw new Exception($"The font {name} is not there to draw with (found {font?.FontName ?? "none"}): bundle and register its file as the app does.");
+        }
+        // The draws that logged it, and one text in each face, drawn while this program's
+        // output is held: SwiftUI writes the warning there.
+        var output = OutputWhile(() =>
+        {
+            foreach (var theme in new[] { "sketchy", "flatly", "vapor" })
+            {
+                var themed = new SourceUiStyle(Themed(theme), width);
+                using var link = themed.TextLinkButton("Report this response", "flag", () => { }, "link");
+                using var body = themed.Text(Views.Text("Report this response"), SourceTextRole.Body1);
+                using var strong = themed.Text(Views.Text("Report this response"), SourceTextRole.Body1Bold);
+                using var heading = themed.Text(Views.Text("Report this response"), SourceTextRole.Title2, sourceHeading: true);
+                foreach (var view in new[] { link, body, strong, heading })
+                    if (PaintedRows(view, width, 400).Count != 1)
+                        throw new Exception($"A {theme} text is not painted as one row.");
+            }
+        });
+        if (output.Contains("Unable to update Font Descriptor"))
+            throw new Exception("SwiftUI logged \"Unable to update Font Descriptor's weight\" while themed texts were drawn: a theme names a font this program does not have.");
+        // The name reaches the drawing: Neucha is a narrower face than the system's.
+        double Painted(string theme)
+        {
+            using var text = new SourceUiStyle(Themed(theme), width).Text(
+                Views.Text("Report this response"), SourceTextRole.Body1);
+            var rows = PaintedRows(text, width, 400);
+            return rows[0].Right - rows[0].Left;
+        }
+        var (sketchy, system) = (Painted("sketchy"), Painted("brite"));
+        if (sketchy > system - 5)
+            throw new Exception($"A sketchy text is painted {sketchy:0.#} points wide and the system font's {system:0.#}: it is not drawn in Neucha.");
+        Console.WriteLine($"     {named.Count} faces found by name; a sketchy text is {sketchy:0.#} points wide, the system font's {system:0.#}.");
+    }),
     ("Minimum height: a link button and an image-and-title button are painted as wide with it as without (issue 278)", () =>
     {
         const double width = 330;
@@ -2050,6 +2114,64 @@ foreach (var (name, test) in cases)
 }
 Console.WriteLine($"{cases.Length - failures} passed, {failures} failed.");
 return failures == 0 ? 0 : 1;
+
+// Registers every font file in the bundle's Fonts folder for this process, as UIAppFonts does
+// for the iOS app (the project file bundles the app's own files).
+static void RegisterAppFonts()
+{
+    var folder = Path.Combine(NSBundle.MainBundle.ResourcePath, "Fonts");
+    var files = Directory.Exists(folder) ? Directory.GetFiles(folder, "*.ttf") : [];
+    if (files.Length == 0)
+        throw new Exception($"No font file is bundled under {folder}.");
+    foreach (var file in files)
+    {
+        var error = CTFontManager.RegisterFontsForUrl(NSUrl.FromFilename(file), CTFontManagerScope.Process);
+        if (error is not null)
+            throw new Exception($"{Path.GetFileName(file)} was not registered: {error.LocalizedDescription}");
+    }
+}
+
+// What the process writes to its standard output and error while the action runs, the native
+// side's buffered output included. Both go back to where they were afterwards.
+static string OutputWhile(Action action)
+{
+    [DllImport("libc")] static extern int dup(int descriptor);
+    [DllImport("libc")] static extern int dup2(int from, int to);
+    [DllImport("libc")] static extern int close(int descriptor);
+    [DllImport("libc")] static extern int fflush(IntPtr stream);
+
+    var path = Path.GetTempFileName();
+    try
+    {
+        Console.Out.Flush();
+        fflush(IntPtr.Zero);
+        var (output, error) = (dup(1), dup(2));
+        using (var file = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+        {
+            var descriptor = (int)file.SafeFileHandle.DangerousGetHandle();
+            dup2(descriptor, 1);
+            dup2(descriptor, 2);
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Console.Out.Flush();
+                fflush(IntPtr.Zero);
+                dup2(output, 1);
+                dup2(error, 2);
+                close(output);
+                close(error);
+            }
+        }
+        return File.ReadAllText(path);
+    }
+    finally
+    {
+        File.Delete(path);
+    }
+}
 
 static RecentLookupRow Row(string id, IReadOnlyList<VocabularyLookupDestination> destinations) =>
     new(id, RecentLookupsAccess.Key(id), "바다", "sea", VocabularyLookupActivity.Reading, "Story",
