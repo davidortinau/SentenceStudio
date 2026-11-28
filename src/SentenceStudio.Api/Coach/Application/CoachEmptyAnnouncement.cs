@@ -160,7 +160,8 @@ public static class CoachEmptyAnnouncement
                 }
 
                 // In English you say "Here is your coffee." gives the sentence, it does not
-                // announce one (issue 326).
+                // announce one (issue 326). So does the sentence set off with emphasis and no
+                // quotation marks: In English you say **Here is your coffee.** (issue 331).
                 if (InsideQuotation(body, lineStart, at))
                 {
                     continue;
@@ -183,13 +184,75 @@ public static class CoachEmptyAnnouncement
     /// second sentence of a quotation is inside it too; a quotation is not followed across lines,
     /// so a stray mark higher up cannot hide an announcement.
     /// </summary>
+    /// <remarks>
+    /// A run of emphasis marks (<c>**</c>, <c>*</c>, <c>__</c>, <c>_</c>, a backtick) that sets
+    /// off part of a sentence is a quotation that closes with the same run (issue 331). One that
+    /// opens where a sentence starts is not: a model puts a whole announcement in bold
+    /// ("**Here are three example sentences.**"), and that one must still be asked for again.
+    /// </remarks>
     private static bool InsideQuotation(string text, int from, int at)
     {
-        // The mark that closes the open quotation, or none.
+        // The mark that closes the open quotation, or none; an emphasis run closes with a run
+        // of the same length.
         var closer = '\0';
+        var closerLength = 1;
+
+        // Emphasis that opened where a sentence starts and is still open. It hides nothing; it
+        // is kept so that its closing run is not read as an opening one ("**차다**를 ...").
+        var standing = '\0';
+        var standingLength = 0;
+
         for (var i = from; i < at; i++)
         {
             var mark = text[i];
+
+            if (mark is '*' or '_' or '`')
+            {
+                var start = i;
+                var length = 1;
+                while (start + length < text.Length && text[start + length] == mark)
+                {
+                    length++;
+                }
+
+                i = start + length - 1;
+                var before = start > 0 ? text[start - 1] : ' ';
+                var after = start + length < text.Length ? text[start + length] : ' ';
+
+                // A run closes after text and opens in front of it ("* " is a list bullet), but
+                // not from inside a word: 2*3 and kick_ball open nothing. A Korean particle
+                // joins a closing run directly (**차다**를), so only Latin letters and digits
+                // make a word of it. A run inside a word may still close ("**kick**s"): closing
+                // early can only let an announcement be seen.
+                var closes = !char.IsWhiteSpace(before);
+                var opens = !char.IsWhiteSpace(after)
+                    && (mark == '`' || !IsLatinLetterOrDigit(before) || !IsLatinLetterOrDigit(after));
+
+                if (closer != '\0')
+                {
+                    if (mark == closer && length == closerLength && closes)
+                    {
+                        closer = '\0';
+                    }
+                }
+                else if (mark == standing && length == standingLength && closes)
+                {
+                    standing = '\0';
+                }
+                else if (opens && !StartsSentence(text, from, start))
+                {
+                    closer = mark;
+                    closerLength = length;
+                }
+                else if (opens && standing == '\0')
+                {
+                    standing = mark;
+                    standingLength = length;
+                }
+
+                continue;
+            }
+
             var afterWord = i > from && char.IsLetterOrDigit(text[i - 1]);
             var beforeWord = i + 1 < text.Length && char.IsLetter(text[i + 1]);
 
@@ -226,7 +289,20 @@ public static class CoachEmptyAnnouncement
         return closer != '\0';
     }
 
+    /// <summary>
+    /// True when nothing of a sentence stands between <paramref name="from"/> and
+    /// <paramref name="at"/>: the line starts there, or the sentence before has ended. Closing
+    /// marks after that sentence's end are stepped over ("**Sure!** *Here are ...").
+    /// </summary>
+    private static bool StartsSentence(string text, int from, int at)
+    {
+        var lead = text[from..at].TrimEnd().TrimEnd(Closers).TrimEnd();
+        return lead.Length == 0 || Array.IndexOf(SentenceEnds, lead[^1]) >= 0;
+    }
+
     private static bool IsLatinLetter(char letter) => letter < '\u0250' && char.IsLetter(letter);
+
+    private static bool IsLatinLetterOrDigit(char letter) => letter < '\u0250' && char.IsLetterOrDigit(letter);
 
     /// <summary>The answer's parts that hold text: the ones the shape repair keeps.</summary>
     private static List<CoachAnswerBlockIntent> PartsWithText(CoachPedagogicalAnswerIntent? answer) =>

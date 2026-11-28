@@ -57,6 +57,23 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("\"차다\"는 이렇게 써요.\nHere are three example sentences.")]
     [InlineData("'차다'를 쓴 예문은 다음과 같습니다.")]
     [InlineData("‘차다’를 쓴 예문은 다음과 같습니다.")]
+    // Issue 331: emphasis near an announcement does not hide it. An announcement that is itself
+    // in emphasis, from the start of the message, of a line or of a sentence, is still one; so
+    // is one after a word in emphasis, and a mark that is not emphasis opens nothing.
+    [InlineData("**Here are three example sentences.**")]
+    [InlineData("*Here are three example sentences.*")]
+    [InlineData("__Here are three example sentences.__")]
+    [InlineData("`Here are three example sentences.`")]
+    [InlineData("Sure! **Here are three example sentences.**")]
+    [InlineData("**Sure!** *Here are three example sentences.*")]
+    [InlineData("차다는 이렇게 써요.\n**Here are three example sentences.**")]
+    [InlineData("For **차다**, here are three example sentences.")]
+    [InlineData("**차다**를 쓴 예문은 다음과 같습니다.")]
+    [InlineData("The word is kick_ball in the list, and here are three example sentences.")]
+    [InlineData("That is 2*3 words, and here are three example sentences.")]
+    [InlineData("* Here are three example sentences.")]
+    [InlineData("The plural is **kick**s, and here are three example sentences.")]
+    [InlineData("In English you say *Hello.* **Here are three example sentences.**")]
     public async Task An_announcement_with_nothing_after_it_is_asked_for_once_more_and_the_answer_is_shown(
         string announcement)
     {
@@ -102,6 +119,17 @@ public class CoachEmptyAnnouncementRetryTests
     [InlineData("한국어로는 \"다음은 제 차례예요\"라고 해요.")]
     [InlineData("한국어로는 「다음은 제 차례예요」라고 해요.")]
     [InlineData("한국어로는 『다음은 제 차례예요』라고 해요.")]
+    // Issue 331: a sentence set off with emphasis and no quotation marks is the content too.
+    [InlineData("In English you say **Here is your coffee.**")]
+    [InlineData("In English you say *Here is your coffee.*")]
+    [InlineData("In English you say __Here is your coffee.__")]
+    [InlineData("In English you say _Here is your coffee._")]
+    [InlineData("In English you say `Here is your coffee.`")]
+    [InlineData("In English you say ***Here is your coffee.***")]
+    [InlineData("In English you say: **Here is your coffee.**")]
+    [InlineData("A waiter might say **Thank you for waiting. Here is your coffee.**")]
+    [InlineData("In English you say **Here is *your* coffee.**")]
+    [InlineData("한국어로는 **다음은 제 차례예요**라고 해요.")]
     public async Task A_reply_that_holds_what_it_says_is_shown_unchanged_and_costs_one_call(string reply)
     {
         var (harness, shown) = await TurnAsync(Reply(reply), Reply("This second reply must never be asked for."));
