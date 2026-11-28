@@ -1805,6 +1805,124 @@ var cases = new (string Name, Action Test)[]
         if (faults.Count > 0)
             throw new Exception($"{faults.Count} of {drawn.Count} turns: {string.Join("; ", faults)}.");
     }),
+    // Issue 352: the import history has the fault the case above found on the channel page. An
+    // import's row chooses its shape when it is built (from 768 points the channel is beside the
+    // title and a row with Retry is one line; under it there is no channel and the date and
+    // Retry are on a second line, issue 292), and nothing told an open page that the width had
+    // crossed 768 points. This mounts the page's own history section once, in one host that
+    // stays: a failed import whose retry is running, a completed one from a channel and one
+    // stuck while it runs. Then it does what ApplicationScene.ViewportChanged does at the
+    // breakpoint: the style takes the new width, the fonts are refreshed, and the page is told
+    // (YouTubeImportView.ViewportChanged, which ApplicationController.YouTubeImportViewportChanged
+    // calls). An 844-point page turns to 375 points and a 375-point page to 844, in English and
+    // Korean, at the default and the largest app text size. After the turn the mounted section
+    // must draw as one built fresh at the new width does (the same title room, the same height,
+    // the channel there or not), stay inside its row, and on the phone show its titles. As in
+    // the case above, the section is in a column and not in its Form, and the page's method is
+    // looked up by name, so that this case builds against the code from before the method was
+    // there and fails on what is drawn. ISSUE_352_TURNED prints the measurements.
+    ("YouTube import page: turning the phone with the import history open gives each import's row the new width's shape, both ways (issue 352)", () =>
+    {
+        const double margin = 100;
+        const double high = 900;
+        const string title = "A very long video title that cannot fit on one line of an iPhone, so it has to truncate somewhere on the way to its end";
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var created = new DateTime(2026, 11, 25, 12, 0, 0, DateTimeKind.Utc);
+        using var import = new YouTubeImportCoordinator(null!, null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<YouTubeImportCoordinator>.Instance);
+        var opens = new YouTubeImportActions(_ => { }, null, null);
+        YouTubeImportState History(string name) => new(true, false, YouTubeImportTab.History, "",
+            false, false, false, false, [], 0, "", null, null, false, [], false,
+            [
+                new("1", name, true, null, VideoImportStatus.Failed, null, created, null, false),
+                new("2", name, false, "Channel", VideoImportStatus.Completed, null, created, "res-1", false),
+                new("3", name, false, null, VideoImportStatus.GeneratingVocabulary, null, created, null, true),
+            ], 3, "1", []);
+        // The Form row of a page that wide (the page less its margins and the row's insets).
+        double RowWidth(double page) => page - 72;
+        var turned = typeof(YouTubeImportView).GetMethod("ViewportChanged", flags);
+        var faults = new List<string>();
+        var drawn = new List<string>();
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var (from, to) in new[] { (844d, 375d), (375d, 844d) })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            if (Words("Import_Retry") == "Import_Retry" || (language == "ko") != Words("Import_Retry").Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: Retry is \"{Words("Import_Retry")}\".");
+            var appearance = SourceUiAppearance.FromSelection(AppearanceSelection.Default.WithFontScale(scale));
+            SwiftView Section(string name, SourceUiStyle look, double page) =>
+                Views.VStack([.. (IEnumerable<SwiftView>)typeof(YouTubeImportView).GetMethod("History", flags)!
+                    .Invoke(null, [import, History(name), look, (Func<string, string>)Words, opens])!])
+                    .WithFixedWidth(RowWidth(page));
+            // What the titles paint (the columns that differ from the same section with blank
+            // titles), how far the paint reaches past the row on either side, and its height.
+            (double Title, double Left, double Right, double High) Measure(bool[][] with, bool[][] without, double page)
+            {
+                var perPoint = with[0].Length / (RowWidth(page) + 2 * margin);
+                var columns = Enumerable.Range(0, with[0].Length).ToArray();
+                var painted = columns.Where(x => with.Any(line => line[x])).ToArray();
+                return (columns.Count(x => Enumerable.Range(0, with.Length).Any(y => with[y][x] != without[y][x])) / perPoint,
+                    painted[0] / perPoint - margin, (painted[^1] + 1) / perPoint - margin,
+                    with.Count(line => line.Any(pixel => pixel)) / perPoint);
+            }
+            // Which of the three rows show their channel: all of them from 768 points, none under.
+            int Channels(SwiftView section) =>
+                Enumerable.Range(1, 3).Count(id => Find(section, $"native.import.youtube.import.{id}.channel") is not null);
+            var look = new SourceUiStyle(appearance, from);
+            using var titled = Section(title, look, from);
+            using var blank = Section(" ", look, from);
+            var (titledHost, blankHost) = (SwiftUIHost.CreateView(titled), SwiftUIHost.CreateView(blank));
+            (double Title, double Left, double Right, double High) before, after, fresh;
+            int channels;
+            try
+            {
+                before = Measure(HostMask(titledHost, RowWidth(from) + 2 * margin, high),
+                    HostMask(blankHost, RowWidth(from) + 2 * margin, high), from);
+                // The turn, as ApplicationScene.ViewportChanged makes it.
+                look.ViewportWidth = to;
+                foreach (var (mounted, name) in new[] { (titled, title), (blank, " ") })
+                {
+                    SourceUiStyle.RefreshTypography(mounted, appearance, to);
+                    turned?.Invoke(null, [mounted, import, History(name), look, (Func<string, string>)Words, opens]);
+                    mounted.WithFixedWidth(RowWidth(to));
+                }
+                // SwiftUI applies a mounted view's changes on the run loop.
+                Foundation.NSRunLoop.Current.RunUntil(Foundation.NSDate.FromTimeIntervalSinceNow(0.05));
+                after = Measure(HostMask(titledHost, RowWidth(to) + 2 * margin, high),
+                    HostMask(blankHost, RowWidth(to) + 2 * margin, high), to);
+                channels = Channels(titled);
+            }
+            finally
+            {
+                SwiftUIHost.DetachView(titled, titledHost);
+                SwiftUIHost.DetachView(blank, blankHost);
+            }
+            var freshLook = new SourceUiStyle(appearance, to);
+            int freshChannels;
+            using (var freshTitled = Section(title, freshLook, to))
+            using (var freshBlank = Section(" ", freshLook, to))
+            {
+                fresh = Measure(PaintedMask(freshTitled, RowWidth(to) + 2 * margin, high),
+                    PaintedMask(freshBlank, RowWidth(to) + 2 * margin, high), to);
+                freshChannels = Channels(freshTitled);
+            }
+            var what = $"The open import history ({language}, text size {scale:0.##}), turned from a {from}-point page to a {to}-point one";
+            drawn.Add($"{what}: titles {before.Title:0.#} and {before.High:0.#} high before; titles {after.Title:0.#}, {after.High:0.#} high, {channels} channels, paint {after.Left:0.#} to {after.Right:0.#} after; built fresh at {to}: titles {fresh.Title:0.#}, {fresh.High:0.#} high, {freshChannels} channels");
+            if (after.Left < -1 || after.Right > RowWidth(to) + 1)
+                faults.Add($"{what} is painted from {after.Left:0.#} to {after.Right:0.#}, past its {RowWidth(to)} points");
+            else if (Math.Abs(after.High - fresh.High) > 1 || Math.Abs(after.Title - fresh.Title) > 1 || channels != freshChannels)
+                faults.Add($"{what} shows {after.Title:0.#} points of its titles, {channels} channels and is {after.High:0.#} points high; a page opened at {to} points shows {fresh.Title:0.#}, {freshChannels} channels and is {fresh.High:0.#} high");
+            // Three letters and the ellipsis of a title at this text size.
+            else if (to < 768 && after.Title < 40 * scale)
+                faults.Add($"{what} shows {after.Title:0.#} points of its titles, under {40 * scale:0.#}");
+        }
+        if (Environment.GetEnvironmentVariable("ISSUE_352_TURNED") is not null)
+            Console.WriteLine(string.Join(Environment.NewLine, drawn));
+        if (faults.Count > 0)
+            throw new Exception($"{faults.Count} of {drawn.Count} turns: {string.Join("; ", faults)}.");
+    }),
 };
 
 var failures = 0;

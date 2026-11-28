@@ -923,6 +923,11 @@ internal sealed partial class ApplicationScene : IDisposable
             // 308): the open channel page's rows change in place, the rest of it stays.
             if (_youTubeChannelContent is not null && _app.IsYouTubeChannelOpen)
                 _app.YouTubeChannelViewportChanged(_youTubeChannelContent, _style);
+            // Every import history row has another shape on the other side of this breakpoint
+            // (the channel column; Retry's second line): the open import page's rows change in
+            // place too, also under an open channel page, which Back returns from (issue 352).
+            if (_youTubeSlot is not null && _app.IsYouTubeImportOpen)
+                _app.YouTubeImportViewportChanged(_youTubeSlot, _style);
             // Sam moves between the sheet and the side panel at this breakpoint.
             if (_updating)
                 _updateRequested = true;

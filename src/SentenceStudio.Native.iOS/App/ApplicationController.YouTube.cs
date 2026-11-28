@@ -123,10 +123,22 @@ internal sealed partial class ApplicationController
 
     internal SwiftView RenderYouTubeImport(SourceUiStyle style) =>
         _youTubeImport is { IsOpen: true } import
-            ? YouTubeImportView.Page(import, style, Text,
-                new YouTubeImportActions(ViewYouTubeResource, () => OpenYouTubeChannel(null),
-                    OpenYouTubeChannel))
+            ? YouTubeImportView.Page(import, style, Text, YouTubeImportPageActions())
             : Views.Text(Text("Common_Loading"));
+
+    private YouTubeImportActions YouTubeImportPageActions() =>
+        new(ViewYouTubeResource, () => OpenYouTubeChannel(null), OpenYouTubeChannel);
+
+    /// <summary>
+    /// The open import page's history rows under <paramref name="mounted"/> take the shape of the
+    /// viewport's new side of 768 points, in place (YouTubeImportView.ViewportChanged).
+    /// </summary>
+    internal void YouTubeImportViewportChanged(SwiftView mounted, SourceUiStyle style)
+    {
+        if (_youTubeImport is { IsOpen: true } import)
+            YouTubeImportView.ViewportChanged(mounted, import, import.State, style, Text,
+                YouTubeImportPageActions());
+    }
 
     /// <summary>What the overlay shows: the banner ids and the current toast (redrawn when it changes).</summary>
     internal string YouTubeImportOverlayKey

@@ -115,6 +115,32 @@ public sealed class NativeYouTubeImportContractTests
     }
 
     [Fact]
+    public void AnOpenImportPageReshapesItsHistoryRowsWhenTheWidthCrossesTheBreakpoint()
+    {
+        // Issue 352: every import history row has another shape on the other side of 768 points
+        // (the channel column from there; the date and Retry on a second line under it), and the
+        // row chose it only when it was built. The scene tells the open import page at the
+        // breakpoint, also under an open channel page, and the page replaces those rows in place
+        // (drawn and measured across the turn in tests/SentenceStudio.Native.SwiftUIViews.Tests).
+        var scene = Source("App/ApplicationScene.cs");
+        var viewport = scene[scene.IndexOf("private void ViewportChanged(", StringComparison.Ordinal)
+            ..scene.IndexOf("private static SwiftView? FindFocusedInput(", StringComparison.Ordinal)];
+        var atBreakpoint = viewport[viewport.IndexOf("if (crossedDesktopBreakpoint)", StringComparison.Ordinal)..];
+        Assert.Contains("if (_youTubeSlot is not null && _app.IsYouTubeImportOpen)\n"
+            + "                _app.YouTubeImportViewportChanged(_youTubeSlot, _style);", atBreakpoint);
+        var controller = Source("App/ApplicationController.YouTube.cs");
+        Assert.Contains("YouTubeImportView.ViewportChanged(mounted, import, import.State, style, Text,\n"
+            + "                YouTubeImportPageActions());", controller);
+        // The reshaped rows open what the page's own rows open.
+        Assert.Contains("? YouTubeImportView.Page(import, style, Text, YouTubeImportPageActions())", controller);
+        var view = Source("Features/Import/YouTubeImportView.cs");
+        // The row and the reshape share one breakpoint, and a mounted row's shape is told by its channel.
+        Assert.Contains("private static bool ShowsChannel(SourceUiStyle style) => style.ViewportWidth >= 768;", view);
+        Assert.Contains("var second = row.CanRetry && !ShowsChannel(style) ? new List<SwiftView>() : null;", view);
+        Assert.Contains("if (Has(child, $\"{id}.channel\") == showsChannel)", view);
+    }
+
+    [Fact]
     public void BadgesAndShortButtonsKeepTheirWidthBesideATruncatedTitle()
     {
         // Source badges are nowrap and the title truncates. A row offers each item an equal share
