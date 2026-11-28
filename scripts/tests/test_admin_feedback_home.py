@@ -56,7 +56,8 @@ class HomeTestCase(unittest.TestCase):
         self.a_home()
 
     def unlock_and_remove(self, holder):
-        subprocess.run(["chflags", "-R", "nouchg", str(self.root)], capture_output=True)
+        if sys.platform == "darwin":   # a file a test locked; there is no chflags elsewhere
+            subprocess.run(["chflags", "-R", "nouchg", str(self.root)], capture_output=True)
         subprocess.run(["chmod", "-R", "u+rwX", str(self.root)], capture_output=True)
         holder.cleanup()
 
