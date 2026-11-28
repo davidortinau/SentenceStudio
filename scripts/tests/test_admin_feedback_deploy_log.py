@@ -179,6 +179,69 @@ class DeployLogTests(unittest.TestCase):
         self.assertEqual(len(self.added()), 1)
         self.assertTrue(self.added()[0].startswith("- 2026-11-26 01:40 UTC "))
 
+    def unwritable_log(self, text):
+        """The log holds text and cannot be written; the script's own check is what must say so."""
+        log = self.tree / LOG
+        log.write_text(text)
+        self.git("add", "-A")
+        self.commit("docs: an earlier deploy's line", "2026-11-26T01:10:00+00:00")
+        log.chmod(0o444)
+        self.addCleanup(log.chmod, 0o644)
+        return log
+
+    @unittest.skipIf(os.geteuid() == 0, "root writes to a read-only file")
+    def test_a_log_that_cannot_be_written_is_said_and_not_called_recorded(self):
+        earlier = self.before + "- 2026-11-20 10:00 UTC `0123abc` an earlier deploy (API revision `api--0000040`)\n"
+        log = self.unwritable_log(earlier)
+        done = self.script("after")
+        self.assertNotEqual(done.returncode, 0, done.stdout)
+        self.assertEqual(log.read_text(), earlier)
+        self.assertNotIn("ok:   recorded in " + LOG, done.stdout)
+        self.assertNotIn("post-deploy checks passed; now do", done.stdout)
+        self.assertIn("FAIL: could not write to %s; this deploy is not recorded. The log is as it was." % LOG, done.stdout)
+        self.assertIn("(API revision `api--0000041`)", done.stdout)
+        self.assertIn("the deploy is not in " + LOG, done.stdout)
+
+    @unittest.skipIf(os.geteuid() == 0, "root writes to a read-only file")
+    def test_a_log_without_its_last_newline_that_cannot_be_written_is_not_called_recorded(self):
+        earlier = self.before + "- 2026-11-20 10:00 UTC `0123abc` an earlier deploy (API revision `api--0000040`)"
+        log = self.unwritable_log(earlier)
+        done = self.script("after")
+        self.assertNotEqual(done.returncode, 0, done.stdout)
+        self.assertEqual(log.read_text(), earlier)
+        self.assertNotIn("ok:   recorded in " + LOG, done.stdout)
+        self.assertIn("FAIL: could not write to %s; this deploy is not recorded. The log is as it was." % LOG, done.stdout)
+
+    def test_a_deploy_recorded_after_a_failed_write_is_written_once_and_whole(self):
+        log = self.tree / LOG
+        log.chmod(0o444)
+        failed = self.script("after")
+        log.chmod(0o644)
+        if os.geteuid() != 0:
+            self.assertNotEqual(failed.returncode, 0, failed.stdout)
+        done = self.script("after")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertEqual(len(self.added()), 1)
+        self.assertTrue(self.added()[0].endswith("(API revision `api--0000041`)"), self.added())
+
+    def test_a_write_that_fails_part_way_leaves_the_log_as_it_was(self):
+        # Stands in for a full disk: the new log cannot be moved into the old one's place.
+        self.executable(self.stub / "bin" / "mv", "#!/bin/bash\necho 'mv: No space left on device' >&2\nexit 1\n")
+        done = self.script("after")
+        self.assertNotEqual(done.returncode, 0, done.stdout)
+        self.assertEqual(self.added(), [])
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertNotIn("ok:   recorded in " + LOG, done.stdout)
+        self.assertIn("FAIL: could not write to %s; this deploy is not recorded. The log is as it was." % LOG, done.stdout)
+
+    def test_a_commit_git_cannot_read_is_said_and_nothing_is_written(self):
+        self.executable(self.stub / "bin" / "git", "#!/bin/bash\nexit 128\n")
+        done = self.script("after")
+        self.assertNotEqual(done.returncode, 0, done.stdout)
+        self.assertEqual(self.added(), [])
+        self.assertNotIn("ok:   recorded in " + LOG, done.stdout)
+        self.assertIn("FAIL: git could not read this checkout's commit; this deploy is not recorded in " + LOG, done.stdout)
+
     def test_an_uncommitted_log_line_does_not_stop_the_next_deploy_s_check(self):
         self.script("after")
         done = self.script("check")

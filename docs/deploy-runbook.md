@@ -840,6 +840,10 @@ your next push at the latest, because the sessions read the file on `main`.
 - `after` records this checkout's `HEAD`. Run it from the checkout that deployed, before
   pulling. If `HEAD` was committed after the revision was created, the script says so, writes
   nothing and prints the line for you to add by hand with the right commit.
+- If the line cannot be written (the file cannot be written, the disk is full), `after` says
+  `FAIL: could not write to docs/deploy-log.md`, leaves the file as it was, prints the line and
+  exits non-zero: the deploy's checks passed, only its record is missing. Rerun `after` once
+  the file can be written, or add the printed line by hand.
 - A deploy made another way (the manual steps below, or Option B) is added by hand in the
   same form, at the end of the file.
 
