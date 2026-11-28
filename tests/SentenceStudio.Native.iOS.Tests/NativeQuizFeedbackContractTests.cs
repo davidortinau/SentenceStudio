@@ -106,8 +106,7 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.Contains("&& result.Fluency is { } fluency", sentence);
         Assert.True(trustedDetails > 0 && scores > trustedDetails
             && recommendation > scores && notes > recommendation);
-        var trustedFields = sentence[trustedDetails..sentence.IndexOf(
-            "var resultCard =", trustedDetails, StringComparison.Ordinal)];
+        var trustedFields = SourceSlice.Until(sentence[trustedDetails..], "var resultCard =");
         Assert.DoesNotContain("if (result.UsageCorrect)", trustedFields);
         Assert.Contains("var graded = !results.IsEmpty;", sentence);
     }

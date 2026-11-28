@@ -25,8 +25,8 @@ public sealed class NativeRecentLookupsContractTests
         Assert.Contains("stack.Push(ApplicationFormRoutes.RecentLookups,\n"
             + "                _lookupsSlot);", scene);
         // A browse list one level above the Library's Vocabulary page keeps the tab bar.
-        var lookups = scene[scene.IndexOf("_lookupsSlot = Views.VStack(", StringComparison.Ordinal)..];
-        lookups = lookups[..lookups.IndexOf("stack.Push(", StringComparison.Ordinal)];
+        var lookups = SourceSlice.From(scene, "_lookupsSlot = Views.VStack(");
+        lookups = SourceSlice.Until(lookups, "stack.Push(");
         Assert.DoesNotContain("WithTabBarHidden", lookups);
         Assert.Contains("_app.OnRecentLookupsPopped();", scene);
         Assert.Equal("recent-lookups", ApplicationFormRoutes.RecentLookups);
@@ -64,7 +64,7 @@ public sealed class NativeRecentLookupsContractTests
     {
         var view = Source("Features/Lookups/RecentLookupsView.cs");
         Assert.Contains("Views.Menu(face, DestinationButtons(row, add))", view);
-        var buttons = view[view.IndexOf("internal static SwiftView[] DestinationButtons(", StringComparison.Ordinal)..];
+        var buttons = SourceSlice.From(view, "internal static SwiftView[] DestinationButtons(");
         Assert.DoesNotMatch(new Regex(@"Views\.(?!Button\()[A-Z][A-Za-z]*\("), buttons);
 
         var host = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(CurrentFile())!,

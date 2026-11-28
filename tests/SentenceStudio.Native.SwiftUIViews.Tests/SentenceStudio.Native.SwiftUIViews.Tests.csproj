@@ -22,7 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.70" />
+    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.71" />
     <PackageReference Include="Microsoft.SwiftUI" />
     <ProjectReference Include="../../src/SentenceStudio.Native/SentenceStudio.Native.csproj" />
     <!-- The views under test and the iOS styling they use (SwiftUI facade only, no UIKit). -->
@@ -32,6 +32,11 @@
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Sam/SamFloatingEntry.cs"
              Link="Features/SamFloatingEntry.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Quiz/*.cs" LinkBase="Features/Quiz" />
+    <!-- The Sam stream (issue 335: the row of links under a reply), and the shared strings its persona reads. -->
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Sam/SamView.cs"
+             Link="Features/SamView.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeLocalizedText.cs"
+             Link="Platform/NativeLocalizedText.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Import/YouTubeImportView.cs"
              Link="Features/Import/YouTubeImportView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Import/YouTubeChannelView.cs"
@@ -57,5 +62,11 @@
              Link="Features/LearningResources/LearningResourceRowView.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeResourceDateFormatter.cs"
              Link="Platform/NativeResourceDateFormatter.cs" />
+    <!-- The fonts the flatly, vapor and sketchy themes name
+         (SourceUiAppearance.FontPostScriptName). The iOS app bundles the same files and lists
+         them in its Info.plist; this program registers them when it starts (Main.cs), so a
+         themed text is drawn and measured in its own font and not in a fallback (issue 337). -->
+    <BundleResource Include="../../src/SentenceStudio.Native.iOS/Resources/Fonts/*.ttf"
+                    Link="Fonts/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

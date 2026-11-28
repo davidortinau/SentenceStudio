@@ -131,9 +131,9 @@
                             <span class="text-secondary-ss flex-grow-1">@item.NativeLanguageTerm</span>
                             <div class="d-flex gap-2 align-items-center flex-wrap">
                                 @{ var typeBadge = GetTypeBadge(item.Type); }
-                                <span class="badge @typeBadge.CssClass"><i class="bi @typeBadge.Icon me-1"></i>@typeBadge.Label</span>
+                                <span class="badge @typeBadge.CssClass"><i class="bi @typeBadge.Icon me-1"></i>@Localize[typeBadge.LabelKey]</span>
                                 @{ var statusBadge = GetStatusBadge(item.Status); }
-                                <span class="badge @statusBadge.CssClass"><i class="bi @statusBadge.Icon me-1"></i>@statusBadge.Label</span>
+                                <span class="badge @statusBadge.CssClass"><i class="bi @statusBadge.Icon me-1"></i>@Localize[statusBadge.LabelKey]</span>
                                 @if (!string.IsNullOrEmpty(item.Reason))
                                 {
                                     <small class="text-danger" title="@item.Reason">
@@ -1133,21 +1133,24 @@
     // and inlined markup at call site. Recheck on each upstream preview release;
     // when fixed, restore the original RenderFragment-returning helpers.
     // See https://github.com/dotnet/razor/issues/13117
-    private static (string CssClass, string Icon, string Label) GetTypeBadge(LexicalUnitType type) => type switch
+    //
+    // The third element is a resource key, drawn with Localize[...] at the call site: the same
+    // keys the native import screens use for these badges, so every client shows the same words.
+    private static (string CssClass, string Icon, string LabelKey) GetTypeBadge(LexicalUnitType type) => type switch
     {
-        LexicalUnitType.Word => ("bg-primary bg-opacity-10 text-primary", "bi-fonts", "Word"),
-        LexicalUnitType.Phrase => ("bg-secondary bg-opacity-10 text-secondary", "bi-chat-quote", "Phrase"),
-        LexicalUnitType.Sentence => ("bg-info bg-opacity-10 text-info", "bi-body-text", "Sentence"),
-        _ => ("bg-secondary bg-opacity-10 text-secondary", "bi-question-circle", "Unknown"),
+        LexicalUnitType.Word => ("bg-primary bg-opacity-10 text-primary", "bi-fonts", "Vocabulary_FilterTypeWord"),
+        LexicalUnitType.Phrase => ("bg-secondary bg-opacity-10 text-secondary", "bi-chat-quote", "Vocabulary_FilterTypePhrase"),
+        LexicalUnitType.Sentence => ("bg-info bg-opacity-10 text-info", "bi-body-text", "Vocabulary_FilterTypeSentence"),
+        _ => ("bg-secondary bg-opacity-10 text-secondary", "bi-question-circle", "Vocabulary_Unknown"),
     };
 
-    private static (string CssClass, string Icon, string Label) GetStatusBadge(ImportItemStatus status) => status switch
+    private static (string CssClass, string Icon, string LabelKey) GetStatusBadge(ImportItemStatus status) => status switch
     {
-        ImportItemStatus.Created => ("bg-success text-white", "bi-plus-circle", "Created"),
-        ImportItemStatus.Updated => ("bg-warning text-dark", "bi-pencil", "Updated"),
-        ImportItemStatus.Skipped => ("bg-info text-dark", "bi-skip-forward", "Skipped"),
-        ImportItemStatus.Failed => ("bg-danger text-white", "bi-x-circle", "Failed"),
-        _ => ("bg-secondary", "bi-question-circle", "Unknown"),
+        ImportItemStatus.Created => ("bg-success text-white", "bi-plus-circle", "Import_Created"),
+        ImportItemStatus.Updated => ("bg-warning text-dark", "bi-pencil", "Import_Updated"),
+        ImportItemStatus.Skipped => ("bg-info text-dark", "bi-skip-forward", "Import_Skipped"),
+        ImportItemStatus.Failed => ("bg-danger text-white", "bi-x-circle", "Import_Failed"),
+        _ => ("bg-secondary", "bi-question-circle", "Vocabulary_Unknown"),
     };
 
     public void Dispose()

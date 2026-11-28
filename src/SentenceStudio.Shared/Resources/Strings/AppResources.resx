@@ -273,10 +273,6 @@
     <value>Saved</value>
     <comment/>
   </data>
-  <data name="ExportData" xml:space="preserve">
-    <value>Export Data</value>
-    <comment/>
-  </data>
   <data name="ExportDataDescription" xml:space="preserve">
     <value>Export all your learning data as CSV files in a ZIP archive. This includes vocabulary, progress, and settings.</value>
     <comment/>
@@ -816,10 +812,6 @@
   <data name="SessionPerformance" xml:space="preserve">
     <value>📊 Session Performance</value>
     <comment>Title for session performance statistics</comment>
-  </data>
-  <data name="Mastered" xml:space="preserve">
-    <value>Mastered</value>
-    <comment>Label for mastered vocabulary words</comment>
   </data>
   <data name="ReviewNeeded" xml:space="preserve">
     <value>Review Needed</value>
@@ -1617,10 +1609,6 @@
     <value>Display mnemonic hints during quiz questions.</value>
     <comment>Description of show mnemonic setting</comment>
   </data>
-  <data name="AutoAdvanceDuration" xml:space="preserve">
-    <value>Auto-Advance Duration</value>
-    <comment>Label for auto-advance duration slider</comment>
-  </data>
   <data name="AutoAdvanceDurationDescription" xml:space="preserve">
     <value>Time in seconds before automatically moving to next question after correct answer.</value>
     <comment>Description of auto-advance duration setting</comment>
@@ -1969,10 +1957,6 @@
   <data name="OpenEndedConversation" xml:space="preserve">
     <value>Continues indefinitely</value>
     <comment>[002-warmup-scenarios] Label for open-ended conversation type</comment>
-  </data>
-  <data name="ScenarioCreated" xml:space="preserve">
-    <value>Scenario created!</value>
-    <comment>[002-warmup-scenarios] Success message after creating scenario</comment>
   </data>
   <data name="ConversationComplete" xml:space="preserve">
     <value>Conversation Complete</value>

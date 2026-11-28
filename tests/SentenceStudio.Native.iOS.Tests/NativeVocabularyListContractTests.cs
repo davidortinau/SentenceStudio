@@ -37,11 +37,12 @@ public sealed class NativeVocabularyListContractTests
     public void RowsSwipeToDeleteAfterAskingAndToStudy()
     {
         var view = ListView;
-        var row = view[view.IndexOf("private static SwiftView ListRow(", StringComparison.Ordinal)..];
+        var row = SourceSlice.From(view, "private static SwiftView ListRow(");
         Assert.Contains("Views.SwipeRow(row, trailing, leading)", row);
         Assert.Contains("Views.Label(text(\"Common_Delete\"), \"trash\")", row);
         // Red, not destructive: a destructive swipe removes its row before the dialog.
-        Assert.DoesNotContain("SwiftButtonRole.Destructive", row[..row.IndexOf("private static string Details(", StringComparison.Ordinal)]);
+        Assert.DoesNotContain("SwiftButtonRole.Destructive", SourceSlice.Until(row,
+            "private static string Details("));
         Assert.Contains("word.AssociatedResources.Count == 0 ? []", row);
         Assert.Contains("Views.Image(word.LexicalUnitType switch", row);
         Assert.Contains("Views.ConfirmationDialog(page, message ?? string.Empty,", view);

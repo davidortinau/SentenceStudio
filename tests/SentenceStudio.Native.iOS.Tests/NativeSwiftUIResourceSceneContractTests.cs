@@ -10,10 +10,9 @@ public sealed class NativeSwiftUIResourceSceneContractTests
     public void ResourcesRefresh_UpdatesTheMountedBrowsePageInPlace()
     {
         var scene = Source();
-        var update = scene[scene.IndexOf("private void UpdateResources(",
-                StringComparison.Ordinal)
-            ..scene.IndexOf("private void UpdateResourceFilters(",
-                StringComparison.Ordinal)];
+        var update = SourceSlice.Between(scene,
+            "private void UpdateResources(",
+            "private void UpdateResourceFilters(");
 
         Assert.Contains("var current = _resourcesSlot.Children.Single();", update);
         Assert.Contains("var oldSearch = Find(current, BrowserPageUpdate.Resources.SearchId);",
@@ -53,8 +52,9 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         Assert.Contains("BrowserPage.AddButton(Prefix, text(\"Resources_AddResource\"), actions.Add,",
             browser);
         // Plain toolbar icons, as on Vocabulary (no tint, no filled Add button when wide).
-        var toolbar = browser[browser.IndexOf("private static SwiftView[] ToolbarActions(", StringComparison.Ordinal)..
-            browser.IndexOf("private static IEnumerable<SwiftView> FilterMenuItems(", StringComparison.Ordinal)];
+        var toolbar = SourceSlice.Between(browser,
+            "private static SwiftView[] ToolbarActions(",
+            "private static IEnumerable<SwiftView> FilterMenuItems(");
         Assert.DoesNotContain("WithTintColor", toolbar);
         Assert.DoesNotContain("PrimaryButton(text(\"Resources_AddResource\")", browser);
         Assert.DoesNotContain("Views.List(", browser);
@@ -125,9 +125,9 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         var controller = File.ReadAllText(Path.GetFullPath(Path.Combine(
             Path.GetDirectoryName(CurrentFile())!,
             "../../src/SentenceStudio.Native.iOS/App/ApplicationController.cs")));
-        var update = scene[scene.IndexOf(
-                "private void UpdateResourceForm(bool themeChanged = false)", StringComparison.Ordinal)
-            ..scene.IndexOf("private SwiftView ResourceFormContent()", StringComparison.Ordinal)];
+        var update = SourceSlice.Between(scene,
+            "private void UpdateResourceForm(bool themeChanged = false)",
+            "private SwiftView ResourceFormContent()");
 
         Assert.Contains("internal void RefreshResourceAddWords(SourceUiStyle style) =>", controller);
         Assert.Contains("_resources?.RefreshAddWords(style);", controller);

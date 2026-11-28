@@ -26,7 +26,7 @@ public sealed class NativeSamConversationListContractTests
         Assert.True(start >= 0, "The conversation's actions menu was not found.");
         // The one statement that builds the menu.
         var menu = sam[start..];
-        menu = menu[..(menu.IndexOf(";\n", StringComparison.Ordinal) + 1)];
+        menu = SourceSlice.Until(menu, ";\n") + ";";
         Assert.Contains("native.sam.conversation.{index}.actions", menu);
         Assert.Contains(".WithMenuLabelFittingContent();", menu);
         // Neither workaround: fixed size cannot shrink, a fixed width does not follow the icon.

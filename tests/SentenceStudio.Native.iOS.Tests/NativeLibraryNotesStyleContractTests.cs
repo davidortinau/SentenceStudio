@@ -41,9 +41,9 @@ public sealed class NativeLibraryNotesStyleContractTests
     public void AnotherResourceOpensWhileOneIsOpenUnlessItHasUnsavedEdits()
     {
         var coordinator = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
-        var open = coordinator[coordinator.IndexOf("private async Task OpenAsync(string id)",
-                StringComparison.Ordinal)..coordinator.IndexOf("private void ResetForm(bool creating)",
-                StringComparison.Ordinal)];
+        var open = SourceSlice.Between(coordinator,
+            "private async Task OpenAsync(string id)",
+            "private void ResetForm(bool creating)");
         Assert.DoesNotContain("_disposed || _formOpen || IsNavigationBlocked", open);
         Assert.Contains("if (FormHasUnsavedChanges)", open);
         Assert.Contains("_formErrorKey = \"ResourceEdit_SaveBeforeOpeningAnother\";", open);

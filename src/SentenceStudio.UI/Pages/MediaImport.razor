@@ -600,7 +600,7 @@
             VideoImportStatus.SavingResource => ("badge bg-info", "bi-save", Localize["Import_Saving"]),
             VideoImportStatus.Completed => ("badge bg-success", "bi-check-circle", Localize["Import_Completed"]),
             VideoImportStatus.Failed => ("badge bg-danger", "bi-x-circle", Localize["Import_Failed"]),
-            _ => ("badge bg-secondary", "bi-question-circle", "Unknown")
+            _ => ("badge bg-secondary", "bi-question-circle", Localize["Vocabulary_Unknown"])
         };
 
         <span class="@badgeClass">

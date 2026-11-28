@@ -68,10 +68,8 @@ public sealed class NativeResourcePickerTests
             "Features", "LearningResources", "LearningResourceFieldsView.cs"));
         // Captain 2026-11-10: the Resources filters are the Vocabulary page's menus (All first).
         var browse = File.ReadAllText(Path.Combine(HeadPath, "Features", "Browse", "BrowserPage.cs"));
-        var filter = browse[browse.IndexOf("internal static SwiftView FilterMenu(",
-            StringComparison.Ordinal)..];
-        var select = fields[fields.IndexOf("internal static SwiftView Select(",
-            StringComparison.Ordinal)..];
+        var filter = SourceSlice.From(browse, "internal static SwiftView FilterMenu(");
+        var select = SourceSlice.From(fields, "internal static SwiftView Select(");
 
         Assert.Contains("new ResourceRequiredPicker(current, options)", select);
         Assert.Contains("next => picker.Select(next, changed)", select);
@@ -116,10 +114,10 @@ public sealed class NativeResourcePickerTests
             "Features", "LearningResources", "LearningResourceView.cs"));
         var fields = File.ReadAllText(Path.Combine(HeadPath,
             "Features", "LearningResources", "LearningResourceFieldsView.cs"));
-        var form = view[view.IndexOf("internal static SwiftView Page(", StringComparison.Ordinal)
-            ..view.IndexOf("internal static SwiftView WithToolbar(", StringComparison.Ordinal)];
-        var select = fields[fields.IndexOf("internal static SwiftView Select(",
-            StringComparison.Ordinal)..];
+        var form = SourceSlice.Between(view,
+            "internal static SwiftView Page(",
+            "internal static SwiftView WithToolbar(");
+        var select = SourceSlice.From(fields, "internal static SwiftView Select(");
 
         Assert.Equal(2, form.Split("LearningResourceFieldsView.Select(style, text(creating").Length - 1);
         Assert.Contains($"state.{field[(field.LastIndexOf('.') + 1)..]}, {catalog}", form);

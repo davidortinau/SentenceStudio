@@ -10,10 +10,9 @@ public sealed class NativeSwiftUIDashboardFidelityContractTests
     public void ModeSwitchShowsInEveryReturningLearnerPhase()
     {
         var dashboard = Source("Features/Dashboard/DashboardView.cs");
-        var page = dashboard[dashboard.IndexOf("internal static SwiftView Page(",
-                StringComparison.Ordinal)
-            ..dashboard.IndexOf("internal static SwiftView WithToolbar(",
-                StringComparison.Ordinal)];
+        var page = SourceSlice.Between(dashboard,
+            "internal static SwiftView Page(",
+            "internal static SwiftView WithToolbar(");
         var switcher = page.IndexOf("var switcher = Views.ButtonGroup([",
             StringComparison.Ordinal);
         Assert.True(switcher > page.IndexOf("if (state.IsNewUser)", StringComparison.Ordinal));
