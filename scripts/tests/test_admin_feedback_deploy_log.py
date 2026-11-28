@@ -21,6 +21,7 @@ SUBJECT = "fix(sam): a reply holds what it announces"
 
 # Answers each az call the script makes from files under $STUB, so a test changes what Azure
 # "says" by writing a file. "revision list" is matched before createdTime: its query sorts by it.
+# No admin list is live, and Sam's settings come back as JSON where deploy asks for them so.
 AZ = """#!/bin/bash
 echo "$*" >> "$STUB/az.log"
 case "$*" in
@@ -28,6 +29,8 @@ case "$*" in
   *"flexible-server show"*) echo Ready ;;
   *"lock list"*) echo CanNotDelete ;;
   *"keyvault secret show"*) echo stand-in ;;
+  *"-o json"*) echo '[{"name": "Coach__Enabled", "value": "true"}]' ;;
+  *"Admin__')].name"*) ;;
   *"revision list"*) printf 'api--before\\n%s\\n' "$(cat "$STUB/revision")" ;;
   *"sticky-sessions set"*) ;;
   *stickySessions.affinity*) echo sticky ;;
@@ -77,8 +80,10 @@ class DeployLogTests(unittest.TestCase):
         path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
     def validator(self, passes):
+        # Its answer is a file under $STUB: changing it leaves the checkout clean for deploy's check.
         self.executable(self.tree / "scripts" / "post-deploy-validate.sh",
-                        "#!/bin/bash\nexit %d\n" % (0 if passes else 1))
+                        "#!/bin/bash\nexit \"$(cat \"$STUB/validator\")\"\n")
+        (self.stub / "validator").write_text("%d\n" % (0 if passes else 1))
 
     def azure(self, revision=None, created=None):
         if revision is not None:
@@ -100,6 +105,11 @@ class DeployLogTests(unittest.TestCase):
 
     def script(self, step):
         return run(["bash", "scripts/prod-deploy.sh", step], self.tree, self.env)
+
+    def deploy(self):
+        """deploy, with a stand-in for azd that ships nothing."""
+        self.executable(self.stub / "bin" / "azd", "#!/bin/bash\necho \"$*\" >> \"$STUB/azd.log\"\n")
+        return self.script("deploy")
 
     def added(self):
         """The lines the script added to the log, and nothing of what was there is changed."""
@@ -163,6 +173,62 @@ class DeployLogTests(unittest.TestCase):
         self.assertNotEqual(done.returncode, 0)
         self.assertEqual(self.added(), [])
         self.assertIn("is not what was deployed", done.stdout)
+
+    def test_deploy_records_the_commit_it_shipped(self):
+        head = self.git("rev-parse", "HEAD")
+        done = self.deploy()
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertEqual((self.stub / "azd.log").read_text(), "deploy -e sstudio-prod-biz --no-prompt\n")
+        self.assertEqual(self.added(), [
+            "- 2026-11-26 01:40 UTC `%s` %s (API revision `api--0000041`)" % (head, SUBJECT)])
+        self.assertNotIn("note: deploy did not make", done.stdout)
+        self.assertEqual(self.git("status", "--porcelain"), "M " + LOG)
+
+    def test_after_rerun_from_an_older_commit_names_the_commit_that_was_deployed(self):
+        # The checks fail, the checkout goes back to an older commit, and after is run again:
+        # that commit is older than the revision, so its age cannot show it is the wrong one.
+        shipped = self.commit("feat: the build that ships", "2026-11-26T01:20:00+00:00")
+        self.validator(passes=False)
+        failed = self.deploy()
+        self.assertNotEqual(failed.returncode, 0, failed.stdout)
+        self.assertEqual(self.added(), [])
+        self.git("checkout", "-q", "--detach", "HEAD~1")
+        self.validator(passes=True)
+        done = self.script("after")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertEqual(self.added(), [
+            "- 2026-11-26 01:40 UTC `%s` feat: the build that ships (API revision `api--0000041`)" % shipped])
+        self.assertNotIn("note: deploy did not make", done.stdout)
+
+    def test_after_rerun_after_a_pull_names_the_commit_that_was_deployed(self):
+        shipped = self.git("rev-parse", "HEAD")
+        self.validator(passes=False)
+        self.deploy()
+        self.commit("feat: pulled after the deploy", "2026-11-26T05:00:00+00:00")
+        self.validator(passes=True)
+        done = self.script("after")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertEqual(self.added(), [
+            "- 2026-11-26 01:40 UTC `%s` %s (API revision `api--0000041`)" % (shipped, SUBJECT)])
+
+    def test_after_where_deploy_did_not_make_the_revision_says_the_commit_is_unchecked(self):
+        head = self.git("rev-parse", "HEAD")
+        done = self.script("after")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertIn("`%s`" % head, self.added()[0])
+        self.assertIn("note: deploy did not make api--0000041 from this checkout", done.stdout)
+        self.assertIn("correct the line before committing it", done.stdout)
+
+    def test_a_commit_kept_for_one_revision_is_not_given_to_the_next(self):
+        self.deploy()
+        self.git("add", "-A")
+        second = self.commit("docs: the deploy log's line", "2026-11-26T02:00:00+00:00")
+        self.azure(revision="api--0000042", created="2026-11-26T02:30:00+00:00")
+        done = self.script("after")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertEqual(self.added()[1], "- 2026-11-26 02:30 UTC `%s` docs: the deploy log's line "
+                                          "(API revision `api--0000042`)" % second)
+        self.assertIn("note: deploy did not make api--0000042 from this checkout", done.stdout)
 
     def test_no_time_from_azure_is_said_and_nothing_is_written(self):
         self.azure(created="")

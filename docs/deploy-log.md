@@ -9,10 +9,19 @@ Each line gives:
   answers from a minute or two after that time, so a turn within a few minutes of it may have
   been answered by either build;
 - the commit that was deployed, and its subject. `git show <commit>:<path>` reads the code
-  that build ran, and `git merge-base --is-ancestor <fix> <commit>` says whether it had a fix;
+  that build ran, and `git merge-base --is-ancestor <fix> <commit>` says whether it had a fix.
+  `deploy` keeps the commit it shipped, so the line names it even when `after` is rerun later
+  from a checkout that has moved. `after` run where `deploy` did not make the revision (a
+  deploy by hand, another checkout) takes that checkout's `HEAD`, which the script cannot
+  check against Azure, and prints a note to correct the line if that is not what was deployed;
 - the name of the API revision in Azure.
 
 Production runs a line's commit from its time until the next line's time.
+
+This is a history of deploys, kept by the script that makes them, and not proof of which build
+answered a given turn: a line's time is a minute or two before its build answers, and a deploy
+that has no line (below) leaves a gap that reads as the build before it. Say so when a
+conclusion rests on it.
 
 The script appends the line and does not commit it: commit and push it with the next push,
 because a reader finds it on `main`. Do not reorder or reword the lines; the script adds each
