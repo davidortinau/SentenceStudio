@@ -223,13 +223,11 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
 
         await AssertSettledExactlyOnceAsync(operationId);
 
-        // A loser on the soft route re-reads and finds a finished operation, so its honest answer
-        // is the winner's receipt rather than a refusal. What matters is that it is the same
-        // receipt: two different ones would mean two different writes.
-        var receipts = outcomes.OfType<CoachWriteReceipt>().ToArray();
-        receipts.Should().NotBeEmpty();
-        receipts.Select(r => r.OperationId).Distinct().Should().ContainSingle();
-        receipts.Should().AllSatisfy(r => r.Status.Should().Be(CoachWriteOperationStatus.Executed));
+        // A loser on the soft route answers from what the winner left behind: a refusal while the
+        // winner is in the handler, the winner's receipt once it has settled. What matters is
+        // that a second receipt is the same receipt and one the audit recorded as a replay: two
+        // different ones, or one with no replay behind it, would mean two different writes.
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId);
     }
 
     /// <summary>
@@ -253,13 +251,17 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
             (ledger, _) => ledger.AcceptAsync(Conversation, operationId));
 
         recorder.Executions.Should().Be(1);
-        outcomes.Should().HaveCount(4);
 
         await using var check = NewAppContext();
         (await check.SkillProfiles.CountAsync(s => s.UserProfileId == Owner && s.Title == "Race wide"))
             .Should().Be(1);
 
         await AssertSettledExactlyOnceAsync(operationId);
+
+        // Three losers, and each may meet the winner at a different moment, so the answers can
+        // be any mix of refusals and replays. Every receipt beyond the winner's has to be a
+        // replay the audit recorded.
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId, callers: 4);
     }
 
     /// <summary>
@@ -276,8 +278,12 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         var recorder = new CoachWriteExecutionRecorder();
         var operationId = await ProposeSkillAsync("Race orphan");
 
-        await RaceAsync(2, recorder, HandlerDwell, (ledger, _) => ledger.AcceptAsync(Conversation, operationId));
+        var outcomes = await RaceAsync(
+            2, recorder, HandlerDwell, (ledger, _) => ledger.AcceptAsync(Conversation, operationId));
         recorder.Executions.Should().Be(1);
+
+        // Checked here, before the later acceptance adds a replay of its own to the audit.
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId);
 
         await using var db = _harness.NewContext();
         await using var appDb = NewAppContext();
@@ -348,7 +354,7 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         var skillId = await SeedSkillAsync("Race external");
         var (operationId, secret) = await ProposeAndChallengeArchiveAsync(skillId);
 
-        await RaceAsync(
+        var outcomes = await RaceAsync(
             3,
             recorder,
             HandlerDwell,
@@ -361,6 +367,7 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         recorder.ExternalEffectTargets.Should().ContainSingle();
 
         await AssertSettledExactlyOnceAsync(operationId);
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId, callers: 3);
     }
 
     /// <summary>
@@ -647,8 +654,11 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         (await check.SkillProfiles.CountAsync(s => s.UserProfileId == Owner && s.Title == "Race contended"))
             .Should().Be(1);
 
-        outcomes.Should().HaveCount(2);
         await AssertSettledExactlyOnceAsync(operationId);
+
+        // The handler does not dwell here, so the caller that lost the claim may re-read the row
+        // before or after the winner settled it: refused, or handed the winner's receipt again.
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId);
     }
 
     /// <summary>
@@ -925,17 +935,25 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
             TaskScheduler.Default).Unwrap()).ToList();
 
     /// <summary>
-    /// Asserts that of two confirmations one executed, and the other was either refused or
-    /// answered with the winner's own receipt.
+    /// Asserts that of <paramref name="callers"/> approvals of one operation, by either route,
+    /// one executed and every other was either refused or answered with the winner's own receipt.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A confirmation that loses the claim re-reads the row and answers from what the winner left
-    /// behind. While the winner is still in the handler that is a refusal. Once the winner has
+    /// An approval that does not get the claim answers from what the winner left behind, whether
+    /// it lost the conditional update and re-read the row or read a row that had already moved.
+    /// While the winner is still in the handler that is a refusal. Once the winner has
     /// settled it is the stored receipt, replayed: the ledger does this on purpose, whatever
     /// secret the request carries, so that a retried confirmation is told the change happened
     /// (<c>CoachWriteLedgerPostgresTests</c> pins the same answer for a spent confirmation).
-    /// Which of the two the loser meets is a matter of milliseconds, so neither may be assumed.
+    /// Which of the two a loser meets is a matter of milliseconds, so neither may be assumed, and
+    /// with more than two callers the losers need not all meet the same one.
+    /// </para>
+    /// <para>
+    /// A soft acceptance has no other answer here than a confirmation has. Both go through
+    /// <c>ApproveAsync</c>, and with a handler that succeeds and a proposal that has not expired a
+    /// loser reaches only the replay, the refusal for a row still <c>Executing</c>, or the same
+    /// refusal after losing the claim on its last attempt.
     /// </para>
     /// <para>
     /// A replayed receipt is told from a second write by the audit, not by counting receipts: the
@@ -945,15 +963,16 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
     /// </para>
     /// </remarks>
     private async Task AssertLoserWasRefusedOrReplayedAsync(
-        IReadOnlyList<object> outcomes, string operationId)
+        IReadOnlyList<object> outcomes, string operationId, int callers = 2)
     {
-        outcomes.Should().HaveCount(2);
+        outcomes.Should().HaveCount(callers);
 
         var receipts = outcomes.OfType<CoachWriteReceipt>().ToArray();
         var refusals = outcomes.OfType<CoachToolException>().ToArray();
 
         receipts.Should().NotBeEmpty("the caller that executed is answered with its receipt");
-        (receipts.Length + refusals.Length).Should().Be(2, "every caller gets a receipt or a refusal");
+        (receipts.Length + refusals.Length).Should().Be(
+            callers, "every caller gets a receipt or a refusal");
 
         receipts.Should().AllSatisfy(r =>
         {
