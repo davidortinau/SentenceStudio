@@ -314,6 +314,23 @@ class BridgeReleaseTests(unittest.TestCase):
         self.assertEqual(due.stdout, "")
         self.assertIn("has changed the bridge's code since v0.1.0-preview.7 without a new version", self.read("bridge-release-note"))
 
+    def test_swift_tests_changed_under_a_version_that_has_its_tag_are_not_a_change_of_code(self):
+        tests = self.bridge / "native/MicrosoftSwiftUIShim/Tests/MicrosoftSwiftUIShimTests"
+        tests.mkdir(parents=True)
+        (tests / "NodeTests.swift").write_text("// a test, which no package holds\n", encoding="utf-8")
+        self.commit("0.1.0-preview.7", "test: a body is built in a hosted view")
+        due = self.run_script("due")
+        self.assertEqual(due.stdout, "")
+        self.assertTrue(self.read("bridge-release-note").startswith("nothing\nNothing to pack"),
+                        self.read("bridge-release-note"))
+        # The Swift side's own source is still code.
+        source = self.bridge / "native/MicrosoftSwiftUIShim/Sources/MicrosoftSwiftUIShim"
+        source.mkdir(parents=True)
+        (source / "SwiftUINode.swift").write_text("// drawn differently\n", encoding="utf-8")
+        self.commit("0.1.0-preview.7", "fix: forgot the version")
+        self.run_script("due")
+        self.assertIn("has changed the bridge's code since v0.1.0-preview.7 without a new version", self.read("bridge-release-note"))
+
     def test_a_tag_that_is_not_on_main_is_said_and_not_packed(self):
         self.git("switch", "-q", "-c", "side")
         self.commit("0.1.0-preview.8", "feat: on a branch (0.1.0-preview.8)")

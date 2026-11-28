@@ -267,8 +267,12 @@ bridge_tests() {
 # does not run: they draw the views and measure them, so a change to the Swift side that breaks
 # a layout fails here and nowhere else. (Until 2026-11-25 no script ran them, and a session had
 # to know to.) Says the count as the managed tests do, and the failures. $1 the log to add to.
+# Says as well, when there are any, how many times SwiftUI itself complained while a test ran
+# ("<file>:<line>: warning: -[<test>] : ..."). Such a line fails nothing, so a passing run hid
+# 54 of them until 2026-11-28 (issue 349: tests that built a body outside a hosted view and so
+# read the environment's defaults). A clean run says nothing more than it did.
 swift_tests() {
-  local log="$1" code total ran failed
+  local log="$1" code total ran failed warned first
   ( cd "$BRIDGE" && within 420 swift test --package-path native/MicrosoftSwiftUIShim ) > "$log.run" 2>&1; code=$?
   cat "$log.run" >> "$log"
   # XCTest gives the whole run's count under "All tests", and only when the run reached its
@@ -281,11 +285,14 @@ swift_tests() {
   # A failed expectation, a test file that does not compile and a crash all say "error:".
   # Said from the bridge's folder and without the compiler's colours.
   grep -E "error: |^Test Case '.*' failed" "$log.run" | sed -e "s#$BRIDGE/##g" -e $'s/\x1b\\[[0-9;]*m//g' | cut -c1-400 | head -20
+  warned="$(grep -cE ': warning: -\[[^]]+\] : ' "$log.run")"
+  first="$(grep -m1 -E ': warning: -\[[^]]+\] : ' "$log.run" | sed -e "s#$BRIDGE/##g" | cut -c1-400)"
   rm -f "$log.run"
   [ "$code" != 124 ] || stop "the bridge's Swift tests did not finish in 420 seconds and were stopped. Their output so far is $log."
   [ -n "$total" ] || stop "the bridge's Swift tests did not run to their end: they did not build, or a test crashed. The whole output is $log."
   [ "$ran" -gt 0 ] || stop "the bridge's Swift tests ran no test. The whole output is $log."
   echo "Swift tests: $((ran - failed))/$ran passed"
+  [ "$warned" = 0 ] || printf '%s\n' "Swift test warnings: $warned (they fail nothing; all are in $log). The first:" "$first"
   [ "$code" = 0 ] && [ "$failed" = 0 ] || stop "the bridge's Swift tests did not all pass. The whole output is $log."
 }
 
