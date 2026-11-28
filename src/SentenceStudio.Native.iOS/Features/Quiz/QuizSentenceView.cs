@@ -19,6 +19,9 @@ internal static class QuizSentenceView
         Action<string> changed, Action submit, Action cancel, Action next)
     {
         var sentence = state.Sentence!;
+        // Issue 328: the word is drawn, here and inside the lines below, without the white
+        // space it was stored with (a line break after it would break each line in two).
+        var term = sentence.TargetLanguageTerm?.Trim() ?? string.Empty;
         var results = state.SentenceResults.IsDefault
             ? ImmutableArray<VocabQuizSentenceGrade>.Empty
             : state.SentenceResults;
@@ -37,7 +40,7 @@ internal static class QuizSentenceView
         var heading = Views.VStack(
                 style.Text(Views.Text(text("VocabQuiz_SentenceShortcut")),
                     SourceTextRole.Caption1, SourceTextTone.Primary),
-                style.Text(Views.Text(sentence.TargetLanguageTerm),
+                style.Text(Views.Text(term),
                         SourceTextRole.Title2, SourceTextTone.Primary)
                     .WithAccessibilityIdentifier(
                         "native.quiz.sentence.target-term"))
@@ -47,7 +50,7 @@ internal static class QuizSentenceView
             : Views.HStack(heading, headerAction);
         header.WithAdaptiveStack(368);
         var instruction = string.Format(CultureInfo.CurrentCulture,
-            text(sentence.InstructionKey), sentence.TargetLanguageTerm);
+            text(sentence.InstructionKey), term);
         var grade = style.PrimaryButton(
                 text(state.IsSentenceSubmitting || busy
                     ? "Common_Loading"
@@ -58,8 +61,7 @@ internal static class QuizSentenceView
             && !string.IsNullOrWhiteSpace(input);
         var placeholder = string.Format(CultureInfo.CurrentCulture,
             text("VocabQuiz_SentencePlaceholder"),
-            string.IsNullOrWhiteSpace(sentence.TargetLanguageTerm)
-                ? "the word" : sentence.TargetLanguageTerm);
+            term.Length == 0 ? "the word" : term);
         var inputView = style.Input(Views.TextEditor(input, value =>
             {
                 changed(value);
@@ -100,7 +102,7 @@ internal static class QuizSentenceView
                     CultureInfo.CurrentCulture,
                     text("NativeVocabQuiz_SentenceResults"),
                     state.SentenceSuccessCount, results.Length,
-                    sentence.TargetLanguageTerm)), SourceTextRole.Body2),
+                    term)), SourceTextRole.Body2),
                 success: state.SentenceSuccessCount > 0)
             .WithAccessibilityIdentifier("native.quiz.sentence.summary"));
         for (var index = 0; index < results.Length; index++)
@@ -113,7 +115,7 @@ internal static class QuizSentenceView
                 ? result.UsageExplanation
                 : string.Format(CultureInfo.CurrentCulture,
                     text(NativeText.SentenceTargetUnconfirmed),
-                    sentence.TargetLanguageTerm);
+                    term);
             var gradeBody = new List<SwiftView>
             {
                 style.Text(Views.Text(text(result.GradeUnavailable

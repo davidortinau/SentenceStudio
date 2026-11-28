@@ -183,7 +183,9 @@ public sealed class NativeQuizFeedbackContractTests
         Assert.Contains("\"xmark.circle.fill\" : \"checkmark.circle.fill\"", feature);
         Assert.Contains(".WithHidden(!correct && !incorrect)", feature);
         Assert.Contains("title.WithForegroundColor(\"#FFFFFF\", \"#FFFFFF\")", feature);
-        Assert.Contains("answer + ChoiceResultCaption(state, answer, text)", feature);
+        // Issue 328: the label reads the option's words without the white space the term was
+        // stored with; the result is still found by the stored term.
+        Assert.Contains("shown + ChoiceResultCaption(state, answer, text)", feature);
         Assert.Contains("+ ChoiceResultCaption(state, choice.Text, text)", feature);
         Assert.Contains("choiceButton.WithAccessibilityAnnouncement(", feature);
     }

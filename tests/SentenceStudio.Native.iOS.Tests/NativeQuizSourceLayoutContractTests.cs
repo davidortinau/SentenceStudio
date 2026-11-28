@@ -322,7 +322,9 @@ public sealed class NativeQuizSourceLayoutContractTests
         Assert.DoesNotContain("state.HasPendingSync", quiz);
         Assert.DoesNotContain("NativeLanguage", sentence);
         Assert.DoesNotContain("Gloss", sentence);
-        Assert.Contains("Views.Text(sentence.TargetLanguageTerm)", sentence);
+        // Issue 328: the heading draws the target word without the white space it was stored with.
+        Assert.Contains("var term = sentence.TargetLanguageTerm?.Trim() ?? string.Empty;", sentence);
+        Assert.Contains("Views.Text(term)", sentence);
     }
 
     [Fact]
