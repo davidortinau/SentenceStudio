@@ -289,22 +289,26 @@ dotnet process**:
 | Direct native client | Required private configuration key | Source |
 | --- | --- | --- |
 | The OpenAI chat clients the MAUI app builder registers, and `AiService`'s direct audio fallback (read only when that fallback runs) | `Settings:OpenAIKey` | `src/SentenceStudio.AppLib/appsettings.json` |
-| `ElevenLabsSpeechService` (including shadowing/timestamped audio) | `Settings:ElevenLabsKey` | Same private file |
+
+`ElevenLabsSpeechService` (including shadowing/timestamped audio) and the voice
+lists need no key in the app: since B60 (`docs/native-port-backports.md`) they
+call the API's `/api/v1/speech/*` as the signed-in learner, and the launcher no
+longer asks for `Settings:ElevenLabsKey`.
 
 Use `src/SentenceStudio.AppLib/appsettings.template.json` for the **names and
 structure only**; the actual `appsettings.json` is gitignored and embedded
 in the local native Debug build, so do not share that file or the built app.
-The Debug `appsettings.Development.json` can override either key and is
+The Debug `appsettings.Development.json` can override the key and is
 checked as part of the effective configuration; do not put secret values in
 that tracked file. A missing file, absent key, non-string, whitespace-only,
 short, or recognizable placeholder key fails without a launch or tunnel
 probe. This checks presence and basic shape, **not** whether the provider
-accepts the credential. Exporting `AI__OpenAI__ApiKey`, `ElevenLabsKey`, or
+accepts the credential. Exporting `AI__OpenAI__ApiKey` or
 `Settings__OpenAIKey` in the build shell is **not** a substitute for mobile
 configuration: the installed app does not reliably inherit shell variables.
-The API speech gateway is registered, but direct ElevenLabs calls remain in
-use and `AiService` has an OpenAI audio fallback; the API tunnel alone cannot
-authenticate those clients.
+Speech goes through the API speech gateway with the learner's token, but the
+chat clients are direct and `AiService` has an OpenAI audio fallback; the API
+tunnel alone cannot authenticate those clients.
 
 To **build and launch** on a selected Android **emulator** or already-booted
 iOS **simulator**, use one of the following. Do not run simultaneous `dotnet`
@@ -342,10 +346,11 @@ It prints `dotnet run --project ... -f net11.0-macos -c Debug
 --no-launch-profile --property:ReferenceHeadConfig=<generated JSON>` but
 never executes it; `--platform macos --launch` is refused. The existing
 AppKit bundle identity can reach Captain's keychain/preferences/SQLite.
-Unlike mobile, the desktop direct OpenAI chat and ElevenLabs registrations
-read the app process's `AI__OpenAI__ApiKey` and `ElevenLabsKey` environment
-variables. `AiService` reads `Settings:OpenAIKey` only when its direct audio
-fallback runs (no speech gateway audio), not at construction: supply it via
+Unlike mobile, the desktop direct OpenAI chat registration reads the app
+process's `AI__OpenAI__ApiKey` environment variable (speech needs no key on
+any head: it goes through the API). `AiService` reads `Settings:OpenAIKey`
+only when its direct audio fallback runs (no speech gateway audio), not at
+construction: supply it via
 the private native `appsettings.json` or the macOS process's
 `Settings__OpenAIKey`. The printed command is **not** credential
 preflighted and must not be executed without these values and an isolated
