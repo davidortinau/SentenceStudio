@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Data.Common;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Abstractions;
@@ -76,17 +78,20 @@ internal sealed class CoachObservedWriteHandler : ICoachWriteHandler
     private readonly CoachWriteExecutionRecorder _recorder;
     private readonly bool _externalEffect;
     private readonly TimeSpan _executionDelay;
+    private readonly Task? _executionHold;
 
     public CoachObservedWriteHandler(
         ICoachWriteHandler inner,
         CoachWriteExecutionRecorder recorder,
         bool externalEffect = false,
-        TimeSpan executionDelay = default)
+        TimeSpan executionDelay = default,
+        Task? executionHold = null)
     {
         _inner = inner;
         _recorder = recorder;
         _externalEffect = externalEffect;
         _executionDelay = executionDelay;
+        _executionHold = executionHold;
     }
 
     public string ToolName => _inner.ToolName;
@@ -118,6 +123,14 @@ internal sealed class CoachObservedWriteHandler : ICoachWriteHandler
             await Task.Delay(_executionDelay, cancellationToken).ConfigureAwait(false);
         }
 
+        if (_executionHold is not null)
+        {
+            // Keeps the caller that won the claim inside the handler, with the row still
+            // Executing, until the test lets go. Not a delay: the test releases it on an event,
+            // and a hold nobody releases fails the run instead of quietly letting it through.
+            await _executionHold.WaitAsync(CoachLostClaimHold.Limit, cancellationToken).ConfigureAwait(false);
+        }
+
         return await _inner.ExecuteAsync(userProfileId, argumentsJson, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -139,6 +152,69 @@ internal sealed class CoachObservedWriteHandler : ICoachWriteHandler
             .UndoAsync(userProfileId, argumentsJson, priorStateJson, cancellationToken)
             .ConfigureAwait(false);
     }
+}
+
+/// <summary>
+/// Holds a caller that has just lost a claim on an operation row, before it reads the row again.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A caller that loses the claim reads the row a second time and answers from what the winner
+/// left there: a refusal while the winner is still in the handler, the winner's receipt once it
+/// has settled. Which of the two it meets is decided in the gap between its claim and that second
+/// read, and that gap is inside one request, where no test can reach from outside. This sits on
+/// the loser's own connection, sees the claim come back with no rows, and waits there until the
+/// test says the winner has settled.
+/// </para>
+/// <para>
+/// Which caller loses is not known in advance, so every caller's context is given the same
+/// instance and it acts only on a claim that changed nothing. A claim is one of the ledger's
+/// conditional <c>ExecuteUpdateAsync</c> calls on the operation row, which EF sends as a
+/// non-query; what the ledger writes through <c>SaveChanges</c> arrives as a reader and is never
+/// mistaken for one. An approval makes one such call, the execution claim. The undo window's
+/// claim and the release of an idempotency key are the same kind of statement on the same table,
+/// so a test that gives this to an undo holds the loser of that claim instead.
+/// </para>
+/// <para>
+/// The wait has a limit, and running into it throws. A loser that is never released means the
+/// winner never answered, and a run that carried on regardless would be reporting on a race that
+/// did not go the way the test says it did.
+/// </para>
+/// </remarks>
+internal sealed class CoachLostClaimHold : DbCommandInterceptor
+{
+    /// <summary>How long any hold in these tests waits to be released before it fails the run.</summary>
+    public static readonly TimeSpan Limit = TimeSpan.FromSeconds(30);
+
+    private readonly TaskCompletionSource _released =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private int _held;
+
+    /// <summary>How many lost claims were held. A test that expects a held loser asserts on this.</summary>
+    public int Held => Volatile.Read(ref _held);
+
+    /// <summary>Lets every held caller go on to its second read.</summary>
+    public void Release() => _released.TrySetResult();
+
+    public override async ValueTask<int> NonQueryExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        int result,
+        CancellationToken cancellationToken = default)
+    {
+        if (result == 0 && IsOperationUpdate(command))
+        {
+            Interlocked.Increment(ref _held);
+            await _released.Task.WaitAsync(Limit, cancellationToken).ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    private static bool IsOperationUpdate(DbCommand command) =>
+        command.CommandText.TrimStart().StartsWith(
+            "UPDATE \"CoachWriteOperation\"", StringComparison.Ordinal);
 }
 
 /// <summary>
@@ -698,6 +774,140 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// A confirmation that loses the claim and reads again after the winner has settled is
+    /// answered with the winner's receipt, and the audit records it as a replay.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The test above reaches this answer only when the loser happens to be slow, and accepts a
+    /// refusal in its place. Here it is the only answer possible: the loser is held on its own
+    /// connection between its lost claim and its second read, and let go when the winner has
+    /// returned, so the row it reads is settled on every run.
+    /// </para>
+    /// <para>
+    /// It pins what a learner is told. Two taps on Confirm that race this way both carry the
+    /// secret, the first spends it, and the second must hear that the change happened rather than
+    /// that it failed.
+    /// </para>
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_confirmation_that_loses_the_claim_and_reads_again_after_the_winner_settled_replays_its_receipt()
+    {
+        var recorder = new CoachWriteExecutionRecorder();
+        var skillId = await SeedSkillAsync("Race replayed after settle");
+        var (operationId, secret) = await ProposeAndChallengeArchiveAsync(skillId);
+        var hold = new CoachLostClaimHold();
+
+        var outcomes = await RaceUnderRowLockAsync(
+            2,
+            recorder,
+            operationId,
+            ledger => ledger.ConfirmAsync(Conversation, operationId, secret),
+            externalEffect: true,
+            interceptor: hold,
+            afterFirstOutcome: hold.Release);
+
+        hold.Held.Should().Be(
+            1, "one caller lost the claim and was held there; otherwise this run proved nothing");
+
+        recorder.ExternalEffects.Should().Be(1, "the replay answers from the ledger, never the handler");
+        recorder.Executions.Should().Be(1);
+
+        outcomes.OfType<CoachToolException>().Should().BeEmpty(
+            "the winner had settled before the loser read again, so there was a receipt to replay");
+        outcomes.OfType<CoachWriteReceipt>().Should().HaveCount(2);
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId);
+
+        await using var ledgerCheck = _harness.NewContext();
+        var audits = await ledgerCheck.CoachWriteAudits.AsNoTracking()
+            .Where(a => a.OperationId == operationId)
+            .Select(a => new { a.Event, a.FailureCode })
+            .ToListAsync();
+
+        audits.Count(a => a.Event == CoachWriteAuditEvent.Replayed).Should().Be(1);
+        audits.Should().NotContain(
+            a => a.Event == CoachWriteAuditEvent.Denied,
+            "the loser was answered, not refused, so nothing was denied");
+
+        await using var check = NewAppContext();
+        (await check.SkillProfiles.AsNoTracking().SingleAsync(s => s.Id == skillId))
+            .IsArchived.Should().BeTrue();
+
+        await AssertSettledExactlyOnceAsync(operationId);
+    }
+
+    /// <summary>
+    /// A confirmation that loses the claim and reads again while the winner is still in the
+    /// handler is refused, and the audit records the refusal against the operation.
+    /// </summary>
+    /// <remarks>
+    /// The other answer of the same second read, pinned the same way. Here it is the winner that
+    /// is held, inside the handler with the row still <c>Executing</c>, until the loser has been
+    /// answered. <see cref="The_loser_of_a_confirmation_race_is_refused_without_reaching_the_handler"/>
+    /// also ends in a refusal, but its loser starts late and is turned away by its first read; it
+    /// never reaches the claim.
+    /// </remarks>
+    [PostgresFact]
+    public async Task A_confirmation_that_loses_the_claim_and_reads_again_while_the_winner_is_executing_is_refused()
+    {
+        var recorder = new CoachWriteExecutionRecorder();
+        var skillId = await SeedSkillAsync("Race refused before settle");
+        var (operationId, secret) = await ProposeAndChallengeArchiveAsync(skillId);
+
+        // Counts the lost claim and lets it straight through: only the winner is held here.
+        var lostClaims = new CoachLostClaimHold();
+        lostClaims.Release();
+        var winnerInHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var executionsWhenLoserAnswered = -1;
+
+        var outcomes = await RaceUnderRowLockAsync(
+            2,
+            recorder,
+            operationId,
+            ledger => ledger.ConfirmAsync(Conversation, operationId, secret),
+            externalEffect: true,
+            interceptor: lostClaims,
+            handlerHold: winnerInHandler.Task,
+            afterFirstOutcome: () =>
+            {
+                executionsWhenLoserAnswered = recorder.Executions;
+                winnerInHandler.TrySetResult();
+            });
+
+        lostClaims.Held.Should().Be(
+            1, "one caller reached the claim and lost it; otherwise the refusal came from its first read");
+        executionsWhenLoserAnswered.Should().Be(
+            1, "the loser was answered while the winner was still inside the handler");
+
+        recorder.ExternalEffects.Should().Be(1);
+        recorder.Executions.Should().Be(1);
+
+        outcomes.OfType<CoachWriteReceipt>().Should().ContainSingle();
+        var refusal = outcomes.OfType<CoachToolException>().Should().ContainSingle().Subject;
+        refusal.Reason.Should().Contain("already being carried out");
+        await AssertLoserWasRefusedOrReplayedAsync(outcomes, operationId);
+
+        await using var ledgerCheck = _harness.NewContext();
+        var audits = await ledgerCheck.CoachWriteAudits.AsNoTracking()
+            .Where(a => a.OperationId == operationId)
+            .Select(a => new { a.Event, a.FailureCode })
+            .ToListAsync();
+
+        audits.Where(a => a.Event == CoachWriteAuditEvent.Denied)
+            .Should().ContainSingle()
+            .Which.FailureCode.Should().Be(
+                CoachWriteFailureCodes.ExecutionInDoubt,
+                "the second read found the claim held, which is not the same as running out of reads");
+        audits.Should().NotContain(a => a.Event == CoachWriteAuditEvent.Replayed);
+
+        await using var check = NewAppContext();
+        (await check.SkillProfiles.AsNoTracking().SingleAsync(s => s.Id == skillId))
+            .IsArchived.Should().BeTrue("the refusal of the loser does not disturb the winner's write");
+
+        await AssertSettledExactlyOnceAsync(operationId);
+    }
+
+    /// <summary>
     /// Two undos that have both read the executed operation reverse it once.
     /// </summary>
     /// <remarks>
@@ -803,15 +1013,25 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
     /// timer would silently degrade into the uncontended case on a slow machine and the test would
     /// go on passing while proving nothing.
     /// </remarks>
+    /// <param name="interceptor">Given to every caller's coach context, when a test has to act between two of a caller's statements.</param>
+    /// <param name="handlerHold">Keeps whichever caller reaches the handler inside it until the task completes.</param>
+    /// <param name="afterFirstOutcome">
+    /// Runs once the first caller has been answered, and also if the race fails before that, so a
+    /// test that holds one caller back can let it go when the other is done.
+    /// </param>
     private async Task<IReadOnlyList<object>> RaceUnderRowLockAsync(
         int callers,
         CoachWriteExecutionRecorder recorder,
         string operationId,
         Func<CoachWriteOperationService, Task<CoachWriteReceipt>> approve,
-        bool externalEffect = false)
+        bool externalEffect = false,
+        IInterceptor? interceptor = null,
+        Task? handlerHold = null,
+        Action? afterFirstOutcome = null)
     {
         using var gate = new Barrier(callers);
         var contexts = new List<IAsyncDisposable>();
+        var firstOutcomeSeen = false;
 
         await using var locker = new Npgsql.NpgsqlConnection(_harness.ConnectionString);
         await locker.OpenAsync().ConfigureAwait(false);
@@ -832,7 +1052,8 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
             var ledgers = new List<CoachWriteOperationService>();
             for (var i = 0; i < callers; i++)
             {
-                ledgers.Add(await NewWarmLedgerAsync(contexts, recorder, TimeSpan.Zero, externalEffect)
+                ledgers.Add(await NewWarmLedgerAsync(
+                        contexts, recorder, TimeSpan.Zero, externalEffect, interceptor, handlerHold)
                     .ConfigureAwait(false));
             }
 
@@ -841,10 +1062,24 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
             await WaitForBlockedBackendsAsync(locker.ProcessID, callers).ConfigureAwait(false);
             await lockTransaction.CommitAsync().ConfigureAwait(false);
 
+            if (afterFirstOutcome is not null)
+            {
+                await Task.WhenAny(running).ConfigureAwait(false);
+                firstOutcomeSeen = true;
+                afterFirstOutcome();
+            }
+
             return await Task.WhenAll(running).ConfigureAwait(false);
         }
         finally
         {
+            // A race that failed before any caller answered still lets a held caller go: its
+            // context is disposed below, and it must not be left waiting on that connection.
+            if (!firstOutcomeSeen)
+            {
+                afterFirstOutcome?.Invoke();
+            }
+
             foreach (var context in contexts)
             {
                 await context.DisposeAsync().ConfigureAwait(false);
@@ -897,9 +1132,11 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         List<IAsyncDisposable> contexts,
         CoachWriteExecutionRecorder recorder,
         TimeSpan handlerDwell,
-        bool externalEffect)
+        bool externalEffect,
+        IInterceptor? interceptor = null,
+        Task? handlerHold = null)
     {
-        var db = _harness.NewContext();
+        var db = interceptor is null ? _harness.NewContext() : _harness.NewContext(interceptor);
         var appDb = NewAppContext();
         contexts.Add(db);
         contexts.Add(appDb);
@@ -910,7 +1147,7 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         await db.CoachWriteOperations.AsNoTracking().Take(1).ToListAsync().ConfigureAwait(false);
         await appDb.SkillProfiles.AsNoTracking().Take(1).ToListAsync().ConfigureAwait(false);
 
-        return NewLedger(db, appDb, Owner, recorder, handlerDwell, externalEffect);
+        return NewLedger(db, appDb, Owner, recorder, handlerDwell, externalEffect, handlerHold);
     }
 
     private static List<Task<object>> StartAll(
@@ -1033,7 +1270,8 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         string owner,
         CoachWriteExecutionRecorder recorder,
         TimeSpan handlerDwell = default,
-        bool externalEffect = false)
+        bool externalEffect = false,
+        Task? handlerHold = null)
     {
         var ownership = new CoachWriteOwnership(appDb);
         var skills = new SkillProfileRepository(_appServices, NullLogger<SkillProfileRepository>.Instance);
@@ -1041,9 +1279,9 @@ public sealed class CoachWriteRacePostgresTests : IAsyncLifetime
         var handlers = new ICoachWriteHandler[]
         {
             new CoachObservedWriteHandler(
-                new CoachSkillEntryHandler(skills, ownership), recorder, false, handlerDwell),
+                new CoachSkillEntryHandler(skills, ownership), recorder, false, handlerDwell, handlerHold),
             new CoachObservedWriteHandler(
-                new CoachSkillArchiveHandler(skills, ownership), recorder, externalEffect, handlerDwell)
+                new CoachSkillArchiveHandler(skills, ownership), recorder, externalEffect, handlerDwell, handlerHold)
         };
 
         return CoachWriteTestScope.NewLedger(

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using SentenceStudio.Api.Coach.Memory;
@@ -163,6 +164,28 @@ internal sealed class CoachPostgresHarness : IAsyncDisposable
     public CoachDbContext NewContext()
     {
         var db = new CoachDbContext(DbOptions);
+        lock (_contexts)
+        {
+            _contexts.Add(db);
+        }
+
+        return db;
+    }
+
+    /// <summary>
+    /// A context over its own connection that reports its commands to the given interceptors.
+    /// </summary>
+    /// <remarks>
+    /// For a test that has to act between two statements of one request, which nothing outside
+    /// the context can do. The schema, the migrations history table and the connection string are
+    /// those of <see cref="NewContext()"/>; only the interceptors are added.
+    /// </remarks>
+    public CoachDbContext NewContext(params IInterceptor[] interceptors)
+    {
+        var db = new CoachDbContext(
+            new DbContextOptionsBuilder<CoachDbContext>(DbOptions)
+                .AddInterceptors(interceptors)
+                .Options);
         lock (_contexts)
         {
             _contexts.Add(db);
