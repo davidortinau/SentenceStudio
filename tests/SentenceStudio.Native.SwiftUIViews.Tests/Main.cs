@@ -1085,6 +1085,84 @@ var cases = new (string Name, Action Test)[]
             }
         }
     }),
+    // Issue 279: the correction row at the app's largest text size, at a phone's widths, in
+    // English and in Korean (the app's own strings). Each button is first drawn with room for
+    // everything, which gives the width and height it needs. Where the two and the gap fit the
+    // width, they are painted in one row at those widths; where they do not, "I was correct" is
+    // painted under Submit, each as wide and as high as it is by itself, so neither label wraps.
+    // (Squeezed into one row at 330 points, the row was one block of paint with wrapped labels.)
+    // The quiz page keeps 16 points each side of its content (QuizPage), so on a phone the row is
+    // offered the screen's width less 32: the last two drawings are that row on a 375-point and
+    // on a 402-point phone, with the style the page builds for that screen.
+    ("Quiz correction: at the largest text size Submit and I was correct stack on a phone when they do not fit one row, in English and Korean (issue 279)", () =>
+    {
+        const double room = 1200;
+        var wrong = new List<string>();
+        var (stacked, sideBySide) = (0, 0);
+        foreach (var language in new[] { "en", "ko" })
+        foreach (var scale in new[] { AppearanceSelection.DefaultFontScale, AppearanceSelection.MaxFontScale })
+        foreach (var (page, width) in new[] { (330d, 330d), (402d, 402d), (951d, 951d), (375d, 343d), (402d, 370d) })
+        {
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language);
+            string Words(string key) => SentenceStudio.LocalizationManager.Instance.GetString(key, culture);
+            var title = Words(NativeText.QuizOverride);
+            if (title == NativeText.QuizOverride || (language == "ko") != title.Any(letter => letter >= '가'))
+                throw new Exception($"The app's {language} strings were not read: the button beside Submit is \"{title}\".");
+            var look = new SourceUiStyle(SourceUiAppearance.FromSelection(
+                AppearanceSelection.Default.WithFontScale(scale)), page);
+            SwiftView SubmitRow(SwiftView? besideSubmit)
+            {
+                var items = new List<SwiftView>();
+                QuizQuestionView.Add(items, QuizCorrection(), "", false, false, look, Words,
+                    _ => { }, _ => { }, false, _ => { }, () => { }, _ => { }, () => { }, () => { },
+                    () => { }, () => { }, _ => { }, (_, _) => { }, () => { }, () => { }, null, besideSubmit);
+                return items.Single(item => Find(item, "native.quiz.correction") is not null);
+            }
+            double OwnWidth(SwiftView view)
+            {
+                var blocks = PaintedRows(view, room, 400);
+                if (blocks.Count != 1)
+                    throw new Exception($"A button drawn by itself with room is painted in {blocks.Count} blocks.");
+                return blocks[0].Right - blocks[0].Left;
+            }
+            using var submitAlone = SubmitRow(null);
+            using var submitAgain = SubmitRow(null);
+            using var overrideAlone = QuizFeedbackView.Override(look, Words, () => { });
+            using var overrideAgain = QuizFeedbackView.Override(look, Words, () => { });
+            // A view is drawn once: the height comes from a second copy.
+            var submit = (Width: OwnWidth(submitAlone), Height: PaintedHeight(submitAgain, room, 400));
+            var beside = (Width: OwnWidth(overrideAlone), Height: PaintedHeight(overrideAgain, room, 400));
+            var oneRow = submit.Width + SourceUiLayout.ItemGap + beside.Width;
+            using var pair = SubmitRow(QuizFeedbackView.Override(look, Words, () => { }));
+            using var pairAgain = SubmitRow(QuizFeedbackView.Override(look, Words, () => { }));
+            var rows = PaintedRows(pair, width, 600);
+            var high = PaintedHeight(pairAgain, width, 600);
+            var at = $"{language}, text size {scale:0.##}, {width} points{(page == width ? "" : $" on a {page}-point screen")}";
+            var drawn = $"painted {string.Join(" and ", rows.Select(row => $"{row.Right - row.Left:0.#} wide"))}, {high:0.#} high; Submit needs {submit.Width:0.#} by {submit.Height:0.#}, \"{title}\" {beside.Width:0.#} by {beside.Height:0.#}, one row {oneRow:0.#}";
+            if (oneRow <= width)
+            {
+                sideBySide++;
+                if (rows.Count != 1 || Math.Abs(rows[0].Right - rows[0].Left - oneRow) > 2
+                    || high - Math.Max(submit.Height, beside.Height) > 2)
+                    wrong.Add($"{at}: the two fit one row and are not in it ({drawn})");
+                continue;
+            }
+            stacked++;
+            if (submit.Width > width || beside.Width > width)
+                throw new Exception($"{at}: a button does not fit the width by itself ({drawn}); this case does not cover that.");
+            if (rows.Count != 2
+                || Math.Abs(rows[0].Right - rows[0].Left - submit.Width) > 2
+                || Math.Abs(rows[1].Right - rows[1].Left - beside.Width) > 2
+                || Math.Abs(high - (submit.Height + SourceUiLayout.ItemGap + beside.Height)) > 2)
+                wrong.Add($"{at}: the two do not fit one row and are not one under the other at their own sizes ({drawn})");
+            else if (rows.Any(row => Math.Abs((row.Left + row.Right) / 2 - width / 2) > 2))
+                wrong.Add($"{at}: a stacked button is off the center ({drawn})");
+        }
+        if (wrong.Count > 0)
+            throw new Exception($"{wrong.Count} drawings are wrong: {string.Join("; ", wrong)}.");
+        if (stacked == 0 || sideBySide == 0)
+            throw new Exception($"The case must draw both: {stacked} drawings stacked and {sideBySide} side by side.");
+    }),
     // Issue 328 (Captain, 2026-11-27): one answer of four was a text line taller than the
     // others, and another began a space to the right. SwiftUI draws the white space a term
     // was stored with (a line break after it is an empty second line), where the web page
@@ -1906,7 +1984,10 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
         host.CacheDisplay(host.Bounds, bitmap);
         if (!bitmap.HasAlpha || bitmap.IsPlanar || bitmap.BitsPerSample != 8)
             throw new Exception("The host's bitmap is not 8-bit meshed pixels with alpha, so paint cannot be told from background.");
-        var scale = bitmap.PixelsWide / width;
+        // Read once: each of these is a call into the bitmap, and there is one read per pixel
+        // (asked for again at every pixel, a 1200 by 400 canvas took minutes: issue 279).
+        var (data, stride, wide, high) = (bitmap.BitmapData, (int)bitmap.BytesPerRow, (int)bitmap.PixelsWide, (int)bitmap.PixelsHigh);
+        var scale = wide / width;
         var samples = (int)bitmap.BitsPerPixel / 8;
         var alpha = bitmap.BitmapFormat.HasFlag(NSBitmapFormat.AlphaFirst) ? 0 : (int)bitmap.SamplesPerPixel - 1;
         var rows = new List<(double Left, double Right)>();
@@ -1917,11 +1998,11 @@ static List<(double Left, double Right)> PaintedRows(SwiftView root, double widt
                 rows.Add((ended.Left / scale, (ended.Right + 1) / scale));
             run = null;
         }
-        for (var y = 0; y < bitmap.PixelsHigh; y++)
+        for (var y = 0; y < high; y++)
         {
             (int Left, int Right)? painted = null;
-            for (var x = 0; x < bitmap.PixelsWide; x++)
-                if (Marshal.ReadByte(bitmap.BitmapData, y * (int)bitmap.BytesPerRow + x * samples + alpha) != 0)
+            for (var x = 0; x < wide; x++)
+                if (Marshal.ReadByte(data, y * stride + x * samples + alpha) != 0)
                     painted = (painted?.Left ?? x, x);
             if (painted is { } row)
                 run = (Math.Min(run?.Left ?? row.Left, row.Left), Math.Max(run?.Right ?? row.Right, row.Right));
