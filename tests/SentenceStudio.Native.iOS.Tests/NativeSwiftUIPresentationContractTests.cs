@@ -36,6 +36,10 @@ public sealed class NativeSwiftUIPresentationContractTests
             var source = File.ReadAllText(file);
             Assert.DoesNotContain("using UIKit;", source);
             Assert.DoesNotContain("import UIKit", source);
+            // Nor a UIKit type by its full name (issue 316: Sam's controller read
+            // UIKit.UIAccessibility and UIKit.UIDevice that way, past the two lines above).
+            // What the head needs from the system is asked through a service under Platform/.
+            Assert.DoesNotMatch(@"\bUIKit\.[A-Za-z]", source);
             Assert.DoesNotContain("UIHostingController", source);
             Assert.DoesNotContain("UIViewRepresentable", source);
         }

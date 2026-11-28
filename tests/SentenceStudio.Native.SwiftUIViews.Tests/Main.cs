@@ -1092,6 +1092,11 @@ var cases = new (string Name, Action Test)[]
     // taller. Issue 260 also took fixed size off the badges and Retry, and this case refused it;
     // issue 277 drew the wider badges, which wrap without it, and put it back (the next case).
     // Select All New is still not fixed-size.
+    // Since issue 292 the import row put together here is no longer the row a phone draws: on a
+    // page under 768 points the view's ImportRow puts the date and Retry of a row with Retry on
+    // a second line, and this one keeps all four on one. It still shows that the badge and
+    // Retry keep one line where they share a line with a long title; the pages' own rows are
+    // drawn by the two cases below.
     ("YouTube rows: the badges, Retry and Select All New keep one line beside a long title (issue 260)", () =>
     {
         const double width = 330;
@@ -1227,9 +1232,16 @@ var cases = new (string Name, Action Test)[]
     // the row. This one draws the pages' own rows (History's and Discovery's, from a state made
     // here): each row alone, and all of them inside the grouped Form they sit in, at an iPhone's
     // and an iPad's width, in English and in Korean (the app's own strings), at the default and
-    // at the largest app text size, with a title too long for any of them. Each is drawn again
-    // with room for everything on one line: a row whose badge, date or button wrapped is taller
-    // than that. (Without fixed size a stuck import's row was 164 points high at 330, not 40.)
+    // at the largest app text size, with a title too long for any of them. Each is compared
+    // with the same row, built for the same page width and drawn 2000 points wide, where every
+    // item has room at its own width: a row whose badge, date or button wrapped is taller than
+    // that. (Before issue 277's fix, without fixed size, a stuck import's row was 164 points
+    // high at 330, where the row with room was 40.)
+    // What is compared is a row with itself, not with one line. Since issue 292 an import row
+    // with Retry on a page under 768 points has two lines by design (the badge and the title,
+    // then the date and Retry), so the failed and the stuck import have two at 330 and 402
+    // points here, as drawn and with room alike. The name still says "keep one line", from
+    // before that: it is kept because proof files and earlier pull requests cite it.
     ("YouTube rows: at iPad width, in Korean and at the largest app text size the pages' own rows keep one line, alone and in a Form (issue 277)", () =>
     {
         const double room = 2000;
@@ -1283,29 +1295,31 @@ var cases = new (string Name, Action Test)[]
             SwiftView DiscoveryForm() => NativeForm.Page(look,
                 [(SwiftView)typeof(YouTubeChannelView).GetMethod("Discovery", flags)!
                     .Invoke(null, [channel, videos, look, (Func<string, string>)Words])!], "form", "page");
-            void OneLine(string what, Func<SwiftView> build, Func<SwiftView, double, double> height)
+            // The same row or Form twice (the same build, so the same page width and the same
+            // lines by design): as drawn, and with room for every item at its own width.
+            void NothingWraps(string what, Func<SwiftView> build, Func<SwiftView, double, double> height)
             {
                 using var drawn = build();
                 using var withRoom = build();
-                var (high, oneLine) = (height(drawn, width), height(withRoom, room));
+                var (high, roomy) = (height(drawn, width), height(withRoom, room));
                 // Taller only: with room more of the title shows, and its letters can reach lower.
-                if (high - oneLine > 2)
-                    wrapped.Add($"{what} ({language}, text size {scale:0.##}, {width} points) is {high:0.#} points high, and {oneLine:0.#} with room for one line");
+                if (high - roomy > 2)
+                    wrapped.Add($"{what} ({language}, text size {scale:0.##}, {width} points) is {high:0.#} points high, and {roomy:0.#} when it is drawn {room} points wide, with room for every item at its own width");
             }
             for (var index = 0; index < history.DisplayedImports.Length; index++)
             {
                 var at = index;
-                OneLine($"The import row {history.DisplayedImports[at].Status}", () => ImportRow(at),
+                NothingWraps($"The import row {history.DisplayedImports[at].Status}", () => ImportRow(at),
                     (row, wide) => PaintedHeight(row, wide, 300));
             }
             for (var index = 0; index < videos.Videos.Length; index++)
             {
                 var at = index;
-                OneLine($"The channel's video row {videos.Videos[at].ImportStatus?.ToString() ?? "New"}", () => VideoRow(at),
+                NothingWraps($"The channel's video row {videos.Videos[at].ImportStatus?.ToString() ?? "New"}", () => VideoRow(at),
                     (row, wide) => PaintedHeight(row, wide, 300));
             }
-            OneLine("The import history in its Form", HistoryForm, (form, wide) => HeightOffCanvas(form, wide, 700));
-            OneLine("The channel's videos in their Form", DiscoveryForm, (form, wide) => HeightOffCanvas(form, wide, 700));
+            NothingWraps("The import history in its Form", HistoryForm, (form, wide) => HeightOffCanvas(form, wide, 700));
+            NothingWraps("The channel's videos in their Form", DiscoveryForm, (form, wide) => HeightOffCanvas(form, wide, 700));
         }
         if (wrapped.Count > 0)
             throw new Exception($"Something beside the title wrapped in {wrapped.Count} drawings: {string.Join("; ", wrapped)}.");
